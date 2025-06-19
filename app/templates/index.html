@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html class="no-js" lang="id">
+
+{% include 'header.html' %}
+
+<body>
+    <!-- BEGIN Navbar -->
+    {% include 'navbar.html' %}
+    <!-- END Navbar -->
+
+    <!-- BEGIN Container -->
+    <div class="container-fluid" id="main-container">
+        <!-- BEGIN Sidebar -->
+        {% include 'index_sidebar.html' %}
+        <!-- END Sidebar -->
+
+        <!-- BEGIN Content -->
+        <div id="main-content">
+            <!-- BEGIN Page Title -->
+            <div class="page-title">
+                <div>
+                    <h1><i class="icon-shield"></i>Dashboard</h1>
+                </div>
+            </div>
+            <!-- END Page Title -->
+
+            <!-- BEGIN Breadcrumb -->
+            <div id="breadcrumbs">
+                <ul class="breadcrumb">
+                    <li class="active"><i class="icon-home"></i> Home</li>
+                </ul>
+            </div>
+            <!-- END Breadcrumb -->
+
+    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
+        <i class="icon-chevron-up"></i>
+    </a>
+
+    <!-- END Container -->
+
+    <!-- Scripts -->
+    {% include 'jsscript.html' %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</body>
+</html>

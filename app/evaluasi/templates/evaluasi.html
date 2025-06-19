@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="id">
+{% include 'header.html' %}
+<body>
+    <!-- BEGIN Navbar -->
+    {% include 'navbar.html' %}
+    <!-- END Navbar -->
+
+    <!-- BEGIN Container -->
+    <div class="container-fluid" id="main-container">
+        <!-- BEGIN Sidebar -->
+        {% include 'eval_sidebar.html' %}
+        <!-- END Sidebar -->
+
+        <!-- BEGIN Content -->
+        <div id="main-content">
+            <!-- BEGIN Page Title -->
+            <div class="page-title">
+                <div>
+                    <h1><i class="icon-shield"></i>Evaluasi Model TF-IDF</h1>
+                </div>
+            </div>
+            <!-- END Page Title -->
+
+            <!-- BEGIN Breadcrumb -->
+            <div id="breadcrumbs">
+                <ul class="breadcrumb">
+                    <li class="active"><i class="icon-home"></i> Home</li>
+                </ul>
+            </div>
+            <!-- END Breadcrumb -->
+
+            <!-- BEGIN Main Content -->
+            <div class="box-content">
+                <form id="eval-form" method="post" enctype="multipart/form-data">
+                    <label>Upload CSV Hasil TF-IDF (testing):</label>
+                    <input type="file" name="file" id="eval-file" accept=".csv" required>
+                    <button type="submit" class="btn btn-primary">Evaluasi</button>
+                </form>
+            
+                <div id="loading" style="display: none;">⏳ Memproses data...</div>
+                <div id="statusMessage" style="margin-top: 0.5rem;"></div>
+            
+                <div style="margin-top: 1rem;">
+                    <button id="clear-data" class="btn btn-danger">Hapus Data & Model</button>
+                    <button class="btn btn-outline-primary" onclick="window.location='/download/model_mlp_custom.keras'">Download
+                        Model</button>
+                    <button class="btn btn-outline-primary" onclick="window.location='/download/label_encoder.pkl'">Download Label
+                        Encoder</button>
+                    <button class="btn btn-outline-primary" onclick="window.location='/download/data_eval.csv'">Download Data
+                        Evaluasi</button>
+                </div>
+            
+                <div class="table-responsive mt-3">
+                    <table class="table table-bordered">
+                        <thead id="table-header"></thead>
+                        <tbody id="reviews-table-body"></tbody>
+                    </table>
+            
+                    <div id="confusion-matrix-wrapper" style="margin-top: 2rem;">
+                        <h4>Confusion Matrix</h4>
+                        <div id="confusion-matrix"></div>
+                        <div id="metrics-wrapper" style="margin-top: 2rem;">
+                            <h4>Skor Evaluasi</h4>
+                            <table class="table table-bordered table-sm" id="metrics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metrik</th>
+                                        <th>Nilai</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END Content -->
+
+    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
+        <i class="icon-chevron-up"></i>
+    </a>
+
+    <!-- END Container -->
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(function () {
+    function renderTable(data) {
+        if (!data.length) return;
+        const columns = Object.keys(data[0]);
+        $("#table-header").html(`<tr><th>#</th>${columns.map(col => `<th>${col}</th>`).join("")}</tr>`);
+        $("#reviews-table-body").html(data.map((row, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                ${columns.map(col => {
+                    const val = row[col] ?? "-";
+                    const mismatch = col === "Status" && row["Asli"] && row["Status"] !== row["Asli"];
+                    return `<td style="${mismatch ? 'background:#f8d7da;color:#721c24;' : ''}">${val}</td>`;
+                }).join("")}
+            </tr>
+        `).join(""));
+    }
+
+    function renderConfusionMatrix(matrix, labels) {
+        if (!matrix || !matrix.length) {
+            $("#confusion-matrix").html("<p>Tidak ada matrix tersedia.</p>");
+            return;
+        }
+
+        let html = "<table class='table table-bordered table-sm'>";
+        html += "<thead><tr><th></th>" + labels.map(l => `<th>${l}</th>`).join("") + "</tr></thead>";
+        html += "<tbody>";
+
+        matrix.forEach((row, i) => {
+            html += `<tr><th>${labels[i]}</th>` + row.map(cell => `<td>${cell}</td>`).join("") + "</tr>";
+        });
+
+        html += "</tbody></table>";
+        $("#confusion-matrix").html(html);
+    }
+
+    function renderMetrics(metrics) {
+        if (!metrics) return;
+        const rows = [
+            ["Akurasi", metrics.accuracy],
+            ["Presisi", metrics.precision],
+            ["Recall", metrics.recall],
+            ["F1-Score", metrics.f1_score]
+        ];
+        $("#metrics-table tbody").html(rows.map(([name, val]) => `
+            <tr><td>${name}</td><td>${val.toFixed(2)}%</td></tr>
+        `).join(""));
+    }    
+    
+    // Evaluasi form
+    $("#eval-form").submit(function (e) {
+        e.preventDefault();
+        $("#statusMessage, #table-header, #reviews-table-body, #confusion-matrix").empty();
+        $("#loading").show();
+    
+        const formData = new FormData(this);
+        $.ajax({
+            url: "/evaluasi/evaluate",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: res => {
+                $("#loading").hide();
+                let message = res.message;
+                if (res.skipped_rows > 0) {
+                    message += ` (${res.skipped_rows} baris tidak valid dilewati)`;
+                }
+                $("#statusMessage").text(message);
+                renderTable(res.data || []);
+                renderConfusionMatrix(res.confusion_matrix, res.labels);
+                renderMetrics(res.metrics);
+            },
+            error: xhr => {
+                $("#loading").hide();
+                $("#statusMessage").text(xhr.responseJSON?.error || "❌ Gagal evaluasi file.");
+            }
+        });
+    });
+    
+    // Tombol Hapus
+    $("#clear-data").click(function () {
+        $.post("/evaluasi/clear", function (res) {
+            $("#statusMessage").text(res.message);
+            $("#table-header, #reviews-table-body, #confusion-matrix").empty();
+        }).fail(() => {
+            $("#statusMessage").text("❌ Gagal menghapus data.");
+        });
+    });
+
+    $("#clear-data").click(function () {
+        $.post("/evaluasi/clear", function (res) {
+            $("#statusMessage").text(res.message);
+            $("#table-header, #reviews-table-body, #confusion-matrix").empty();
+        }).fail(() => {
+            $("#statusMessage").text("❌ Gagal menghapus data.");
+        });
+    });
+});
+</script>
+</body>
+</html>

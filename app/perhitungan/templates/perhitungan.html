@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+{% include 'header.html' %}
+<body>
+    <!-- BEGIN Navbar -->
+    {% include 'navbar.html' %}
+    <!-- END Navbar -->
+
+    <!-- BEGIN Container -->
+    <div class="container-fluid" id="main-container">
+        <!-- BEGIN Sidebar -->
+        {% include 'perhitungan_sidebar.html' %}
+        <!-- END Sidebar -->
+
+        <!-- BEGIN Content -->
+        <div id="main-content">
+            <!-- BEGIN Page Title -->
+            <div class="page-title">
+                <div>
+                    <h1><i class="icon-shield"></i>Pelatihan</h1>
+                </div>
+            </div>
+            <!-- END Page Title -->
+
+            <!-- BEGIN Breadcrumb -->
+            <div id="breadcrumbs">
+                <ul class="breadcrumb">
+                    <li class="active"><i class="icon-home"></i> Home</li>
+                </ul>
+            </div>
+            <!-- END Breadcrumb -->
+
+            <!-- BEGIN Main Content -->
+            <div class="box-content">
+                <h3>Upload</h3>
+                <form id="upload-form" method="post" enctype="multipart/form-data">
+                    <input type="file" name="file" id="file" accept=".csv" required>
+                    <button type="submit" class="btn btn-primary">Unggah dan Proses Data</button>
+                </form>
+            
+                <div id="loading" style="display: none;">⏳ Memproses data...</div>
+                <div id="statusMessage" style="margin-top: 0.5rem;"></div>
+            
+                <div style="margin-top: 1rem;">
+                    <button id="clear-data" class="btn btn-danger">Hapus Data & Model</button>
+                    <button class="btn btn-outline-primary"
+                            onclick="window.location='/perhitungan/copy-download-model'">
+                            Download Model
+                    </button>
+                    
+                    <button class="btn btn-outline-primary"
+                            onclick="window.location='/perhitungan/copy-download-encoder'">
+                            Download Label Encoder
+                    </button>
+                    <button class="btn btn-outline-primary"
+                            onclick="window.location='/perhitungan/download/data_uji.csv'">
+                            Download Data Uji (30%)
+                    </button>
+                </div>
+            
+                <div class="table-responsive" style="margin-top: 1rem;">
+                    <table class="table table-bordered">
+                        <thead id="table-header"></thead>
+                        <tbody id="reviews-table-body"></tbody>
+                    </table>
+                    <div id="eval-info" style="margin-top: 1rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END Content -->
+
+    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
+        <i class="icon-chevron-up"></i>
+    </a>
+
+    <!-- END Container -->
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(function () {
+    function renderTable(data) {
+        if (data.length === 0) {
+            $("#table-header, #reviews-table-body").empty();
+            return;
+        }
+
+        let terms = Object.keys(data[0]);
+        terms = terms.filter(t => !["Asli", "Prediksi", "Status"].includes(t));
+        terms = ["Asli", "Prediksi"].concat(terms);  // Asli & Prediksi di awal
+
+        $("#table-header").html(`<tr><th>#</th>${terms.map(t => `<th>${t}</th>`).join('')}</tr>`);
+        $("#reviews-table-body").html(data.map((row, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                ${terms.map(term => {
+                    const val = row[term] !== undefined ? row[term] : "-";
+                    const mismatch = term === "Prediksi" && row["Asli"] && val !== row["Asli"];
+                    return `<td style="${mismatch ? 'background:#f8d7da;color:#721c24;' : ''}">${val}</td>`;
+                }).join('')}
+            </tr>`).join(""));
+    }
+
+    $("#upload-form").submit(function (e) {
+        e.preventDefault();
+        $("#statusMessage, #table-header, #reviews-table-body").empty();
+        $("#loading").show();
+
+        const formData = new FormData(this);
+        $.ajax({
+            url: "/perhitungan/process",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                $("#statusMessage").text(response.message || "✅ Data berhasil diproses.");
+                if (response.train) {
+                    renderTable(response.train);
+                }
+
+                if (
+                        response.accuracy !== undefined &&
+                        response.precision !== undefined &&
+                        response.recall !== undefined &&
+                        response.f1 !== undefined &&
+                        response.confusion && response.labels
+                    ) {
+                    const labels = response.labels;
+                    const cm = response.confusion;
+
+                    let html = `
+                        <h5>Skor Evaluasi:</h5>
+                        <ul>
+                            <li><strong>Akurasi:</strong> ${response.accuracy}%</li>
+                            <li><strong>Presisi:</strong> ${response.precision}%</li>
+                            <li><strong>Recall:</strong> ${response.recall}%</li>
+                            <li><strong>F1-Score:</strong> ${response.f1}%</li>
+                        </ul>
+                    `;
+
+                    html += `
+                    <div class="table-responsive">
+                        <h5>Confusion Matrix :</h5>
+                        <table class="table table-bordered table-sm">
+                            <thead><tr><th></th>`;
+                    html += response.labels.map(l => `<th>${l}</th>`).join('') + "</tr></thead><tbody>";
+                    response.confusion.forEach((row, i) => {
+                        html += `<tr><th>${response.labels[i]}</th>` + row.map(val => `<td>${val}</td>`).join('') + "</tr>";
+                    });
+                    html += "</tbody></table></div>";
+
+                    $("#eval-info").html(html);
+                } else {
+                    $("#eval-info").empty();
+                }
+            },
+            error: function (xhr) {
+                $("#statusMessage").text(xhr.responseJSON?.error || "❌ Gagal memproses data.");
+            },
+            complete: function () {
+                $("#loading").hide();
+            }
+        });
+    });
+
+    $("#clear-data").click(function () {
+        $.post("/perhitungan/clear", function (res) {
+            $("#statusMessage").text(res.message);
+            renderTable([]);
+            $("#eval-info").empty();
+        }).fail(() => {
+            $("#statusMessage").text("❌ Gagal menghapus data.");
+        });
+    });
+});
+</script>
+</body>
+</html>

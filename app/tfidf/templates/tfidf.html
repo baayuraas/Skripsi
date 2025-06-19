@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html class="no-js" lang="id">
+{% include 'header.html' %}
+<body>
+{% include 'navbar.html' %}
+<div class="container-fluid" id="main-container">
+    {% include 'tfidf_sidebar.html' %}
+    <div id="main-content">
+        <div class="page-title">
+            <h1><i class="icon-shield"></i> Hasil TF-IDF</h1>
+        </div>
+
+        <div id="breadcrumbs">
+            <ul class="breadcrumb">
+                <li class="active"><i class="icon-home"></i> Home</li>
+            </ul>
+        </div>
+
+        <div class="box-content">
+            <h3>Hasil TF-IDF</h3>
+            <div>
+                <form id="upload-form" method="post" enctype="multipart/form-data">
+                    <label for="file">Unggah File CSV:</label>
+                    <input type="file" name="file" id="file" accept=".csv" required>
+                    <button type="submit" class="btn btn-primary">Unggah dan Proses Data</button>
+                </form>
+            </div>
+
+            <div id="loading" style="display: none; font-weight: bold; color: #007bff;">⏳ Memproses data...</div>
+
+            <div>
+                <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+                <button id="save-csv" class="btn btn-success">Simpan ke CSV</button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead id="table-header"></thead>
+                    <tbody id="reviews-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<a id="btn-scrollup" class="btn btn-circle btn-large" href="#"><i class="icon-chevron-up"></i></a>
+{% include 'jsscript.html' %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function () {
+        let processedData = [];
+
+        function renderTable() {
+            if (processedData.length === 0) {
+                $("#table-header").html("");
+                $("#reviews-table-body").html("");
+                return;
+            }
+
+            let terms = Object.keys(processedData[0]);
+            terms = terms.filter(term => term !== "Status").concat("Status");
+
+            let headerRow = `<tr><th>#</th>` + terms.map(term => `<th>${term}</th>`).join('') + `</tr>`;
+            $("#table-header").html(headerRow);
+
+            $("#reviews-table-body").html(
+                processedData.map((row, i) => {
+                    let values = Object.entries(row);
+                    let maxTFIDF = Math.max(...values
+                        .filter(([key]) => key !== "Status")
+                        .map(([_, val]) => parseFloat(val) || 0));
+
+                    return `
+                        <tr>
+                            <td>${i + 1}</td>
+                            ${terms.map(term => {
+                                const raw = row[term];
+                                const isNumeric = term !== "Status";
+                                const val = isNumeric
+                                    ? (raw !== undefined && raw !== null ? parseFloat(raw).toFixed(4) : "0.0000")
+                                    : raw;
+
+                                const isMax = parseFloat(val) === maxTFIDF && term !== "Status";
+                                return `<td style="${isMax ? 'background: #fffa9c; font-weight: bold;' : ''}">${val}</td>`;
+                            }).join('')}
+                        </tr>
+                    `;
+                }).join("")
+            );
+        }
+
+        $("#upload-form").submit(function (e) {
+            e.preventDefault();
+            const fileInput = $("#file")[0].files[0];
+            if (!fileInput) {
+                alert("Pilih file untuk diunggah!");
+                return;
+            }
+
+            const formData = new FormData(this);
+            $("#loading").show();
+
+            $.ajax({
+                url: "/tfidf/process",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: (response) => {
+                    processedData = response.data || [];
+                    renderTable();
+                    alert("Data berhasil diproses!");
+                },
+                error: (xhr) => {
+                    alert("Error: " + (xhr.responseJSON?.error || "Gagal memproses file"));
+                },
+                complete: () => {
+                    $("#loading").hide();
+                }
+            });
+        });
+
+        $("#clear-data").click(() => {
+            $.post("/tfidf/clear", function (response) {
+                alert(response.message);
+                processedData = [];
+                renderTable([]);
+            }).fail(() => {
+                alert("Gagal menghapus data.");
+            });
+        });
+
+        $("#save-csv").click(() => {
+            const rows = document.querySelectorAll("table tr");
+            if (!rows.length) {
+                alert("Tabel kosong, tidak ada data untuk disimpan!");
+                return;
+            }
+
+            let csvContent = [];
+            rows.forEach((row) => {
+                let rowData = [];
+                let cells = row.querySelectorAll("th, td");
+                for (let i = 1; i < cells.length; i++) {
+                    let text = cells[i].innerText.replace(/"/g, '""');
+                    rowData.push(`"${text}"`);
+                }
+                csvContent.push(rowData.join(","));
+            });
+
+            let csvString = csvContent.join("\n");
+            let csvBlob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+            let csvUrl = URL.createObjectURL(csvBlob);
+            const link = document.createElement("a");
+            link.href = csvUrl;
+            link.download = "hasil_tfidf.csv";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(csvUrl);
+        });
+    });
+</script>
+</body>
+</html>

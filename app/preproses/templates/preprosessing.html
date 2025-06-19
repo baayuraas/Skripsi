@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html class="no-js" lang="id">
+
+{% include 'header.html' %}
+
+<body>
+    <!-- BEGIN Navbar -->
+    {% include 'navbar.html' %}
+    <!-- END Navbar -->
+
+    <!-- BEGIN Container -->
+    <div class="container-fluid" id="main-container">
+        <!-- BEGIN Sidebar -->
+        {% include 'prepro_sidebar.html' %}
+        <!-- END Sidebar -->
+
+        <!-- BEGIN Content -->
+        <div id="main-content">
+            <!-- BEGIN Page Title -->
+            <div class="page-title">
+                <div>
+                    <h1><i class="icon-shield"></i> Data Steam</h1>
+                </div>
+            </div>
+            <!-- END Page Title -->
+
+            <!-- BEGIN Breadcrumb -->
+            <div id="breadcrumbs">
+                <ul class="breadcrumb">
+                    <li class="active"><i class="icon-home"></i> Home</li>
+                </ul>
+            </div>
+            <!-- END Breadcrumb -->
+
+            <!-- BEGIN Main Content -->
+            <div class="box-content">
+                <h3>Proses Data</h3>
+                <div>
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <label for="file">Unggah File CSV:</label>
+                        <input type="file" name="file" id="file" accept=".csv" required>
+                        <button type="submit" class="btn btn-primary">Unggah dan Proses Data</button>
+                    </form>
+                    <div id="loading-spinner" style="display: none; margin-top: 10px;">
+                        <span>⏳ Sedang memproses data...</span>
+                    </div>
+                </div>
+
+                <div>
+                    <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+                    <button id="save-csv" class="btn btn-success">Simpan ke CSV</button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>SteamID</th>
+                                <th>Clean Data</th>
+                                <th>Case Folding</th>
+                                <th>Tokenisasi</th>
+                                <th>Stopword</th>
+                                <th>Normalisasi</th>
+                                <th>Stemming</th>
+                                <th>Hasil</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reviews-table-body"></tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div id="pagination">
+                    <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
+                    <span>Halaman <span id="current-page">1</span></span>
+                    <button id="next-page" class="btn btn-primary">Berikutnya</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END Content -->
+
+    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
+        <i class="icon-chevron-up"></i>
+    </a>
+
+    <!-- END Container -->
+
+    {% include 'jsscript.html' %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            let processedData = [];
+            let currentPage = 1;
+            const rowsPerPage = 5;
+        
+            function renderTable() {
+                const start = (currentPage - 1) * rowsPerPage;
+                const paginatedData = processedData.slice(start, start + rowsPerPage);
+        
+                $("#reviews-table-body").html(
+                    paginatedData.map((row, i) => `
+                        <tr>
+                            <td>${start + i + 1}</td>
+                            <td>${row.SteamID || "-"}</td>
+                            <td>${row["Clean Data"] || "-"}</td>
+                            <td>${row["Case Folding"] || "-"}</td>
+                            <td>${row["Tokenisasi"]?.join(';') || '-'}</td>
+                            <td>${row["Stopword"]?.join(';') || '-'}</td>
+                            <td>${row["Normalisasi"]?.join(';') || '-'}</td>
+                            <td>${row["Stemming"]?.join(';') || '-'}</td>
+                            <td>${row["Hasil"] || "-"}</td>
+                            <td>${row["Status"] || "-"}</td>
+                        </tr>
+                    `).join("")
+                );
+        
+                $("#current-page").text(currentPage);
+                $("#prev-page").prop("disabled", currentPage <= 1);
+                $("#next-page").prop("disabled", (currentPage * rowsPerPage) >= processedData.length);
+            }
+        
+            $("#upload-form").submit(function (e) {
+                e.preventDefault();
+        
+                const fileInput = $("#file")[0].files[0];
+                if (!fileInput || !fileInput.name.endsWith(".csv")) {
+                    alert("Harap unggah file CSV!");
+                    return;
+                }
+        
+                const formData = new FormData(this);
+                $("#loading-spinner").show();
+        
+                $.ajax({
+                    url: "/prepro/preproses",
+                    type: "POST",
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (response) {
+                        processedData = response.data || [];
+                        currentPage = 1;
+                        renderTable();
+                        $("#loading-spinner").hide();
+                    },
+                    error: function (xhr) {
+                        $("#loading-spinner").hide();
+                        alert("Error: " + (xhr.responseJSON?.error || "Terjadi kesalahan"));
+                    }
+                });
+            });
+        
+            $("#save-csv").click(function () {
+                if (processedData.length === 0) {
+                    alert("Tidak ada data untuk disimpan!");
+                    return;
+                }
+            
+                $("#loading-spinner").show();
+            
+                $.ajax({
+                    url: "/prepro/save_csv",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(processedData),
+                    xhrFields: {
+                        responseType: 'blob'
+                    },
+                    success: function (blob, status, xhr) {
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = "processed_data.csv";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        $("#loading-spinner").hide();
+                        alert("Berhasil menyimpan dan mengunduh data!");
+                    },
+                    error: function (xhr) {
+                        $("#loading-spinner").hide();
+                        alert("Gagal menyimpan data: " + (xhr.responseJSON?.error || "Terjadi kesalahan"));
+                    }
+                });
+            });
+            $("#save-csv").off("click").on("click", function (e) {
+                e.preventDefault();
+            
+                if (processedData.length === 0) {
+                    alert("Tidak ada data untuk disimpan!");
+                    return;
+                }
+            
+                $("#loading-spinner").show();
+            
+                $.ajax({
+                    url: "/prepro/save_csv",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(processedData),
+                    success: function () {
+                        // Panggil endpoint khusus download setelah file siap
+                        fetch("/prepro/download")
+                            .then(resp => resp.blob())
+                            .then(blob => {
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement("a");
+                                link.href = url;
+                                link.download = "processed_data.csv";
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                $("#loading-spinner").hide();
+                                alert("Berhasil menyimpan dan mengunduh data!");
+                            }).catch(err => {
+                                $("#loading-spinner").hide();
+                                alert("Gagal mengunduh file: " + err.message);
+                            });
+                    },
+                    error: function (xhr) {
+                        $("#loading-spinner").hide();
+                        alert("Gagal menyimpan data: " + (xhr.responseJSON?.error || "Terjadi kesalahan"));
+                    }
+                });
+            });
+
+            $("#clear-data").click(function () {
+                processedData = [];
+                renderTable();
+                alert("Data telah dihapus!");
+            });
+        
+            $("#prev-page, #next-page").click(function () {
+                currentPage += $(this).is("#next-page") ? 1 : -1;
+                renderTable();
+            });
+        });
+        </script>
+
+    <style>
+      .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+      }
+      table td {
+        word-wrap: break-word;
+        white-space: normal;
+      }
+      table {
+        table-layout: fixed;
+      }
+      table th, table td {
+        max-width: 150px;
+      }
+    </style>
+</body>
+</html>

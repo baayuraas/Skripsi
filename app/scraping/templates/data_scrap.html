@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html class="no-js" lang="id">
+
+{% include 'header.html' %}
+
+<body>
+    {% include 'navbar.html' %}
+
+    <div class="container-fluid" id="main-container">
+        {% include 'data_sidebar.html' %}
+
+        <div id="main-content">
+            <div class="page-title">
+                <div><h1><i class="icon-shield"></i> Data Steam</h1></div>
+            </div>
+
+            <div id="breadcrumbs">
+                <ul class="breadcrumb">
+                    <li class="active"><i class="icon-home"></i> Home</li>
+                </ul>
+            </div>
+
+            <div class="box-content">
+                <h3>Ambil Ulasan Steam</h3>
+                <form id="reviewForm">
+                    <div>
+                        <label for="appid">App ID</label>
+                        <input type="text" id="appid" name="appid" required>
+                    </div>
+                    <div>
+                        <label for="num_reviews">Jumlah Ulasan</label>
+                        <input type="number" id="num_reviews" name="num_reviews" min="1" max="1000" value="1000">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="fetch-reviews">Ambil Ulasan</button>
+                </form>
+                <div id="loading-indicator" style="display: none;">Memuat...</div>
+
+                <div id="review-stats">
+                    <p><strong>Total Ulasan:</strong> <span id="total-data">0</span></p>
+                    <p><strong>Ulasan Positif:</strong> <span id="positive-data">0</span></p>
+                    <p><strong>Ulasan Negatif:</strong> <span id="negative-data">0</span></p>
+                </div>
+
+                <div>
+                    <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+                    <a href="/scraping/savedata" class="btn btn-success">Simpan Data (CSV)</a>
+                </div>
+
+                <table class="table table-bordered">
+                    <h3>Data Ulasan Steam</h3>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>SteamID</th>
+                            <th>Ulasan</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reviews-table-body"></tbody>
+                </table>
+
+                <div id="pagination">
+                    <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
+                    <span>Halaman <span id="current-page">1</span></span>
+                    <button id="next-page" class="btn btn-primary">Berikutnya</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
+        <i class="icon-chevron-up"></i>
+    </a>
+
+    {% include 'jsscript.html' %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            let currentPage = 1;
+            const rowsPerPage = 5;
+            let allData = [];
+
+            function renderTable(data) {
+                const tableBody = $('#reviews-table-body');
+                tableBody.empty();
+
+                const start = (currentPage - 1) * rowsPerPage;
+                const end = start + rowsPerPage;
+
+                data.slice(start, end).forEach((review, index) => {
+                    tableBody.append(`
+                        <tr>
+                            <td>${start + index + 1}</td>
+                            <td>${review.id}</td>
+                            <td style="white-space: pre-wrap;">${review.review}</td>
+                            <td>${review.status}</td>
+                        </tr>
+                    `);
+                });
+
+                $('#current-page').text(currentPage);
+            }
+
+            function updateStats(total, positive, negative) {
+                $('#total-data').text(total);
+                $('#positive-data').text(positive);
+                $('#negative-data').text(negative);
+            }
+
+            $('#reviewForm').submit(function (e) {
+                e.preventDefault();
+                const appid = $('#appid').val();
+                const num_reviews = $('#num_reviews').val();
+
+                if (!appid || !num_reviews) {
+                    alert('App ID dan Jumlah Ulasan harus diisi.');
+                    return;
+                }
+
+                $('#loading-indicator').show();
+
+                $.post('/scraping/scrapdat', { appid, num_reviews }, function (response) {
+                    $('#loading-indicator').hide();
+                    if (response.status === 'success') {
+                        alert('Ulasan berhasil diambil!');
+                        allData = response.data;
+                        currentPage = 1;
+                        updateStats(response.total_data, response.positive_count, response.negative_count);
+                        renderTable(allData);
+                    } else {
+                        alert(response.message || 'Terjadi kesalahan.');
+                    }
+                }).fail(function (xhr) {
+                    $('#loading-indicator').hide();
+                    alert(xhr.responseJSON.message || 'Terjadi kesalahan saat menghubungi server.');
+                });
+            });
+
+            $('#clear-data').click(function () {
+                $.post('/scraping/cleardata', function (response) {
+                    alert(response.message);
+                    allData = [];
+                    currentPage = 1;
+                    updateStats(0, 0, 0);
+                    renderTable(allData);
+                });
+            });
+
+            $('#prev-page').click(function () {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable(allData);
+                }
+            });
+
+            $('#next-page').click(function () {
+                if (currentPage * rowsPerPage < allData.length) {
+                    currentPage++;
+                    renderTable(allData);
+                }
+            });
+
+        });
+    </script>
+</body>
+
+</html>
