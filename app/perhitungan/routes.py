@@ -1,5 +1,4 @@
 import os
-import shutil
 import traceback
 import numpy as np
 import pandas as pd
@@ -14,6 +13,7 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
+from tensorflow.keras import Input
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.initializers import RandomUniform
@@ -28,27 +28,17 @@ perhitungan_bp = Blueprint(
     static_folder="static",
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Folder internal (relatif terhadap modul perhitungan)
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "perhitungan")
-EVAL_UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "evaluasi")
-
-# Folder global target di luar app: pakkur/uploads/perhitungan
-ROOT_UPLOAD_FOLDER = os.path.abspath(
-    os.path.join(BASE_DIR, "..", "..", "uploads", "perhitungan")
-)
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(EVAL_UPLOAD_FOLDER, exist_ok=True)
+# Folder target utama (global): pakkur/uploads/perhitungan
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+ROOT_UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "perhitungan")
 os.makedirs(ROOT_UPLOAD_FOLDER, exist_ok=True)
 
-
-CSV_PATH = os.path.join(UPLOAD_FOLDER, "train.csv")
-EVAL_PATH = os.path.join(UPLOAD_FOLDER, "data_uji.csv")
-LATIH_PATH = os.path.join(UPLOAD_FOLDER, "data_latih.csv")
-MODEL_PATH = os.path.join(UPLOAD_FOLDER, "model_mlp_custom.keras")
-LABEL_ENCODER_PATH = os.path.join(UPLOAD_FOLDER, "label_encoder.pkl")
+# Jalur file hasil pelatihan
+CSV_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "train.csv")
+EVAL_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "data_uji.csv")
+LATIH_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "data_latih.csv")
+MODEL_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "model_mlp_custom.keras")
+LABEL_ENCODER_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "label_encoder.pkl")
 
 model = None
 le = None
@@ -71,6 +61,7 @@ def load_and_prepare_data(csv_path):
     X = df_clean.drop(columns=["Status"]).to_numpy()
     y_raw = df_clean["Status"].astype(str).to_numpy()
 
+    # ✅ Integer encoder
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y_raw)
 
@@ -79,10 +70,6 @@ def load_and_prepare_data(csv_path):
 
     with open(LABEL_ENCODER_PATH, "wb") as f:
         pickle.dump(label_encoder, f)
-    with open(os.path.join(EVAL_UPLOAD_FOLDER, "label_encoder.pkl"), "wb") as f:
-        pickle.dump(label_encoder, f)
-    with open(os.path.join(ROOT_UPLOAD_FOLDER, "label_encoder.pkl"), "wb") as f:
-        pickle.dump(label_encoder, f)
 
     return X, y_encoded, label_encoder, len(np.unique(y_encoded)), df_clean
 
@@ -90,11 +77,11 @@ def load_and_prepare_data(csv_path):
 def build_and_train_model(X, y, output_dim):
     model = Sequential(
         [
+            Input(shape=(X.shape[1],)),  # ✅ menggantikan input_shape di Dense
             Dense(
                 64,
                 activation="relu",
                 kernel_initializer=RandomUniform(-0.12, 0.12),
-                input_shape=(X.shape[1],),
             ),
             Dense(32, activation="relu"),
             Dense(output_dim, activation="softmax"),
@@ -104,16 +91,13 @@ def build_and_train_model(X, y, output_dim):
         optimizer=Adam(), loss=SparseCategoricalCrossentropy(), metrics=["accuracy"]
     )
     model.fit(X, y, epochs=10, batch_size=32, verbose=0)
-
     model.save(MODEL_PATH)
-    model.save(os.path.join(EVAL_UPLOAD_FOLDER, "model_mlp_custom.keras"))
-    model.save(os.path.join(ROOT_UPLOAD_FOLDER, "model_mlp_custom.keras"))
     return model
 
 
 @perhitungan_bp.route("/")
 def index():
-    return render_template("perhitungan.html")
+    return render_template("perhitungan.html", page_name="perhitungan")
 
 
 @perhitungan_bp.route("/process", methods=["POST"])
@@ -137,8 +121,11 @@ def process_csv():
         y_pred_train = le.inverse_transform(np.argmax(model.predict(X_train), axis=1))
         y_actual_train = le.inverse_transform(y_train)
 
-        df_train["Asli"] = y_actual_train
+        df_train["Status"] = y_actual_train
         df_train["Prediksi"] = y_pred_train
+
+        # ✅ Simpan semua hasil pelatihan di ROOT_UPLOAD_FOLDER
+        df_clean.to_csv(CSV_PATH, index=False)
         df_train.to_csv(LATIH_PATH, index=False)
         df_eval.to_csv(EVAL_PATH, index=False)
 
@@ -177,10 +164,10 @@ def process_csv():
 def download_file(filename):
     safe_files = {
         "train.csv": CSV_PATH,
-        "model_mlp_custom.keras": MODEL_PATH,
-        "label_encoder.pkl": LABEL_ENCODER_PATH,
         "data_uji.csv": EVAL_PATH,
         "data_latih.csv": LATIH_PATH,
+        "model_mlp_custom.keras": MODEL_PATH,
+        "label_encoder.pkl": LABEL_ENCODER_PATH,
     }
     path = safe_files.get(filename)
     if path and os.path.exists(path):
@@ -201,12 +188,6 @@ def clear_data():
 @perhitungan_bp.route("/copy-download-model")
 def copy_and_download_model():
     try:
-        shutil.copy2(
-            MODEL_PATH, os.path.join(EVAL_UPLOAD_FOLDER, "model_mlp_custom.keras")
-        )
-        shutil.copy2(
-            MODEL_PATH, os.path.join(ROOT_UPLOAD_FOLDER, "model_mlp_custom.keras")
-        )
         return send_file(MODEL_PATH, as_attachment=True)
     except Exception as e:
         return jsonify({"error": f"Gagal mendownload model: {str(e)}"}), 500
@@ -215,12 +196,6 @@ def copy_and_download_model():
 @perhitungan_bp.route("/copy-download-encoder")
 def copy_and_download_encoder():
     try:
-        shutil.copy2(
-            LABEL_ENCODER_PATH, os.path.join(EVAL_UPLOAD_FOLDER, "label_encoder.pkl")
-        )
-        shutil.copy2(
-            LABEL_ENCODER_PATH, os.path.join(ROOT_UPLOAD_FOLDER, "label_encoder.pkl")
-        )
         return send_file(LABEL_ENCODER_PATH, as_attachment=True)
     except Exception as e:
         return jsonify({"error": f"Gagal mendownload encoder: {str(e)}"}), 500

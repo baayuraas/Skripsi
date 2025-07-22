@@ -1,4 +1,3 @@
-# routes.py
 import os
 import numpy as np
 import pandas as pd
@@ -24,23 +23,25 @@ evaluasi_bp = Blueprint(
     static_folder="static",
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ✅ Path konsisten seperti fitur scraping
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "evaluasi")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 EVAL_PATH = os.path.join(UPLOAD_FOLDER, "data_eval.csv")
-MODEL_PATH = os.path.join("uploads", "perhitungan", "model_mlp_custom.keras")
-LABEL_ENCODER_PATH = os.path.join("uploads", "perhitungan", "label_encoder.pkl")
+MODEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "model_mlp_custom.keras")
+LABEL_ENCODER_PATH = os.path.join(
+    BASE_DIR, "uploads", "perhitungan", "label_encoder.pkl"
+)
 
 
 @evaluasi_bp.route("/")
 def index():
-    return render_template("evaluasi.html")
+    return render_template("evaluasi.html", page_name="evaluasi")
 
 
 @evaluasi_bp.route("/evaluate", methods=["POST"])
 def evaluate():
-    # Cek keberadaan file model dan label encoder
     missing_files = []
     if not os.path.exists(MODEL_PATH):
         missing_files.append(f"❌ Model tidak ditemukan di: {MODEL_PATH}")
@@ -53,8 +54,9 @@ def evaluate():
         return jsonify({"error": "Gagal evaluasi:\n" + "\n".join(missing_files)}), 400
 
     file = request.files.get("file")
-    if not file or not file.filename or not file.filename.lower().endswith(".csv"):
-        return jsonify({"error": "File harus CSV."}), 400
+    if not file or not getattr(file, "filename", "").lower().endswith(".csv"):
+        return jsonify({"error": "File harus berformat .csv"}), 400
+
 
     try:
         file.save(EVAL_PATH)
@@ -104,7 +106,7 @@ def evaluate():
                 "confusion_matrix": matrix,
                 "labels": labels,
                 "metrics": {
-                    "accuracy": round(float(accuracy) * 100, 2),
+                    "accuracy": round(accuracy * 100, 2),
                     "precision": round(float(precision) * 100, 2),
                     "recall": round(float(recall) * 100, 2),
                     "f1_score": round(float(f1) * 100, 2),
@@ -135,7 +137,11 @@ def clear_data():
 
 @evaluasi_bp.route("/download/<filename>")
 def download_file(filename):
-    safe_files = {"data_eval.csv": EVAL_PATH}
+    safe_files = {
+        "data_eval.csv": EVAL_PATH,
+        "model_mlp_custom.keras": MODEL_PATH,
+        "label_encoder.pkl": LABEL_ENCODER_PATH,
+    }
     path = safe_files.get(filename)
     if path and os.path.exists(path):
         return send_file(path, as_attachment=True)

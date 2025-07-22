@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    {% include 'header.html' %}
+</head>
+<body>
+    {% include 'navbar.html' %}
+
+    <div class="container-fluid" id="main-container">
+        {% include 'sidebar.html' %}
+        <div id="main-content">
+            {% block page_title %}{% endblock %}
+            {% block breadcrumbs %}{% endblock %}
+            <div class="box-content">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#"><i class="icon-chevron-up"></i></a>
+
+    {% include 'jsscript.html' %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {% block extra_script %}{% endblock %}
+</body>
+</html>

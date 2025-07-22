@@ -1,45 +1,89 @@
-<!DOCTYPE html>
-<html class="no-js" lang="id">
+{% extends 'base.html' %}
 
-{% include 'header.html' %}
+{% block page_title %}
+<div class="page-title">
+  <div><h1><i class="icon-dashboard"></i> Dashboard Utama</h1></div>
+</div>
+{% endblock %}
 
-<body>
-    <!-- BEGIN Navbar -->
-    {% include 'navbar.html' %}
-    <!-- END Navbar -->
+{% block breadcrumbs %}
+<div id="breadcrumbs">
+  <ul class="breadcrumb">
+    <li class="active"><i class="icon-home"></i> Home</li>
+  </ul>
+</div>
+{% endblock %}
 
-    <!-- BEGIN Container -->
-    <div class="container-fluid" id="main-container">
-        <!-- BEGIN Sidebar -->
-        {% include 'index_sidebar.html' %}
-        <!-- END Sidebar -->
+{% block content %}
+<div class="row-fluid">
+  <div class="span12">
+    <div class="alert alert-info">
+      <strong>Selamat datang!</strong> Ini adalah sistem <b>Analisis Ulasan Steam</b> yang terdiri dari 6 fitur utama.
+    </div>
+  </div>
+</div>
 
-        <!-- BEGIN Content -->
-        <div id="main-content">
-            <!-- BEGIN Page Title -->
-            <div class="page-title">
-                <div>
-                    <h1><i class="icon-shield"></i>Dashboard</h1>
-                </div>
-            </div>
-            <!-- END Page Title -->
+<div class="row-fluid">
+  <div class="span4">
+    <div class="box box-color box-bordered green">
+      <div class="box-title"><h4><i class="icon-download"></i> Scraping</h4></div>
+      <div class="box-content">
+        <p>Mengambil ulasan dari Steam Store.</p>
+        <a href="{{ url_for('scraping.index') }}" class="btn btn-success">Ke Scraping</a>
+      </div>
+    </div>
+  </div>
 
-            <!-- BEGIN Breadcrumb -->
-            <div id="breadcrumbs">
-                <ul class="breadcrumb">
-                    <li class="active"><i class="icon-home"></i> Home</li>
-                </ul>
-            </div>
-            <!-- END Breadcrumb -->
+  <div class="span4">
+    <div class="box box-color box-bordered blue">
+      <div class="box-title"><h4><i class="icon-globe"></i> Terjemahan</h4></div>
+      <div class="box-content">
+        <p>Menerjemahkan ulasan ke Bahasa Indonesia.</p>
+        <a href="{{ url_for('terjemahan.index') }}" class="btn btn-primary">Ke Terjemahan</a>
+      </div>
+    </div>
+  </div>
 
-    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
-        <i class="icon-chevron-up"></i>
-    </a>
+  <div class="span4">
+    <div class="box box-color box-bordered orange">
+      <div class="box-title"><h4><i class="icon-filter"></i> Preprocessing</h4></div>
+      <div class="box-content">
+        <p>Membersihkan & memproses teks ulasan.</p>
+        <a href="{{ url_for('prepro.index') }}" class="btn btn-warning">Ke Preprocessing</a>
+      </div>
+    </div>
+  </div>
+</div>
 
-    <!-- END Container -->
+<div class="row-fluid">
+  <div class="span4">
+    <div class="box box-color box-bordered purple">
+      <div class="box-title"><h4><i class="icon-bar-chart"></i> TF-IDF</h4></div>
+      <div class="box-content">
+        <p>Mengubah teks menjadi fitur numerik.</p>
+        <a href="{{ url_for('tfidf.index') }}" class="btn btn-purple">Ke TF-IDF</a>
+      </div>
+    </div>
+  </div>
 
-    <!-- Scripts -->
-    {% include 'jsscript.html' %}
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-</body>
-</html>
+  <div class="span4">
+    <div class="box box-color box-bordered red">
+      <div class="box-title"><h4><i class="icon-cogs"></i> Pelatihan</h4></div>
+      <div class="box-content">
+        <p>Melatih model klasifikasi sentimen.</p>
+        <a href="{{ url_for('perhitungan.index') }}" class="btn btn-danger">Ke Pelatihan</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="span4">
+    <div class="box box-color box-bordered teal">
+      <div class="box-title"><h4><i class="icon-check"></i> Evaluasi</h4></div>
+      <div class="box-content">
+        <p>Evaluasi performa model terhadap data uji.</p>
+        <a href="{{ url_for('evaluasi.index') }}" class="btn btn-info">Ke Evaluasi</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

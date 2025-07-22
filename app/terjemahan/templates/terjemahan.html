@@ -1,179 +1,130 @@
-<!DOCTYPE html>
-<html class="no-js" lang="id">
+{% extends 'base.html' %}
 
-{% include 'header.html' %}
+{% block page_title %}
+<div class="page-title">
+    <div><h1><i class="icon-shield"></i> Data Steam</h1></div>
+</div>
+{% endblock %}
 
-<body>
-    <!-- BEGIN Navbar -->
-    {% include 'navbar.html' %}
-    <!-- END Navbar -->
+{% block breadcrumbs %}
+<div id="breadcrumbs">
+    <ul class="breadcrumb"><li class="active"><i class="icon-home"></i> Home</li></ul>
+</div>
+{% endblock %}
 
-    <!-- BEGIN Container -->
-    <div class="container-fluid" id="main-container">
-        <!-- BEGIN Sidebar -->
-        {% include 'terjemahan_sidebar.html' %}
-        <!-- END Sidebar -->
+{% block content %}
+<h3>Terjemahan</h3>
 
-        <!-- BEGIN Content -->
-        <div id="main-content">
-            <!-- BEGIN Page Title -->
-            <div class="page-title">
-                <div>
-                    <h1><i class="icon-shield"></i> Data Steam</h1>
-                </div>
-            </div>
-            <!-- END Page Title -->
+<form id="upload-form" enctype="multipart/form-data">
+    <label for="file">Unggah File CSV:</label>
+    <input type="file" name="file" id="file" accept=".csv" required>
+    <button type="submit" class="btn btn-primary">Unggah dan Terjemahkan</button>
+</form>
 
-            <!-- BEGIN Breadcrumb -->
-            <div id="breadcrumbs">
-                <ul class="breadcrumb">
-                    <li class="active"><i class="icon-home"></i> Home</li>
-                </ul>
-            </div>
-            <!-- END Breadcrumb -->
+<div id="loading-spinner" style="display: none; margin-top: 10px;">
+    <span>⏳ Sedang menerjemahkan...</span>
+</div>
 
-            <!-- BEGIN Main Content -->
-            <div class="box-content">
-                <!-- Tabel Data -->
-                <h3>Terjemahan</h3>
-                <div>
-                    <form id="upload-form" method="post" enctype="multipart/form-data">
-                        <label for="file">Unggah File CSV:</label>
-                        <input type="file" name="file" id="file" accept=".csv" required>
-                        <button type="submit" class="btn btn-primary">Unggah dan Terjemahkan</button>
-                    </form>
-                </div>
-
-                <!-- Tombol aksi -->
-                <div>
-                    <button id="clear-data" class="btn btn-danger">Hapus Data</button>
-                    <a href="/terjemahan/savedata" class="btn btn-success">Simpan Data (CSV)</a>
-                </div>
-
-                <!-- Tabel data ulasan -->
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>SteamID</th>
-                            <th>Ulasan</th>
-                            <th>Terjemahan</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reviews-table-body"></tbody>
-                </table>
-
-                <!-- Pagination -->
-                <div id="pagination">
-                    <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
-                    <span>Halaman <span id="current-page">1</span></span>
-                    <button id="next-page" class="btn btn-primary">Berikutnya</button>
-                </div>
-            </div>
-        </div>
+<div id="review-table-box" style="display: none;">
+    <div>
+        <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+        <a href="/terjemahan/savedata" class="btn btn-success">Simpan Data (CSV)</a>
     </div>
-    <!-- END Content -->
 
-    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
-        <i class="icon-chevron-up"></i>
-    </a>
+    <label for="rowsPerPageSelect">Baris per halaman:</label>
+    <select id="rowsPerPageSelect" class="form-control" style="width: 100px; display: inline-block;">
+        <option value="10" selected>10</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+    </select>
 
-    <!-- END Container -->
+    <table class="table table-bordered">
+        <thead>
+            <tr><th>#</th><th>SteamID</th><th>Ulasan</th><th>Terjemahan</th><th>Status</th></tr>
+        </thead>
+        <tbody id="reviews-table-body"></tbody>
+    </table>
 
-    <!-- Scripts -->
-    {% include 'jsscript.html' %}
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        $(document).ready(function () {
-            let translatedData = []; // State untuk menyimpan data hasil terjemahan
-            let currentPage = 1;
-            const rowsPerPage = 5;
+    <div id="pagination">
+        <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
+        <span>Halaman <span id="current-page">1</span></span>
+        <button id="next-page" class="btn btn-primary">Berikutnya</button>
+    </div>
+</div>
+{% endblock %}
 
-            // Fungsi untuk menampilkan data di tabel
-            function renderTable(data) {
-                const tableBody = $('#reviews-table-body');
-                tableBody.empty();
+{% block extra_script %}
+<script>
+$(function () {
+    let translatedData = [], currentPage = 1, rowsPerPage = 10;
 
-                const start = (currentPage - 1) * rowsPerPage;
-                const end = start + rowsPerPage;
+    $('#rowsPerPageSelect').change(function () {
+        rowsPerPage = parseInt($(this).val());
+        currentPage = 1;
+        renderTable(translatedData);
+    });
 
-                if (data.length === 0) {
-                    tableBody.append(`<tr><td colspan="5" class="text-center">Tidak ada data untuk ditampilkan</td></tr>`);
-                } else {
-                    data.slice(start, end).forEach((row, index) => {
-                        tableBody.append(`
-                            <tr>
-                                <td>${start + index + 1}</td>
-                                <td>${row.SteamID}</td>
-                                <td>${row.Ulasan}</td>
-                                <td>${row.Terjemahan}</td>
-                                <td>${row.Status}</td>
-                            </tr>
-                        `);
-                    });
-                }
-
-                $('#current-page').text(currentPage);
-            }
-
-            // Fungsi untuk memuat data dari backend
-            function loadData(data) {
-                translatedData = data; // Simpan data ke state
-                renderTable(translatedData);
-            }
-
-            // Form untuk unggah file dan proses terjemahan
-            $('#upload-form').on('submit', function (e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-
-                $.ajax({
-                    url: '/terjemahan/translate',
-                    method: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function (response) {
-                        alert(response.message);
-                        if (response.data) {
-                            currentPage = 1;
-                            loadData(response.data);
-                        }
-                    },
-                    error: function (xhr) {
-                        console.error("Full error response:", xhr);
-                        const errorMsg = xhr.responseJSON?.error || xhr.responseText || 'Terjadi kesalahan selama proses terjemahan.';
-                        alert(errorMsg);
-                    }                    
-                });
-            });
-
-            // Tombol untuk menghapus data
-            $('#clear-data').click(function () {
-                $.post('/terjemahan/cleardata', function (response) {
-                    alert(response.message);
-                    translatedData = []; // Hapus data di state
-                    currentPage = 1;
-                    renderTable(translatedData); // Kosongkan tabel
-                });
-            });
-
-            // Tombol pagination
-            $('#prev-page').click(function () {
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderTable(translatedData);
-                }
-            });
-
-            $('#next-page').click(function () {
-                if (translatedData.length > 0 && currentPage * rowsPerPage < translatedData.length) {
-                    currentPage++;
-                    renderTable(translatedData);
-                }
-            });
+    function renderTable(data) {
+        const tableBody = $('#reviews-table-body').empty();
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        if (!data.length) {
+            tableBody.append(`<tr><td colspan="5" class="text-center">Tidak ada data</td></tr>`);
+            return;
+        }
+        data.slice(start, end).forEach((row, i) => {
+            tableBody.append(`
+                <tr>
+                    <td>${start + i + 1}</td>
+                    <td>${row.SteamID}</td>
+                    <td>${row.Ulasan}</td>
+                    <td>${row.Terjemahan}</td>
+                    <td>${row.Status}</td>
+                </tr>
+            `);
         });
-    </script>
-</body>
-</html>
+        $('#current-page').text(currentPage);
+    }
+
+    $('#upload-form').submit(function (e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        $('#loading-spinner').show();
+        $.ajax({
+            url: '/terjemahan/translate',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: res => {
+                $('#loading-spinner').hide();
+                alert(res.message);
+                if (res.data) {
+                    translatedData = res.data;
+                    currentPage = 1;
+                    renderTable(translatedData);
+                    $('#review-table-box').show();
+                }
+            },
+            error: xhr => {
+                $('#loading-spinner').hide();
+                alert(xhr.responseJSON?.error || '❌ Terjadi kesalahan saat menerjemahkan.');
+            }
+        });
+    });
+
+    $('#clear-data').click(function () {
+        $.post('/terjemahan/cleardata', function (res) {
+            alert(res.message);
+            translatedData = [];
+            currentPage = 1;
+            $('#review-table-box').hide();
+            renderTable([]);
+        });
+    });
+
+    $('#prev-page').click(() => { if (currentPage > 1) currentPage--; renderTable(translatedData); });
+    $('#next-page').click(() => { if (currentPage * rowsPerPage < translatedData.length) currentPage++; renderTable(translatedData); });
+});
+</script>
+{% endblock %}

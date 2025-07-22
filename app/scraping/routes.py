@@ -43,6 +43,8 @@ def get_n_reviews_balanced(appid, n=10):
     days_in_5_years = 5 * 365 + 1
     positive_reviews = []
     negative_reviews = []
+    max_attempts = 30  # batas maksimum loop
+    attempt = 0
 
     params = {
         "json": 1,
@@ -59,14 +61,25 @@ def get_n_reviews_balanced(appid, n=10):
     while (
         len(positive_reviews) < target_positive
         or len(negative_reviews) < target_negative
-    ):
+    ) and attempt < max_attempts:
+        attempt += 1
         params["cursor"] = cursor.encode()
-        params["num_per_page"] = min(100, n * 2)
+        params["num_per_page"] = 100
         response = get_reviews(appid, params)
         cursor = response.get("cursor")
         fetched_reviews = response.get("reviews", [])
 
+        if not fetched_reviews:
+            print(f"[INFO] Tidak ada review baru pada iterasi ke-{attempt}.")
+            break
+
         for review in fetched_reviews:
+            raw_review = review.get("review", "")
+            jumlah_kata = len(re.findall(r"\b\w+\b", raw_review))
+
+            if jumlah_kata <= 10:
+                continue
+
             if (
                 "voted_up" in review
                 and "author" in review
@@ -78,20 +91,31 @@ def get_n_reviews_balanced(appid, n=10):
                     negative_reviews.append(review)
 
             if (
-                len(positive_reviews) == target_positive
-                and len(negative_reviews) == target_negative
+                len(positive_reviews) >= target_positive
+                and len(negative_reviews) >= target_negative
             ):
                 break
 
+        print(
+            f"[DEBUG] Iterasi ke-{attempt}: Positif = {len(positive_reviews)}, Negatif = {len(negative_reviews)}"
+        )
+
         if len(fetched_reviews) < 100:
+            print("[INFO] Jumlah review dari Steam sudah habis.")
             break
+
+    total_valid = len(positive_reviews) + len(negative_reviews)
+    if total_valid < n:
+        print(
+            f"[WARNING] Hanya {total_valid} review valid yang berhasil diambil dari {n} yang diminta."
+        )
 
     return positive_reviews + negative_reviews
 
 
 @scraping_bp.route("/")
 def index():
-    return render_template("data_scrap.html")
+    return render_template("data_scrap.html", page_name="scraping")
 
 
 @scraping_bp.route("/scrapdat", methods=["POST"])
@@ -107,9 +131,18 @@ def scrapdat():
         reviews = get_n_reviews_balanced(appid, num_reviews)
         processed_reviews = []
 
+        # Buat set untuk cek duplikat berdasarkan kombinasi unik steamid + isi review
+        seen_keys = set(r["id"] + r["review"] for r in data_store)
+
         for review in reviews:
             raw_review = review["review"]
             formatted_review = re.sub(r";", "", raw_review)
+            unique_key = review["author"]["steamid"] + formatted_review
+
+            if unique_key in seen_keys:
+                continue  # Skip review yang sudah ada
+
+            seen_keys.add(unique_key)
             voted_up = "baik" if review["voted_up"] else "buruk"
 
             processed_reviews.append(
@@ -120,22 +153,27 @@ def scrapdat():
                 }
             )
 
+            if len(processed_reviews) >= num_reviews:
+                break
+
         data_store.extend(processed_reviews)
-        print(f"[DEBUG] Total review masuk: {len(processed_reviews)}")
+
+        total_collected = len(processed_reviews)
+        progress = min(int((total_collected / num_reviews) * 100), 100)
+
         return jsonify(
             {
                 "status": "success",
                 "data": processed_reviews,
                 "total_data": len(data_store),
+                "progress": progress,
                 "positive_count": sum(1 for r in data_store if r["status"] == "baik"),
                 "negative_count": sum(1 for r in data_store if r["status"] == "buruk"),
             }
         )
-    
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-    
 
 
 @scraping_bp.route("/getdata", methods=["GET"])

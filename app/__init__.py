@@ -24,6 +24,6 @@ def create_app():
     # ✅ Tambahkan route root DI SINI:
     @app.route("/")
     def home():
-        return render_template("index.html")
+        return render_template("index.html", page_name="home")
 
     return app

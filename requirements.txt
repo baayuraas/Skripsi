@@ -1,9 +1,0 @@
-flask
-requests
-deep-translator
-nltk
-sastrawi
-pandas
-scikit-learn
-tensorflow
-numpy

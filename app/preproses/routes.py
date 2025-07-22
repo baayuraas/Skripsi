@@ -1,14 +1,22 @@
-from flask import Blueprint, request, jsonify, render_template, send_file
 import csv
-import pandas as pd
-import re
+import json
 import os
+import re
+import time
+import pandas as pd
+import emoji
+import unicodedata
+from flask import Blueprint, request, jsonify, render_template, send_file
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from markupsafe import escape
-import werkzeug.exceptions
+from langdetect import detect
+from langdetect.lang_detect_exception import LangDetectException
+from deep_translator import GoogleTranslator, exceptions as dt_exceptions
+from werkzeug.exceptions import RequestEntityTooLarge
+from multiprocessing.pool import ThreadPool
 
 prepro_bp = Blueprint(
     "prepro",
@@ -23,15 +31,11 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
 
-# Sastrawi + Stopwords
 stopword_factory = StopWordRemoverFactory()
 stemmer = StemmerFactory().create_stemmer()
 stop_words = set(stopword_factory.get_stop_words()).union(
     set(stopwords.words("indonesian"))
 )
-
-# File tambahan
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 with open(os.path.join(BASE_DIR, "stopword_list.txt"), "r", encoding="utf-8") as f:
     stop_words.update(f.read().splitlines())
@@ -60,26 +64,29 @@ game_terms = {
 kata_tidak_relevan = {"f4s", "bllyat", "crownfall", "groundhog", "qith", "mook"}
 CHUNK_SIZE = 500
 MAX_FILE_SIZE = 2 * 1024 * 1024
+terjemahan_cache = {}
 
 
-def hapus_kata_ulang(word):
-    word = re.sub(r"\b(\w+)-\1\b", r"\1", word)
-    word = re.sub(r"\b(\w{3,}?)(?:\1)\b", r"\1", word)
-    word = re.sub(r"\b(?:ber|se|ter|me|di|ke|pe|per)?(\w{3,}?)(?:\1)\b", r"\1", word)
-    return word
+def register_template_filters(app):
+    app.jinja_env.filters["sanitize"] = escape
 
 
 def bersihkan_terjemahan(teks: str) -> str:
     if pd.isna(teks) or not isinstance(teks, str):
         return ""
+    teks = emoji.replace_emoji(teks, replace=" ")
+    teks = re.sub(r"[-–—…“”‘’«»]", " ", teks)
     teks = re.sub(r"\[.*?\]", " ", teks)
     teks = re.sub(r"http\S+", " ", teks)
-    teks = re.sub(r"\b\d+[kK]?\b", " ", teks)
-    teks = re.sub(r"\b\w+-\w+\b", lambda m: m.group(0).replace("-", " "), teks)
-    teks = re.sub(r"[^a-zA-Z0-9\s-]", " ", teks)
+    teks = re.sub(r"\b[\d\w]*\d[\w\d]*\b", " ", teks)
+    teks = re.sub(r"[^a-zA-Z0-9\s]", " ", teks)
     teks = re.sub(r"\b[a-zA-Z]{1,3}\b", " ", teks)
-    teks = re.sub(r"\s+", " ", teks).strip()
-    return teks
+    teks = unicodedata.normalize("NFKD", teks).encode("ascii", "ignore").decode("utf-8")
+    return re.sub(r"\s+", " ", teks).strip()
+
+
+def hapus_kata_ulang(word):
+    return re.sub(r"\b(\w{3,}?)(?:\1)\b", r"\1", word)
 
 
 def normalisasi_teks(words):
@@ -100,15 +107,66 @@ def stemming_teks(words):
     return [stemmer.stem(w) for w in words]
 
 
-def register_template_filters(app):
-    app.jinja_env.filters["sanitize"] = escape
+def deteksi_bukan_indonesia(words: list) -> bool:
+    try:
+        return detect(" ".join(words)) != "id"
+    except LangDetectException:
+        return False
+
+
+def terjemahkan_ke_indonesia(words: list) -> list:
+    global terjemahan_cache
+    joined = " ".join(words).strip().lower()
+    if not joined:
+        return words
+    if joined in terjemahan_cache:
+        return word_tokenize(terjemahan_cache[joined])
+
+    for _ in range(3):
+        try:
+            hasil = GoogleTranslator(source="auto", target="id").translate(joined)
+            terjemahan_cache[joined] = hasil
+            return word_tokenize(hasil.lower())
+        except (dt_exceptions.NotValidPayload, dt_exceptions.TranslationNotFound):
+            return words
+        except Exception:
+            time.sleep(1)
+    return words
+
+
+def proses_baris_aman(terjemahan):
+    try:
+        if pd.isna(terjemahan) or not isinstance(terjemahan, str):
+            return ["", "", [], [], [], [], ""]
+
+        clean = bersihkan_terjemahan(terjemahan)
+        folded = clean.lower()
+        token = word_tokenize(folded)
+        stop = hapus_stopword(token)
+        norm = normalisasi_teks(stop)
+        stem = stemming_teks(norm)
+        hasil = " ".join(stem)
+
+        # ✅ Cek hasil akhir saja
+        if hasil.strip() and deteksi_bukan_indonesia([hasil]):
+            print(">> Translate ulang karena hasil masih bukan ID.")
+            translated = GoogleTranslator(source="auto", target="id").translate(clean).lower()
+            token = word_tokenize(translated)
+            stop = hapus_stopword(token)
+            norm = normalisasi_teks(stop)
+            stem = stemming_teks(norm)
+            hasil = " ".join(stem)
+
+        return [clean, folded, token, stop, norm, stem, hasil]
+    except Exception:
+        return ["", "", [], [], [], [], ""]
 
 
 @prepro_bp.route("/preproses", methods=["POST"])
 def preproses():
     try:
         file = request.files.get("file")
-        if not file or not file.filename or not file.filename.endswith(".csv"):
+        if not file or not file.filename or not file.filename.lower().endswith(".csv"):
             return jsonify(
                 {"error": "Format file tidak valid, hanya mendukung CSV."}
             ), 400
@@ -117,23 +175,28 @@ def preproses():
 
         chunks = pd.read_csv(file.stream, chunksize=CHUNK_SIZE)
         processed = []
+        pool = ThreadPool(4)
 
         for chunk in chunks:
             if "Terjemahan" not in chunk.columns:
                 return jsonify({"error": "Kolom 'Terjemahan' tidak ditemukan."}), 400
-
             chunk["Terjemahan"] = chunk["Terjemahan"].fillna("")
-            chunk["Clean Data"] = chunk["Terjemahan"].apply(bersihkan_terjemahan)
-            chunk["Case Folding"] = chunk["Clean Data"].str.lower()
-            chunk["Tokenisasi"] = chunk["Case Folding"].apply(word_tokenize)
-            chunk["Stopword"] = chunk["Tokenisasi"].apply(hapus_stopword)
-            chunk["Normalisasi"] = chunk["Stopword"].apply(normalisasi_teks)
-            chunk["Stemming"] = chunk["Normalisasi"].apply(stemming_teks)
-            chunk["Hasil"] = chunk["Stemming"].apply(lambda x: " ".join(x))
-
+            hasil_list = pool.map(proses_baris_aman, chunk["Terjemahan"].tolist())
+            hasil_df = pd.DataFrame(
+                hasil_list,
+                columns=[
+                    "Clean Data",
+                    "Case Folding",
+                    "Tokenisasi",
+                    "Stopword",
+                    "Normalisasi",
+                    "Stemming",
+                    "Hasil",
+                ],
+            )
+            chunk = pd.concat([chunk.reset_index(drop=True), hasil_df], axis=1)
             if "Status" not in chunk.columns:
                 chunk["Status"] = ""
-
             processed.append(chunk)
 
         result_df = pd.concat(processed, ignore_index=True)
@@ -143,10 +206,11 @@ def preproses():
 
     except pd.errors.EmptyDataError:
         return jsonify({"error": "File CSV kosong atau tidak dapat dibaca."}), 400
-    except werkzeug.exceptions.RequestEntityTooLarge:
+    except RequestEntityTooLarge:
         return jsonify({"error": "Ukuran file terlalu besar."}), 413
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @prepro_bp.route("/save_csv", methods=["POST"])
 def save_csv():
@@ -156,7 +220,6 @@ def save_csv():
             return jsonify({"error": "Tidak ada data untuk disimpan."}), 400
 
         df = pd.DataFrame(data)
-
         expected_cols = [
             "SteamID",
             "Clean Data",
@@ -171,22 +234,28 @@ def save_csv():
         for col in expected_cols:
             if col not in df.columns:
                 df[col] = ""
-
         df = df.reindex(columns=expected_cols, fill_value="")
 
-        for col in df.columns:
+        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+        for col in list_cols:
             df[col] = df[col].apply(
-                lambda val: " ".join(val) if isinstance(val, list) else str(val)
+                lambda val: json.dumps(val, ensure_ascii=False) if isinstance(val, list) else "[]"
             )
 
-        os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
+        for col in df.columns:
+            if col not in list_cols:
+                df[col] = df[col].astype(str).replace({'"': '""'})
 
-        # Simpan file terlebih dahulu
+        os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
         df.to_csv(
-            PREPRO_CSV_PATH, index=False, quoting=csv.QUOTE_ALL, encoding="utf-8-sig"
+            PREPRO_CSV_PATH,
+            index=False,
+            quoting=csv.QUOTE_ALL,
+            encoding="utf-8-sig",
+            lineterminator="\n",
+            doublequote=True,
         )
 
-        # Kirim file menggunakan send_file
         return send_file(
             PREPRO_CSV_PATH,
             mimetype="text/csv",
@@ -195,7 +264,6 @@ def save_csv():
         )
 
     except Exception as e:
-        print(">> ERROR:", str(e))
         return jsonify({"error": f"Gagal menyimpan: {str(e)}"}), 500
 
 
@@ -208,4 +276,4 @@ def download_preprocessed():
 
 @prepro_bp.route("/")
 def index():
-    return render_template("preprosessing.html")
+    return render_template("preprosessing.html", page_name="prepro"), 200

@@ -1,0 +1,46 @@
+<div id="sidebar" class="nav-collapse">
+    <ul class="nav nav-list">
+        <li class="{{ 'active' if page_name == 'home' else '' }}">
+            <a href="/">
+                <i class="icon-dashboard"></i>
+                <span> Dashboard</span>
+            </a>
+        </li>
+        <li class="{{ 'active' if page_name == 'scraping' else '' }}">
+            <a href="/scraping/">
+                <i class="icon-download"></i>
+                <span> Data Ulasan</span>
+            </a>
+        </li>
+        <li class="{{ 'active' if page_name == 'terjemahan' else '' }}">
+            <a href="/terjemahan/">
+                <i class="icon-globe"></i>
+                <span> Terjemahan</span>
+            </a>
+        </li>
+        <li class="{{ 'active' if page_name == 'prepro' else '' }}">
+            <a href="/prepro/">
+                <i class="icon-filter"></i>
+                <span>Preprocessing</span>
+            </a>
+        </li>
+        <li class="{{ 'active' if page_name == 'tfidf' else '' }}">
+            <a href="/tfidf/">
+                <i class="icon-bar-chart"></i>
+                <span>TF-IDF</span>
+            </a>
+        </li>
+        <li class="{{ 'active' if page_name == 'perhitungan' else '' }}">
+            <a href="/perhitungan/">
+                <i class="icon-cogs"></i>
+                <span>Pelatihan</span>
+            </a>
+        </li>
+        <li class="{{ 'active' if page_name == 'evaluasi' else '' }}">
+            <a href="/evaluasi/">
+                <i class="icon-check"></i>
+                <span>Evaluasi</span>
+            </a>
+        </li>
+    </ul>
+</div>

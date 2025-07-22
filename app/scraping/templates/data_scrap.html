@@ -1,168 +1,146 @@
-<!DOCTYPE html>
-<html class="no-js" lang="id">
+{% extends 'base.html' %}
 
-{% include 'header.html' %}
+{% block page_title %}
+<div class="page-title">
+    <div><h1><i class="icon-shield"></i> Data Steam</h1></div>
+</div>
+{% endblock %}
 
-<body>
-    {% include 'navbar.html' %}
+{% block breadcrumbs %}
+<div id="breadcrumbs">
+    <ul class="breadcrumb"><li class="active"><i class="icon-home"></i> Home</li></ul>
+</div>
+{% endblock %}
 
-    <div class="container-fluid" id="main-container">
-        {% include 'data_sidebar.html' %}
+{% block content %}
+<h3>Ambil Ulasan Steam</h3>
+<form id="reviewForm">
+    <div>
+        <label for="appid">App ID</label>
+        <input type="text" id="appid" name="appid" required>
+    </div>
+    <div>
+        <label for="num_reviews">Jumlah Ulasan</label>
+        <input type="number" id="num_reviews" name="num_reviews" min="1" max="5000" value="0">
+    </div>
+    <button type="submit" class="btn btn-primary" id="fetch-reviews">Ambil Ulasan</button>
+</form>
 
-        <div id="main-content">
-            <div class="page-title">
-                <div><h1><i class="icon-shield"></i> Data Steam</h1></div>
-            </div>
+<div id="loading-indicator" style="display: none;">Memuat...</div>
 
-            <div id="breadcrumbs">
-                <ul class="breadcrumb">
-                    <li class="active"><i class="icon-home"></i> Home</li>
-                </ul>
-            </div>
+<div id="review-stats">
+    <p><strong>Total Ulasan:</strong> <span id="total-data">0</span></p>
+    <p><strong>Ulasan Positif:</strong> <span id="positive-data">0</span></p>
+    <p><strong>Ulasan Negatif:</strong> <span id="negative-data">0</span></p>
+</div>
 
-            <div class="box-content">
-                <h3>Ambil Ulasan Steam</h3>
-                <form id="reviewForm">
-                    <div>
-                        <label for="appid">App ID</label>
-                        <input type="text" id="appid" name="appid" required>
-                    </div>
-                    <div>
-                        <label for="num_reviews">Jumlah Ulasan</label>
-                        <input type="number" id="num_reviews" name="num_reviews" min="1" max="1000" value="1000">
-                    </div>
-                    <button type="submit" class="btn btn-primary" id="fetch-reviews">Ambil Ulasan</button>
-                </form>
-                <div id="loading-indicator" style="display: none;">Memuat...</div>
-
-                <div id="review-stats">
-                    <p><strong>Total Ulasan:</strong> <span id="total-data">0</span></p>
-                    <p><strong>Ulasan Positif:</strong> <span id="positive-data">0</span></p>
-                    <p><strong>Ulasan Negatif:</strong> <span id="negative-data">0</span></p>
-                </div>
-
-                <div>
-                    <button id="clear-data" class="btn btn-danger">Hapus Data</button>
-                    <a href="/scraping/savedata" class="btn btn-success">Simpan Data (CSV)</a>
-                </div>
-
-                <table class="table table-bordered">
-                    <h3>Data Ulasan Steam</h3>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>SteamID</th>
-                            <th>Ulasan</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reviews-table-body"></tbody>
-                </table>
-
-                <div id="pagination">
-                    <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
-                    <span>Halaman <span id="current-page">1</span></span>
-                    <button id="next-page" class="btn btn-primary">Berikutnya</button>
-                </div>
-            </div>
-        </div>
+<div id="review-table-box" style="display: none;">
+    <div>
+        <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+        <a href="/scraping/savedata" class="btn btn-success">Simpan Data (CSV)</a>
     </div>
 
-    <a id="btn-scrollup" class="btn btn-circle btn-large" href="#" aria-label="Scroll Up">
-        <i class="icon-chevron-up"></i>
-    </a>
+    <h3>Data Ulasan Steam</h3>
+    <label for="rowsPerPageSelect">Tampilkan per halaman:</label>
+    <select id="rowsPerPageSelect" class="form-control" style="width: auto; display: inline-block;">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+    </select>
 
-    {% include 'jsscript.html' %}
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <table class="table table-bordered">
+        <thead>
+            <tr><th>#</th><th>SteamID</th><th>Ulasan</th><th>Status</th></tr>
+        </thead>
+        <tbody id="reviews-table-body"></tbody>
+    </table>
 
-    <script>
-        $(document).ready(function () {
-            let currentPage = 1;
-            const rowsPerPage = 5;
-            let allData = [];
+    <div id="pagination">
+        <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
+        <span>Halaman <span id="current-page">1</span></span>
+        <button id="next-page" class="btn btn-primary">Berikutnya</button>
+    </div>
+</div>
+{% endblock %}
 
-            function renderTable(data) {
-                const tableBody = $('#reviews-table-body');
-                tableBody.empty();
+{% block extra_script %}
+<script>
+$(function () {
+    let currentPage = 1;
+    let rowsPerPage = parseInt($('#rowsPerPageSelect').val());
+    let allData = [];
 
-                const start = (currentPage - 1) * rowsPerPage;
-                const end = start + rowsPerPage;
+    $('#rowsPerPageSelect').change(function () {
+        rowsPerPage = parseInt($(this).val());
+        currentPage = 1;
+        renderTable(allData);
+    });
 
-                data.slice(start, end).forEach((review, index) => {
-                    tableBody.append(`
-                        <tr>
-                            <td>${start + index + 1}</td>
-                            <td>${review.id}</td>
-                            <td style="white-space: pre-wrap;">${review.review}</td>
-                            <td>${review.status}</td>
-                        </tr>
-                    `);
-                });
-
-                $('#current-page').text(currentPage);
-            }
-
-            function updateStats(total, positive, negative) {
-                $('#total-data').text(total);
-                $('#positive-data').text(positive);
-                $('#negative-data').text(negative);
-            }
-
-            $('#reviewForm').submit(function (e) {
-                e.preventDefault();
-                const appid = $('#appid').val();
-                const num_reviews = $('#num_reviews').val();
-
-                if (!appid || !num_reviews) {
-                    alert('App ID dan Jumlah Ulasan harus diisi.');
-                    return;
-                }
-
-                $('#loading-indicator').show();
-
-                $.post('/scraping/scrapdat', { appid, num_reviews }, function (response) {
-                    $('#loading-indicator').hide();
-                    if (response.status === 'success') {
-                        alert('Ulasan berhasil diambil!');
-                        allData = response.data;
-                        currentPage = 1;
-                        updateStats(response.total_data, response.positive_count, response.negative_count);
-                        renderTable(allData);
-                    } else {
-                        alert(response.message || 'Terjadi kesalahan.');
-                    }
-                }).fail(function (xhr) {
-                    $('#loading-indicator').hide();
-                    alert(xhr.responseJSON.message || 'Terjadi kesalahan saat menghubungi server.');
-                });
-            });
-
-            $('#clear-data').click(function () {
-                $.post('/scraping/cleardata', function (response) {
-                    alert(response.message);
-                    allData = [];
-                    currentPage = 1;
-                    updateStats(0, 0, 0);
-                    renderTable(allData);
-                });
-            });
-
-            $('#prev-page').click(function () {
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderTable(allData);
-                }
-            });
-
-            $('#next-page').click(function () {
-                if (currentPage * rowsPerPage < allData.length) {
-                    currentPage++;
-                    renderTable(allData);
-                }
-            });
-
+    function renderTable(data) {
+        const tableBody = $('#reviews-table-body').empty();
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        data.slice(start, end).forEach((review, index) => {
+            tableBody.append(`
+                <tr>
+                    <td>${start + index + 1}</td>
+                    <td>${review.id}</td>
+                    <td style="white-space: pre-wrap;">${review.review}</td>
+                    <td>${review.status}</td>
+                </tr>
+            `);
         });
-    </script>
-</body>
+        $('#current-page').text(currentPage);
+    }
 
-</html>
+    function updateStats(total, positive, negative) {
+        $('#total-data').text(total);
+        $('#positive-data').text(positive);
+        $('#negative-data').text(negative);
+    }
+
+    $('#reviewForm').submit(function (e) {
+        e.preventDefault();
+        const appid = $('#appid').val();
+        const num_reviews = $('#num_reviews').val();
+
+        if (!appid || !num_reviews) {
+            alert('App ID dan Jumlah Ulasan harus diisi.');
+            return;
+        }
+
+        $('#loading-indicator').show();
+        $.post('/scraping/scrapdat', { appid, num_reviews }, function (res) {
+            $('#loading-indicator').hide();
+            if (res.status === 'success') {
+                alert('✅ Ulasan berhasil diambil!');
+                allData = res.data;
+                currentPage = 1;
+                updateStats(res.total_data, res.positive_count, res.negative_count);
+                renderTable(allData);
+                $('#review-table-box').show();
+            } else {
+                alert(res.message || 'Terjadi kesalahan.');
+            }
+        }).fail(function (xhr) {
+            $('#loading-indicator').hide();
+            alert(xhr.responseJSON?.message || 'Gagal konek server.');
+        });
+    });
+
+    $('#clear-data').click(function () {
+        $.post('/scraping/cleardata', function (res) {
+            alert(res.message);
+            allData = [];
+            updateStats(0, 0, 0);
+            renderTable([]);
+            $('#review-table-box').hide();
+        });
+    });
+
+    $('#prev-page').click(() => { if (currentPage > 1) { currentPage--; renderTable(allData); } });
+    $('#next-page').click(() => { if (currentPage * rowsPerPage < allData.length) { currentPage++; renderTable(allData); } });
+});
+</script>
+{% endblock %}
