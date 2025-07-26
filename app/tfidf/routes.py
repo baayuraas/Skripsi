@@ -4,6 +4,8 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr_matrix
 import os
+import pickle
+
 
 tfidf_bp = Blueprint(
     "tfidf",
@@ -17,6 +19,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "tfidf")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 TEMP_OUTPUT = os.path.join(UPLOAD_FOLDER, "tfidf_output.csv")
+MODEL_OUTPUT_PATH = os.path.join(BASE_DIR, "uploads/tfidf/tfidf.pkl")
 
 
 @tfidf_bp.route("/")
@@ -48,6 +51,10 @@ def process_file():
 
         tfidf_vectorizer = TfidfVectorizer(min_df=2, dtype=np.float32)
         tfidf_matrix = tfidf_vectorizer.fit_transform(df["Hasil"])
+        
+        with open(MODEL_OUTPUT_PATH, "wb") as f:
+            pickle.dump(tfidf_vectorizer, f)
+        
         terms = tfidf_vectorizer.get_feature_names_out()
         print(f"Jumlah fitur TF-IDF yang dihasilkan: {len(terms)}")
 
