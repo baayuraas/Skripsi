@@ -26,22 +26,22 @@ prepro_bp = Blueprint(
     static_folder="static",
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
-
+TXT_DIR = os.path.dirname(os.path.abspath(__file__))
 stopword_factory = StopWordRemoverFactory()
 stemmer = StemmerFactory().create_stemmer()
 stop_words = set(stopword_factory.get_stop_words()).union(
     set(stopwords.words("indonesian"))
 )
 
-with open(os.path.join(BASE_DIR, "stopword_list.txt"), "r", encoding="utf-8") as f:
+with open(os.path.join(TXT_DIR, "stopword_list.txt"), "r", encoding="utf-8") as f:
     stop_words.update(f.read().splitlines())
 
 normalisasi_dict = {}
-with open(os.path.join(BASE_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") as f:
+with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") as f:
     for line in f:
         if "=" in line:
             k, v = line.strip().split("=", 1)
@@ -167,9 +167,7 @@ def preproses():
     try:
         file = request.files.get("file")
         if not file or not file.filename or not file.filename.lower().endswith(".csv"):
-            return jsonify(
-                {"error": "Format file tidak valid, hanya mendukung CSV."}
-            ), 400
+            return jsonify({"error": "Format file tidak valid, hanya mendukung CSV."}), 400
         if file.content_length > MAX_FILE_SIZE:
             return jsonify({"error": "Ukuran file melebihi 2 MB."}), 400
 
@@ -200,9 +198,31 @@ def preproses():
             processed.append(chunk)
 
         result_df = pd.concat(processed, ignore_index=True)
-        return jsonify(
-            {"message": "Proses berhasil!", "data": result_df.to_dict(orient="records")}
+
+        df_for_file = result_df.copy(deep=True)
+        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+        for col in list_cols:
+            df_for_file[col] = df_for_file[col].apply(
+                lambda val: json.dumps(val, ensure_ascii=False) if isinstance(val, list) else "[]"
+            )
+        for col in df_for_file.columns:
+            if col not in list_cols:
+                df_for_file[col] = df_for_file[col].astype(str).replace({'"': '""'})
+
+        os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
+        df_for_file.to_csv(
+            PREPRO_CSV_PATH,
+            index=False,
+            quoting=csv.QUOTE_ALL,
+            encoding="utf-8-sig",
+            lineterminator="\n",
+            doublequote=True,
         )
+
+        return jsonify({
+            "message": "Preprocessing selesai dan disimpan!",
+            "data": result_df.to_dict(orient="records")
+        })
 
     except pd.errors.EmptyDataError:
         return jsonify({"error": "File CSV kosong atau tidak dapat dibaca."}), 400

@@ -150,8 +150,25 @@ def translate_file():
         with ThreadPoolExecutor(max_workers=5) as executor:
             translated_data = list(executor.map(translate_row, rows))
 
+
+        os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
+        with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(["SteamID", "Ulasan", "Terjemahan", "Status"])
+            for row in translated_data:
+                if not row["Ulasan"].strip():
+                    continue
+                writer.writerow(
+                    [
+                        row["SteamID"],
+                        row["Ulasan"].replace("\n", " ").replace("\r", " "),
+                        row["Terjemahan"],
+                        row["Status"],
+                    ]
+                )
+
         return jsonify(
-            {"message": "Berhasil diterjemahkan!", "data": translated_data}
+            {"message": "Berhasil diterjemahkan dan disimpan!", "data": translated_data}
         ), 200
 
     except UnicodeDecodeError:
