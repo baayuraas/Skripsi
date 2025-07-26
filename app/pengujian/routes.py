@@ -1,4 +1,3 @@
-# routes.py
 import os
 import logging
 import pickle
@@ -20,7 +19,7 @@ pengujian_bp = Blueprint(
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 MODEL_PATH = os.path.join(BASE_DIR, "uploads/perhitungan/model_mlp_custom.keras")
 LABEL_PATH = os.path.join(BASE_DIR, "uploads/perhitungan/label_encoder.pkl")
-TFIDF_PATH = os.path.join(BASE_DIR, "uploads/perhitungan/tfidf.pkl")
+TFIDF_PATH = os.path.join(BASE_DIR, "uploads/tfidf/tfidf.pkl")
 
 ml_model = None
 label_encoder: Optional[LabelEncoder] = None

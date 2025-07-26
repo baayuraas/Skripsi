@@ -77,7 +77,7 @@ def get_n_reviews_balanced(appid, n=10):
             raw_review = review.get("review", "")
             jumlah_kata = len(re.findall(r"\b\w+\b", raw_review))
 
-            if jumlah_kata <= 10:
+            if jumlah_kata <= 20:
                 continue
 
             if (
@@ -131,7 +131,6 @@ def scrapdat():
         reviews = get_n_reviews_balanced(appid, num_reviews)
         processed_reviews = []
 
-        # Buat set untuk cek duplikat berdasarkan kombinasi unik steamid + isi review
         seen_keys = set(r["id"] + r["review"] for r in data_store)
 
         for review in reviews:
@@ -140,7 +139,7 @@ def scrapdat():
             unique_key = review["author"]["steamid"] + formatted_review
 
             if unique_key in seen_keys:
-                continue  # Skip review yang sudah ada
+                continue
 
             seen_keys.add(unique_key)
             voted_up = "baik" if review["voted_up"] else "buruk"
@@ -157,6 +156,14 @@ def scrapdat():
                 break
 
         data_store.extend(processed_reviews)
+
+        os.makedirs(os.path.dirname(SCRAPE_PATH), exist_ok=True)
+        with open(SCRAPE_PATH, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(["SteamID", "Ulasan", "Status"])
+            for review in data_store:
+                formatted = review["review"].replace("\n", " ").replace("\r", " ")
+                writer.writerow([review["id"], formatted, review["status"]])
 
         total_collected = len(processed_reviews)
         progress = min(int((total_collected / num_reviews) * 100), 100)
