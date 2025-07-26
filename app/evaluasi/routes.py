@@ -23,7 +23,6 @@ evaluasi_bp = Blueprint(
     static_folder="static",
 )
 
-# ✅ Path konsisten seperti fitur scraping
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "evaluasi")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -99,7 +98,7 @@ def evaluate():
 
         return jsonify(
             {
-                "message": f"✅ Evaluasi selesai. {skipped_rows} baris dilewati.",
+                "message": f"Evaluasi selesai. {skipped_rows} baris dilewati.",
                 "skipped_rows": skipped_rows,
                 "data": df_clean.to_dict(orient="records"),
                 "classification_report": report,

@@ -212,7 +212,7 @@ def savedata():
     os.makedirs(os.path.dirname(SCRAPE_PATH), exist_ok=True)
 
     try:
-        # ✅ Tulis file ke disk
+        # Tulis file ke disk
         with open(SCRAPE_PATH, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             writer.writerow(["SteamID", "Ulasan", "Status"])
@@ -225,7 +225,7 @@ def savedata():
         if not os.path.isfile(SCRAPE_PATH):
             return jsonify({"error": "File belum tersedia. Silakan ambil data dulu."}), 404
 
-        # ✅ Kirim file jika berhasil ditulis
+        # Kirim file jika berhasil ditulis
         return send_file(
             SCRAPE_PATH,
             mimetype="text/csv",

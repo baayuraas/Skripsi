@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block page_title %}
+<div class="page-title">
+    <div><h1><i class="icon-shield"></i> Data Steam</h1></div>
+</div>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div id="breadcrumbs">
+    <ul class="breadcrumb"><li class="active"><i class="icon-home"></i> Home</li></ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<h3>Analisis Sentimen Ulasan Steam</h3>
+<form id="sentimentForm">
+    <div class="form-group">
+        <label for="ulasan">Tulis Ulasan:</label>
+        <textarea id="ulasan" name="ulasan" rows="5" class="form-control" required></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="label_asli">Label Asli (opsional):</label>
+        <select id="label_asli" name="label_asli" class="form-control">
+            <option value="">-- Pilih Label --</option>
+            <option value="positif">Recommended</option>
+            <option value="negatif">Not Recommended</option>
+        </select>
+    </div>
+    
+    <div>
+        <button type="submit" class="btn btn-primary">Prediksi Sentimen</button>
+    </div>
+
+    <div id="loading-spinner" style="display:none; margin-top: 10px;">
+        <span class="spinner-border spinner-border-sm text-primary"></span>
+        <span>Memproses prediksi...</span>
+    </div>
+</form>
+
+
+<hr>
+
+<div id="hasil-box" style="display: none;">
+    <h4>Hasil Analisis</h4>
+    <p><strong>Terjemahan (jika dari Inggris):</strong></p>
+    <div class="well" id="hasil-terjemahan"></div>
+
+    <p><strong>Hasil Preprocessing:</strong></p>
+    <div class="well" id="hasil-prepro"></div>
+
+    <p><strong>Prediksi Sentimen:</strong> <span id="hasil-prediksi" class="badge badge-info"></span></p>
+    <p><strong>Label Asli:</strong> <span id="label-asli">-</span></p>
+    <p><strong>Kecocokan:</strong> <span id="label-match">-</span></p>
+
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+$(function () {
+    $('#sentimentForm').submit(function (e) {
+        e.preventDefault();
+        const ulasan = $('#ulasan').val().trim();
+        const label_asli = $('#label_asli').val();
+
+        if (!ulasan) return alert("Ulasan tidak boleh kosong!");
+
+        $('#sentimentForm button').prop('disabled', true);
+        $('#loading-spinner').show();
+
+        $.ajax({
+            url: '/pengujian/predict',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ ulasan, label: label_asli }),
+            success: function (res) {
+                $('#hasil-box').show();
+                $('#hasil-terjemahan').text(res.terjemahan || "(tidak diterjemahkan)");
+                $('#hasil-prepro').text(res.preprocessing || "-");
+                $('#hasil-prediksi').text(res.prediksi || "-");
+
+                if (res.label_asli) {
+                    $('#label-asli').text(res.label_asli);
+                    $('#label-match').text(res.label_match ? '✅ Sesuai' : '❌ Tidak Sesuai');
+                } else {
+                    $('#label-asli').text("-");
+                    $('#label-match').text("-");
+                }
+            },
+            error: function (xhr) {
+                const msg = xhr.responseJSON?.error || xhr.responseText || 'Terjadi kesalahan saat memproses prediksi.';
+                alert(msg);
+            },
+            complete: function () {
+                $('#sentimentForm button').prop('disabled', false);
+                $('#loading-spinner').hide();
+            }
+        });
+    });
+});
+</script>
+
+{% endblock %}

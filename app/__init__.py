@@ -11,6 +11,7 @@ def create_app():
     from .tfidf.routes import tfidf_bp
     from .perhitungan.routes import perhitungan_bp
     from .evaluasi.routes import evaluasi_bp
+    from .pengujian.routes import pengujian_bp
 
     app.register_blueprint(scraping_bp)
     app.register_blueprint(terjemahan_bp)
@@ -18,6 +19,7 @@ def create_app():
     app.register_blueprint(tfidf_bp)
     app.register_blueprint(perhitungan_bp)
     app.register_blueprint(evaluasi_bp)
+    app.register_blueprint(pengujian_bp)
 
     register_template_filters(app)
 

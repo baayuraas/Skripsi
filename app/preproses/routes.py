@@ -147,7 +147,7 @@ def proses_baris_aman(terjemahan):
         stem = stemming_teks(norm)
         hasil = " ".join(stem)
 
-        # ✅ Cek hasil akhir saja
+        # Cek hasil akhir saja
         if hasil.strip() and deteksi_bukan_indonesia([hasil]):
             print(">> Translate ulang karena hasil masih bukan ID.")
             translated = GoogleTranslator(source="auto", target="id").translate(clean).lower()

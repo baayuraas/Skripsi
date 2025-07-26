@@ -68,16 +68,13 @@ def process_file():
         tfidf_df_all = pd.DataFrame(dense_matrix, columns=terms)
         tfidf_df = tfidf_df_all[top_terms].copy()
 
-        # ✅ Gunakan .loc untuk hindari warning
         tfidf_df.loc[:, "Status"] = df["Status"]
 
-        # ✅ Atur urutan kolom
         ordered_columns = [col for col in tfidf_df.columns if col != "Status"] + [
             "Status"
         ]
         tfidf_df = tfidf_df[ordered_columns].fillna(0)
 
-        # ✅ Ganti 0.0 → 0 hanya pada kolom numerik
         numeric_cols = tfidf_df.select_dtypes(include=[np.number]).columns
         for col in numeric_cols:
             tfidf_df[col] = tfidf_df[col].map(lambda x: 0 if x == 0.0 else x)

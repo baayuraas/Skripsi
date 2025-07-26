@@ -61,7 +61,7 @@ def load_and_prepare_data(csv_path):
     X = df_clean.drop(columns=["Status"]).to_numpy()
     y_raw = df_clean["Status"].astype(str).to_numpy()
 
-    # ✅ Integer encoder
+    # Integer encoder
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y_raw)
 
@@ -77,7 +77,7 @@ def load_and_prepare_data(csv_path):
 def build_and_train_model(X, y, output_dim):
     model = Sequential(
         [
-            Input(shape=(X.shape[1],)),  # ✅ menggantikan input_shape di Dense
+            Input(shape=(X.shape[1],)),  # menggantikan input_shape di Dense
             Dense(
                 64,
                 activation="relu",
@@ -124,7 +124,7 @@ def process_csv():
         df_train["Status"] = y_actual_train
         df_train["Prediksi"] = y_pred_train
 
-        # ✅ Simpan semua hasil pelatihan di ROOT_UPLOAD_FOLDER
+        # Simpan semua hasil pelatihan di ROOT_UPLOAD_FOLDER
         df_clean.to_csv(CSV_PATH, index=False)
         df_train.to_csv(LATIH_PATH, index=False)
         df_eval.to_csv(EVAL_PATH, index=False)
@@ -144,7 +144,7 @@ def process_csv():
 
         return jsonify(
             {
-                "message": "✅ Pelatihan selesai.",
+                "message": "Pelatihan selesai.",
                 "train": df_train.to_dict(orient="records"),
                 "accuracy": round(float(acc) * 100, 2),
                 "precision": round(float(prec) * 100, 2),
@@ -182,7 +182,7 @@ def clear_data():
         if os.path.exists(path):
             os.remove(path)
     model, le = None, None
-    return jsonify({"message": "✅ Semua data dan model berhasil dihapus."})
+    return jsonify({"message": "Semua data dan model berhasil dihapus."})
 
 
 @perhitungan_bp.route("/copy-download-model")
