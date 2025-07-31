@@ -113,6 +113,13 @@ def deteksi_bukan_indonesia(words: list) -> bool:
     except LangDetectException:
         return False
 
+def ada_kata_non_indonesia(words: list[str]) -> bool:
+    try:
+        teks = " ".join(words[:10])  # cukup 10 kata representatif
+        return detect(teks) != "id"
+    except LangDetectException:
+        return False
+
 
 def terjemahkan_ke_indonesia(words: list) -> list:
     global terjemahan_cache
@@ -139,6 +146,7 @@ def proses_baris_aman(terjemahan):
         if pd.isna(terjemahan) or not isinstance(terjemahan, str):
             return ["", "", [], [], [], [], ""]
 
+        # Langkah 1: Preprocessing awal
         clean = bersihkan_terjemahan(terjemahan)
         folded = clean.lower()
         token = word_tokenize(folded)
@@ -147,10 +155,14 @@ def proses_baris_aman(terjemahan):
         stem = stemming_teks(norm)
         hasil = " ".join(stem)
 
-        # Cek hasil akhir saja
-        if hasil.strip() and deteksi_bukan_indonesia([hasil]):
-            print(">> Translate ulang karena hasil masih bukan ID.")
-            translated = GoogleTranslator(source="auto", target="id").translate(clean).lower()
+        # Langkah 2: Deteksi bahasa hasil akhir
+        hasil_words = hasil.split()
+        if hasil_words and deteksi_bukan_indonesia(hasil_words):
+            # Jika tidak ID, translate ulang & lakukan preprocessing ulang
+            print(f">> Translate ulang karena hasil bukan ID: {hasil_words}")
+            translated = (
+                GoogleTranslator(source="auto", target="id").translate(clean).lower()
+            )
             token = word_tokenize(translated)
             stop = hapus_stopword(token)
             norm = normalisasi_teks(stop)
@@ -158,7 +170,9 @@ def proses_baris_aman(terjemahan):
             hasil = " ".join(stem)
 
         return [clean, folded, token, stop, norm, stem, hasil]
-    except Exception:
+
+    except Exception as e:
+        print(f"[ERROR]: {e}")
         return ["", "", [], [], [], [], ""]
 
 
@@ -209,6 +223,9 @@ def preproses():
             if col not in list_cols:
                 df_for_file[col] = df_for_file[col].astype(str).replace({'"': '""'})
 
+                # Hapus kolom input mentah dari file output
+        df_for_file.drop(columns=[col for col in df_for_file.columns if col.lower() in {"ulasan", "terjemahan"}], inplace=True, errors="ignore")
+        
         os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
         df_for_file.to_csv(
             PREPRO_CSV_PATH,

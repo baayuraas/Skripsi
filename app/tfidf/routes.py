@@ -65,15 +65,8 @@ def process_file():
             else np.asarray(tfidf_matrix.todense())
         )
 
-        doc_freq_matrix = dense_matrix.astype(bool).sum(axis=0)
-        term_doc_freq = dict(zip(terms, doc_freq_matrix))
-
-        top_n = 1000
-        top_terms = sorted(term_doc_freq, key=lambda t: term_doc_freq[t], reverse=True)[:top_n]
-        print(f"Top-{top_n} term paling sering muncul: {top_terms[:10]}...")
-
-        tfidf_df_all = pd.DataFrame(dense_matrix, columns=terms)
-        tfidf_df = tfidf_df_all[top_terms].copy()
+        tfidf_df = pd.DataFrame(dense_matrix, columns=terms)
+        tfidf_df["Status"] = df["Status"]
 
         tfidf_df.loc[:, "Status"] = df["Status"]
 

@@ -6,6 +6,7 @@ import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
 from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
+from langdetect import detect
 
 terjemahan_bp = Blueprint(
     "terjemahan",
@@ -80,6 +81,15 @@ def fix_hyphen_and_detect_reduplication(text):
     return corrected
 
 
+def is_non_indonesian(text):
+    try:
+        if len(text.strip()) < 20:
+            return False
+        return detect(text) != "id"
+    except Exception:
+        return True
+
+
 def translate_large_text(text, target_language="id"):
     if not text or not isinstance(text, str) or text.strip() == "":
         return ""
@@ -88,18 +98,33 @@ def translate_large_text(text, target_language="id"):
 
     for chunk in chunks:
         attempts = 0
+        translated = ""
         while attempts < 3:
             try:
                 translated = GoogleTranslator(
                     source="auto", target=target_language
                 ).translate(chunk)
                 translated = fix_hyphen_and_detect_reduplication(translated)
+
+                # ⛔ VALIDASI BAHASA
+                if is_non_indonesian(translated):
+                    logging.warning(
+                        f"[LANG DETECT] Chunk hasil bukan Bahasa Indonesia: {translated[:50]}..."
+                    )
+                    attempts += 1
+                    time.sleep(1)
+                    continue
+
                 translated_chunks.append(translated)
                 break
             except Exception as e:
+                logging.error(f"[ERROR] Translasi gagal: {e}")
                 attempts += 1
-                logging.error(f"Error translating chunk: {e}")
-                time.sleep(5)
+                time.sleep(1)
+
+        if not translated:
+            translated_chunks.append("[Gagal diterjemahkan]")
+
     return " ".join(translated_chunks)
 
 

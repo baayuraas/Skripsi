@@ -88,7 +88,7 @@ def predict_sentimen():
         vector = tfidf_vectorizer.transform([hasil_prepro])
         pred = ml_model.predict(
             vector.toarray()
-        )  # model harus support sparse agar toarray bisa dihindari
+        )
 
         label_prediksi = label_encoder.inverse_transform([np.argmax(pred)])[0]
 
