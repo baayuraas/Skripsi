@@ -21,26 +21,22 @@ MODEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "model_mlp_custom.
 LABEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "label_encoder.pkl")
 TFIDF_PATH = os.path.join(BASE_DIR, "uploads", "tfidf", "tfidf.pkl")
 
-ml_model = None
-label_encoder: Optional[LabelEncoder] = None
-tfidf_vectorizer: Optional[TfidfVectorizer] = None
 
-# Load model & komponen
-try:
-    ml_model = load_model(MODEL_PATH)
+def load_all_model_components():
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Model tidak ditemukan: {MODEL_PATH}")
+    if not os.path.exists(LABEL_PATH):
+        raise FileNotFoundError(f"LabelEncoder tidak ditemukan: {LABEL_PATH}")
+    if not os.path.exists(TFIDF_PATH):
+        raise FileNotFoundError(f"TF-IDF vectorizer tidak ditemukan: {TFIDF_PATH}")
+
+    model = load_model(MODEL_PATH)
     with open(LABEL_PATH, "rb") as f:
-        label_encoder = pickle.load(f)
+        encoder = pickle.load(f)
     with open(TFIDF_PATH, "rb") as f:
-        tfidf_vectorizer = pickle.load(f)
-    logging.info("Model, LabelEncoder, dan TF-IDF vectorizer berhasil dimuat.")
-except Exception as e:
-    logging.error(f"Gagal load model atau komponen: {e}")
-    ml_model, label_encoder, tfidf_vectorizer = None, None, None
+        vectorizer = pickle.load(f)
 
-
-def ensure_model_ready():
-    if not ml_model or not label_encoder or not tfidf_vectorizer:
-        raise RuntimeError("Model atau komponen belum siap.")
+    return model, encoder, vectorizer
 
 
 @pengujian_bp.route("/", methods=["GET"])
@@ -51,7 +47,7 @@ def index():
 @pengujian_bp.route("/health", methods=["GET"])
 def health_check():
     try:
-        ensure_model_ready()
+        load_all_model_components()
         return jsonify({"status": "ok"}), 200
     except Exception as e:
         return jsonify({"status": "error", "detail": str(e)}), 500
@@ -60,7 +56,13 @@ def health_check():
 @pengujian_bp.route("/predict", methods=["POST"])
 def predict_sentimen():
     try:
-        ensure_model_ready()
+        try:
+            model, encoder, vectorizer = load_all_model_components()
+        except Exception as e:
+            return jsonify({"error": f"Model belum tersedia: {str(e)}"}), 500
+
+        if model is None or encoder is None or vectorizer is None:
+            return jsonify({"error": "Komponen model belum lengkap."}), 500
 
         data = request.get_json()
         if not data or "ulasan" not in data:
@@ -70,38 +72,28 @@ def predict_sentimen():
         if not ulasan:
             return jsonify({"error": "Ulasan kosong."}), 400
 
-        # Escape HTML tags (prevent injection in render)
         ulasan = html.escape(ulasan)
-
-        # Terjemahan jika perlu
         terjemahan = translate_large_text(ulasan, "id")
         is_translated = terjemahan.strip() != ulasan.strip()
 
-        # Preprocessing
         hasil_prepro_list = proses_baris_aman(terjemahan)
         if not hasil_prepro_list or not hasil_prepro_list[-1]:
             return jsonify({"error": "Preprocessing gagal."}), 500
 
         hasil_prepro = hasil_prepro_list[-1]
+        vector = vectorizer.transform([hasil_prepro])
+        pred = model.predict(vector.toarray())
 
-        # TF-IDF transform
-        vector = tfidf_vectorizer.transform([hasil_prepro])
-        pred = ml_model.predict(
-            vector.toarray()
-        )
+        label_prediksi = encoder.inverse_transform([np.argmax(pred)])[0]
 
-        label_prediksi = label_encoder.inverse_transform([np.argmax(pred)])[0]
-
-        # Evaluasi label
         label_asli = data.get("label")
         label_match = None
 
         if label_asli:
             label_asli = label_asli.strip()
-            valid_labels = set(label.lower() for label in label_encoder.classes_)
+            valid_labels = set(label.lower() for label in encoder.classes_)
             if label_asli.lower() not in valid_labels:
                 return jsonify({"error": "Label asli tidak valid."}), 400
-
             label_match = label_prediksi.strip().lower() == label_asli.lower()
 
         return jsonify(

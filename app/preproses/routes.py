@@ -64,7 +64,22 @@ game_terms = {
 kata_tidak_relevan = {"f4s", "bllyat", "crownfall", "groundhog", "qith", "mook"}
 CHUNK_SIZE = 500
 MAX_FILE_SIZE = 2 * 1024 * 1024
+CACHE_FILE = os.path.join(BASE_DIR, "cache_translate.json")
 terjemahan_cache = {}
+
+if os.path.exists(CACHE_FILE):
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            terjemahan_cache = json.load(f)
+    except Exception:
+        terjemahan_cache = {}
+
+def simpan_cache_ke_file():
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[ERROR simpan cache]: {e}")
 
 
 def register_template_filters(app):
@@ -126,18 +141,24 @@ def terjemahkan_ke_indonesia(words: list) -> list:
     joined = " ".join(words).strip().lower()
     if not joined:
         return words
+
     if joined in terjemahan_cache:
+        print(f"[CACHE] Kata ditemukan, tidak translate ulang: {joined}")
         return word_tokenize(terjemahan_cache[joined])
 
     for _ in range(3):
         try:
             hasil = GoogleTranslator(source="auto", target="id").translate(joined)
             terjemahan_cache[joined] = hasil
+            print(f"[TRANSLATE] Baru diterjemahkan: {joined} → {hasil}")
             return word_tokenize(hasil.lower())
         except (dt_exceptions.NotValidPayload, dt_exceptions.TranslationNotFound):
+            print(f"[SKIP] Payload tidak valid, gagal translate: {joined}")
             return words
         except Exception:
             time.sleep(1)
+
+    print(f"[FAIL] Gagal translate setelah retry: {joined}")
     return words
 
 
@@ -146,33 +167,38 @@ def proses_baris_aman(terjemahan):
         if pd.isna(terjemahan) or not isinstance(terjemahan, str):
             return ["", "", [], [], [], [], ""]
 
-        # Langkah 1: Preprocessing awal
         clean = bersihkan_terjemahan(terjemahan)
         folded = clean.lower()
         token = word_tokenize(folded)
-        stop = hapus_stopword(token)
+
+        hasil_token = []
+        for w in token:
+            try:
+                if len(w) <= 2:
+                    continue
+                lang = detect(w)
+                if lang == "id":
+                    hasil_token.append(w)
+                else:
+                    translated = (
+                        GoogleTranslator(source="auto", target="id")
+                        .translate(w)
+                        .lower()
+                    )
+                    hasil_token.extend(word_tokenize(translated))
+            except LangDetectException:
+                hasil_token.append(w)
+
+        stop = hapus_stopword(hasil_token)
         norm = normalisasi_teks(stop)
         stem = stemming_teks(norm)
         hasil = " ".join(stem)
 
-        # Langkah 2: Deteksi bahasa hasil akhir
-        hasil_words = hasil.split()
-        if hasil_words and deteksi_bukan_indonesia(hasil_words):
-            # Jika tidak ID, translate ulang & lakukan preprocessing ulang
-            print(f">> Translate ulang karena hasil bukan ID: {hasil_words}")
-            translated = (
-                GoogleTranslator(source="auto", target="id").translate(clean).lower()
-            )
-            token = word_tokenize(translated)
-            stop = hapus_stopword(token)
-            norm = normalisasi_teks(stop)
-            stem = stemming_teks(norm)
-            hasil = " ".join(stem)
-
+        print(f"[OK] Baris diproses: {terjemahan[:50]}... → {hasil[:50]}...")
         return [clean, folded, token, stop, norm, stem, hasil]
 
     except Exception as e:
-        print(f"[ERROR]: {e}")
+        print(f"[ERROR hybrid]: {e}")
         return ["", "", [], [], [], [], ""]
 
 
@@ -189,11 +215,15 @@ def preproses():
         processed = []
         pool = ThreadPool(4)
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks, start=1):
+            print(f"[CHUNK {i}] Memproses {len(chunk)} baris...")
+
             if "Terjemahan" not in chunk.columns:
                 return jsonify({"error": "Kolom 'Terjemahan' tidak ditemukan."}), 400
             chunk["Terjemahan"] = chunk["Terjemahan"].fillna("")
+
             hasil_list = pool.map(proses_baris_aman, chunk["Terjemahan"].tolist())
+
             hasil_df = pd.DataFrame(
                 hasil_list,
                 columns=[
@@ -235,6 +265,8 @@ def preproses():
             lineterminator="\n",
             doublequote=True,
         )
+
+        simpan_cache_ke_file()
 
         return jsonify({
             "message": "Preprocessing selesai dan disimpan!",
@@ -292,6 +324,8 @@ def save_csv():
             lineterminator="\n",
             doublequote=True,
         )
+
+        simpan_cache_ke_file()
 
         return send_file(
             PREPRO_CSV_PATH,

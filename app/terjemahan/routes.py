@@ -92,7 +92,8 @@ def is_non_indonesian(text):
 
 def translate_large_text(text, target_language="id"):
     if not text or not isinstance(text, str) or text.strip() == "":
-        return ""
+        return "[Gagal diterjemahkan]"
+
     chunks = split_text_into_chunks(text, 5000)
     translated_chunks = []
 
@@ -106,7 +107,6 @@ def translate_large_text(text, target_language="id"):
                 ).translate(chunk)
                 translated = fix_hyphen_and_detect_reduplication(translated)
 
-                # ⛔ VALIDASI BAHASA
                 if is_non_indonesian(translated):
                     logging.warning(
                         f"[LANG DETECT] Chunk hasil bukan Bahasa Indonesia: {translated[:50]}..."
@@ -115,15 +115,20 @@ def translate_large_text(text, target_language="id"):
                     time.sleep(1)
                     continue
 
-                translated_chunks.append(translated)
-                break
+                break  # keluar dari retry loop
             except Exception as e:
                 logging.error(f"[ERROR] Translasi gagal: {e}")
                 attempts += 1
                 time.sleep(1)
 
-        if not translated:
-            translated_chunks.append("[Gagal diterjemahkan]")
+        # fallback terakhir jika tetap gagal atau hasil non-Bahasa Indonesia
+        if not translated or is_non_indonesian(translated):
+            logging.warning(
+                "[RETRY FAILED] Gunakan hasil terakhir walau mungkin belum benar."
+            )
+            translated = translated or "[Gagal diterjemahkan]"
+
+        translated_chunks.append(translated)
 
     return " ".join(translated_chunks)
 
