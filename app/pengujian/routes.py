@@ -3,11 +3,8 @@ import logging
 import pickle
 import html
 import numpy as np
-from typing import Optional
 from flask import Blueprint, request, jsonify, render_template
 from keras.models import load_model
-from sklearn.preprocessing import LabelEncoder
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from app.terjemahan.routes import translate_large_text
 from app.preproses.routes import proses_baris_aman
@@ -19,7 +16,7 @@ pengujian_bp = Blueprint(
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 MODEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "model_mlp_custom.keras")
 LABEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "label_encoder.pkl")
-TFIDF_PATH = os.path.join(BASE_DIR, "uploads", "tfidf", "tfidf.pkl")
+TFIDF_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "tfidf.pkl")
 
 
 def load_all_model_components():
@@ -56,13 +53,7 @@ def health_check():
 @pengujian_bp.route("/predict", methods=["POST"])
 def predict_sentimen():
     try:
-        try:
-            model, encoder, vectorizer = load_all_model_components()
-        except Exception as e:
-            return jsonify({"error": f"Model belum tersedia: {str(e)}"}), 500
-
-        if model is None or encoder is None or vectorizer is None:
-            return jsonify({"error": "Komponen model belum lengkap."}), 500
+        model, encoder, vectorizer = load_all_model_components()
 
         data = request.get_json()
         if not data or "ulasan" not in data:
@@ -82,7 +73,12 @@ def predict_sentimen():
 
         hasil_prepro = hasil_prepro_list[-1]
         vector = vectorizer.transform([hasil_prepro])
-        pred = model.predict(vector.toarray())
+
+        # Coba prediksi langsung sparse, kalau gagal pakai toarray
+        try:
+            pred = model.predict(vector)
+        except Exception:
+            pred = model.predict(vector.toarray())
 
         label_prediksi = encoder.inverse_transform([np.argmax(pred)])[0]
 
