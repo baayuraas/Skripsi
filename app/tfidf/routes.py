@@ -4,8 +4,6 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr_matrix
 import os
-import pickle
-
 
 tfidf_bp = Blueprint(
     "tfidf",
@@ -19,7 +17,6 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "tfidf")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 TEMP_OUTPUT = os.path.join(UPLOAD_FOLDER, "tfidf_output.csv")
-MODEL_OUTPUT_PATH = os.path.join(BASE_DIR, "uploads/tfidf/tfidf.pkl")
 
 
 @tfidf_bp.route("/")
@@ -51,14 +48,10 @@ def process_file():
 
         tfidf_vectorizer = TfidfVectorizer(min_df=2, dtype=np.float32)
         tfidf_matrix = tfidf_vectorizer.fit_transform(df["Hasil"])
-        
-        with open(MODEL_OUTPUT_PATH, "wb") as f:
-            pickle.dump(tfidf_vectorizer, f)
-        
+
         terms = tfidf_vectorizer.get_feature_names_out()
         print(f"Jumlah fitur TF-IDF yang dihasilkan: {len(terms)}")
 
-        # Konversi matrix
         dense_matrix = (
             tfidf_matrix.toarray()
             if isinstance(tfidf_matrix, csr_matrix)
@@ -67,8 +60,6 @@ def process_file():
 
         tfidf_df = pd.DataFrame(dense_matrix, columns=terms)
         tfidf_df["Status"] = df["Status"]
-
-        tfidf_df.loc[:, "Status"] = df["Status"]
 
         ordered_columns = [col for col in tfidf_df.columns if col != "Status"] + [
             "Status"
