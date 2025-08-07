@@ -136,31 +136,19 @@ def ada_kata_non_indonesia(words: list[str]) -> bool:
         return False
 
 
-def terjemahkan_ke_indonesia(words: list) -> list:
-    global terjemahan_cache
-    joined = " ".join(words).strip().lower()
-    if not joined:
-        return words
+def translate_batch_cached(kata_non_id):
+    kata_belum_diterjemahkan = [w for w in kata_non_id if w not in terjemahan_cache]
+    if not kata_belum_diterjemahkan:
+        return
 
-    if joined in terjemahan_cache:
-        print(f"[CACHE] Kata ditemukan, tidak translate ulang: {joined}")
-        return word_tokenize(terjemahan_cache[joined])
-
-    for _ in range(3):
-        try:
-            hasil = GoogleTranslator(source="auto", target="id").translate(joined)
-            terjemahan_cache[joined] = hasil
-            print(f"[TRANSLATE] Baru diterjemahkan: {joined} → {hasil}")
-            return word_tokenize(hasil.lower())
-        except (dt_exceptions.NotValidPayload, dt_exceptions.TranslationNotFound):
-            print(f"[SKIP] Payload tidak valid, gagal translate: {joined}")
-            return words
-        except Exception:
-            time.sleep(1)
-
-    print(f"[FAIL] Gagal translate setelah retry: {joined}")
-    return words
-
+    try:
+        hasil_batch = GoogleTranslator(source="auto", target="id").translate_batch(kata_belum_diterjemahkan)
+        for asli, hasil in zip(kata_belum_diterjemahkan, hasil_batch):
+            if hasil:
+                terjemahan_cache[asli] = hasil.lower()
+                print(f"[TRANSLATE BATCH] {asli} → {hasil.lower()}")
+    except Exception as e:
+        print(f"[ERROR translate_batch]: {str(e)}")
 
 def proses_baris_aman(terjemahan):
     try:
@@ -172,21 +160,25 @@ def proses_baris_aman(terjemahan):
         token = word_tokenize(folded)
 
         hasil_token = []
+        kata_non_id = []
+
         for w in token:
             try:
                 if len(w) <= 2:
                     continue
-                lang = detect(w)
-                if lang == "id":
-                    hasil_token.append(w)
-                else:
-                    translated = (
-                        GoogleTranslator(source="auto", target="id")
-                        .translate(w)
-                        .lower()
-                    )
-                    hasil_token.extend(word_tokenize(translated))
+                if detect(w) != "id":
+                    kata_non_id.append(w)
             except LangDetectException:
+                continue
+
+        translate_batch_cached(kata_non_id)
+
+        for w in token:
+            if len(w) <= 2:
+                continue
+            if w in terjemahan_cache:
+                hasil_token.extend(word_tokenize(terjemahan_cache[w]))
+            else:
                 hasil_token.append(w)
 
         stop = hapus_stopword(hasil_token)

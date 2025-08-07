@@ -20,12 +20,22 @@ TFIDF_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "tfidf.pkl")
 
 
 def load_all_model_components():
+    """Load model, label encoder, dan TF-IDF vectorizer dari file"""
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model tidak ditemukan: {MODEL_PATH}")
+        raise FileNotFoundError(
+            f"Model tidak ditemukan: {MODEL_PATH}. "
+            "Silakan jalankan proses perhitungan terlebih dahulu."
+        )
     if not os.path.exists(LABEL_PATH):
-        raise FileNotFoundError(f"LabelEncoder tidak ditemukan: {LABEL_PATH}")
+        raise FileNotFoundError(
+            f"LabelEncoder tidak ditemukan: {LABEL_PATH}. "
+            "Silakan jalankan proses perhitungan terlebih dahulu."
+        )
     if not os.path.exists(TFIDF_PATH):
-        raise FileNotFoundError(f"TF-IDF vectorizer tidak ditemukan: {TFIDF_PATH}")
+        raise FileNotFoundError(
+            f"TF-IDF vectorizer tidak ditemukan: {TFIDF_PATH}. "
+            "Silakan jalankan proses perhitungan terlebih dahulu."
+        )
 
     model = load_model(MODEL_PATH)
     with open(LABEL_PATH, "rb") as f:
@@ -53,6 +63,7 @@ def health_check():
 @pengujian_bp.route("/predict", methods=["POST"])
 def predict_sentimen():
     try:
+        # Load model & komponen setiap kali prediksi
         model, encoder, vectorizer = load_all_model_components()
 
         data = request.get_json()
