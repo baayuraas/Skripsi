@@ -16,10 +16,9 @@ from markupsafe import escape
 from langdetect import detect
 from langdetect.lang_detect_exception import LangDetectException
 from deep_translator import GoogleTranslator, exceptions as dt_exceptions
-from werkzeug.exceptions import RequestEntityTooLarge
 from multiprocessing.pool import ThreadPool
 from functools import lru_cache
-from typing import List, Dict, Tuple, Union
+from typing import List, Tuple, Union
 
 # Konfigurasi logging dalam bahasa Indonesia
 logging.basicConfig(
@@ -391,125 +390,166 @@ def process_single_row(text: str) -> List[Union[str, List[str]]]:
 
 @prepro_bp.route("/preprocess", methods=["POST"])
 def preprocess():
-    """Endpoint utama untuk preprocessing"""
+    """Endpoint utama untuk preprocessing teks bahasa Indonesia"""
     start_time = time.time()
 
     try:
-        file = request.files.get("file")
-        is_valid, error_msg = validate_input_file(file)
-        if not is_valid:
-            logger.error(f"File tidak valid: {error_msg}")
-            return jsonify({"error": error_msg}), 400
+        # 1. Validasi dasar file upload
+        if "file" not in request.files:
+            logger.error("Request tidak mengandung file")
+            return jsonify({"error": "Harap unggah file CSV"}), 400
 
-        # Proses file dalam chunks
-        chunks = pd.read_csv(file.stream, chunksize=CHUNK_SIZE)
-        processed_chunks = []
-        total_rows = 0
+        file = request.files["file"]
 
-        # Gunakan ThreadPool untuk pemrosesan paralel
-        with ThreadPool(4) as pool:
-            for i, chunk in enumerate(chunks, start=1):
-                logger.info(f"Memproses chunk {i} dengan {len(chunk)} baris")
+        # 2. Validasi filename
+        if file.filename is None:
+            logger.error("Nama file tidak valid (None)")
+            return jsonify({"error": "Nama file tidak valid"}), 400
 
-                if "Terjemahan" not in chunk.columns:
-                    logger.error("Kolom 'Terjemahan' tidak ditemukan")
-                    return jsonify({"error": "Kolom 'Terjemahan' tidak ditemukan"}), 400
+        if not isinstance(file.filename, str):
+            logger.error(f"Tipe nama file tidak valid: {type(file.filename)}")
+            return jsonify({"error": "Format nama file tidak valid"}), 400
 
-                chunk["Terjemahan"] = chunk["Terjemahan"].fillna("")
-                total_rows += len(chunk)
+        if not file.filename.strip():
+            logger.error("Nama file kosong")
+            return jsonify({"error": "Nama file tidak boleh kosong"}), 400
 
-                # Proses setiap baris secara paralel
-                results = pool.map(process_single_row, chunk["Terjemahan"].tolist())
+        # 3. Validasi ekstensi file
+        if not file.filename.strip().lower().endswith(".csv"):
+            logger.error(f"Format file tidak didukung: {file.filename}")
+            return jsonify({"error": "Hanya file CSV (.csv) yang diperbolehkan"}), 400
 
-                # Gabungkan hasil
-                result_df = pd.DataFrame(
-                    results,
-                    columns=[
-                        "Clean_Text",
-                        "Case_Folded",
-                        "Tokens",
-                        "No_Stopwords",
-                        "Normalized",
-                        "Stemmed",
-                        "Final_Result",
-                    ],
+        # 4. Validasi ukuran file
+        MAX_SIZE = 10 * 1024 * 1024  # 10MB
+        if hasattr(file, "content_length") and file.content_length > MAX_SIZE:
+            logger.error(f"File terlalu besar: {file.content_length} bytes")
+            return jsonify({"error": "Ukuran file terlalu besar (maks 10MB)"}), 400
+
+        # 5. Pastikan file memiliki stream
+        if not hasattr(file, "stream"):
+            logger.error("File tidak memiliki stream yang valid")
+            return jsonify({"error": "Format file tidak valid"}), 400
+
+        # 6. Proses file CSV
+        try:
+            with file.stream as f:
+                chunks = pd.read_csv(f, chunksize=CHUNK_SIZE)
+                processed_chunks = []
+                total_rows = 0
+
+                with ThreadPool(4) as pool:
+                    for chunk_num, chunk in enumerate(chunks, 1):
+                        logger.info(f"Memproses chunk {chunk_num} ({len(chunk)} baris)")
+
+                        # 7. Validasi kolom 'Terjemahan'
+                        if "Terjemahan" not in chunk.columns:
+                            logger.error("Kolom 'Terjemahan' tidak ditemukan")
+                            return jsonify(
+                                {"error": "File harus mengandung kolom 'Terjemahan'"}
+                            ), 400
+
+                        chunk["Terjemahan"] = chunk["Terjemahan"].fillna("")
+                        total_rows += len(chunk)
+
+                        # 8. Proses setiap baris
+                        results = pool.map(
+                            process_single_row, chunk["Terjemahan"].tolist()
+                        )
+
+                        # 9. Gabungkan hasil
+                        result_df = pd.DataFrame(
+                            results,
+                            columns=[
+                                "Teks_Bersih",
+                                "Case_Folding",
+                                "Tokenisasi",
+                                "Tanpa_Stopword",
+                                "Normalisasi",
+                                "Stemming",
+                                "Hasil_Akhir",
+                            ],
+                        )
+
+                        chunk = pd.concat(
+                            [chunk.reset_index(drop=True), result_df], axis=1
+                        )
+                        chunk["Status"] = chunk.get("Status", "")
+                        processed_chunks.append(chunk)
+
+                # 10. Gabungkan semua chunk
+                if not processed_chunks:
+                    logger.error("Tidak ada data yang diproses")
+                    return jsonify(
+                        {"error": "File tidak mengandung data yang valid"}
+                    ), 400
+
+                final_df = pd.concat(processed_chunks, ignore_index=True)
+
+                # 11. Simpan hasil
+                export_df = final_df.copy()
+                list_columns = [
+                    "Tokenisasi",
+                    "Tanpa_Stopword",
+                    "Normalisasi",
+                    "Stemming",
+                ]
+
+                for col in list_columns:
+                    export_df[col] = export_df[col].apply(
+                        lambda x: json.dumps(x, ensure_ascii=False)
+                        if isinstance(x, list)
+                        else "[]"
+                    )
+
+                os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
+                export_df.to_csv(
+                    PREPRO_CSV_PATH,
+                    index=False,
+                    quoting=csv.QUOTE_ALL,
+                    encoding="utf-8-sig",
+                    lineterminator="\n",
                 )
 
-                chunk = pd.concat([chunk.reset_index(drop=True), result_df], axis=1)
-                chunk["Status"] = chunk.get("Status", "")
-                processed_chunks.append(chunk)
+                # 12. Hitung statistik
+                processing_time = time.time() - start_time
+                rows_per_sec = (
+                    total_rows / processing_time if processing_time > 0 else 0
+                )
 
-        # Gabungkan semua chunks
-        final_df = pd.concat(processed_chunks, ignore_index=True)
+                logger.info(
+                    f"Berhasil memproses {total_rows} baris "
+                    f"dalam {processing_time:.2f} detik "
+                    f"({rows_per_sec:.2f} baris/detik)"
+                )
 
-        # Siapkan untuk ekspor CSV
-        export_df = final_df.copy()
-        list_columns = ["Tokens", "No_Stopwords", "Normalized", "Stemmed"]
+                return jsonify(
+                    {
+                        "status": "sukses",
+                        "pesan": "Preprocessing berhasil",
+                        "data": {
+                            "total_baris": total_rows,
+                            "waktu_proses": f"{processing_time:.2f} detik",
+                            "kecepatan": f"{rows_per_sec:.2f} baris/detik",
+                        },
+                        "contoh_data": final_df.head(3).to_dict(orient="records"),
+                    }
+                )
 
-        for col in list_columns:
-            export_df[col] = export_df[col].apply(
-                lambda x: json.dumps(x, ensure_ascii=False)
-                if isinstance(x, list)
-                else "[]"
-            )
+        except pd.errors.EmptyDataError:
+            logger.error("File CSV kosong")
+            return jsonify({"error": "File CSV kosong"}), 400
 
-        for col in export_df.columns:
-            if col not in list_columns:
-                export_df[col] = export_df[col].astype(str).replace({'"': '""'})
+        except pd.errors.ParserError as e:
+            logger.error(f"Error parsing CSV: {str(e)}")
+            return jsonify({"error": "Format CSV tidak valid"}), 400
 
-        # Hapus kolom mentah jika ada
-        export_df.drop(
-            columns=[
-                col
-                for col in export_df.columns
-                if col.lower() in {"ulasan", "terjemahan"}
-            ],
-            inplace=True,
-            errors="ignore",
-        )
+        except Exception as e:
+            logger.error(f"Error memproses CSV: {str(e)}")
+            return jsonify({"error": "Gagal memproses file CSV"}), 500
 
-        # Simpan hasil
-        os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
-        export_df.to_csv(
-            PREPRO_CSV_PATH,
-            index=False,
-            quoting=csv.QUOTE_ALL,
-            encoding="utf-8-sig",
-            lineterminator="\n",
-            doublequote=True,
-        )
-
-        save_cache_to_file()
-
-        # Hitung statistik
-        processing_time = time.time() - start_time
-        logger.info(
-            f"Memproses {total_rows} baris dalam {processing_time:.2f} detik "
-            f"({total_rows / processing_time:.2f} baris/detik)"
-        )
-
-        return jsonify(
-            {
-                "message": "Preprocessing berhasil diselesaikan!",
-                "stats": {
-                    "total_rows": total_rows,
-                    "processing_time": f"{processing_time:.2f} detik",
-                    "speed": f"{total_rows / processing_time:.2f} baris/detik",
-                },
-                "sample_data": final_df.head(50).to_dict(orient="records"),
-            }
-        )
-
-    except pd.errors.EmptyDataError:
-        logger.error("File CSV kosong")
-        return jsonify({"error": "File CSV kosong atau tidak valid"}), 400
-    except RequestEntityTooLarge:
-        logger.error("File terlalu besar")
-        return jsonify({"error": "Ukuran file melebihi batas 2MB"}), 413
     except Exception as e:
-        logger.error(f"Error tak terduga: {str(e)}")
-        return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
-
+        logger.error(f"Error tidak terduga: {str(e)}")
+        return jsonify({"error": "Terjadi kesalahan server"}), 500
 
 @prepro_bp.route("/save_csv", methods=["POST"])
 def save_csv():
@@ -588,4 +628,13 @@ def download_processed():
     return jsonify({"error": "File hasil preprocessing tidak ditemukan"}), 404
 
 
-@prepro_bp.r
+@prepro_bp.route("/")
+def main_view():
+    """Endpoint tampilan utama"""
+    return render_template("preprosessing.html", page_name="prepro"), 200
+
+
+def register_template_filters(app):
+    """Mendaftarkan filter template"""
+    app.jinja_env.filters["sanitize"] = escape
+    logger.info("Filter template berhasil didaftarkan")
