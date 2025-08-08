@@ -21,16 +21,18 @@ from multiprocessing.pool import ThreadPool
 from functools import lru_cache
 from typing import List, Dict, Tuple, Union
 
+# Konfigurasi logging yang lebih komprehensif
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('preprocessing.log'),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler("preprocessing.log", encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
+# Inisialisasi Blueprint Flask
 prepro_bp = Blueprint(
     "prepro",
     __name__,
@@ -39,88 +41,184 @@ prepro_bp = Blueprint(
     static_folder="static",
 )
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
-TXT_DIR = os.path.dirname(os.path.abspath(__file__))
-MAX_FILE_SIZE = 2 * 1024 * 1024
+# Konfigurasi path dengan penanganan error
+try:
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
+    TXT_DIR = os.path.dirname(os.path.abspath(__file__))
+    logger.info("Direktori dan path berhasil diinisialisasi")
+except Exception as e:
+    logger.error(f"Gagal menginisialisasi path: {str(e)}")
+    raise
+
+# Konstanta
+MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
 CHUNK_SIZE = 500
 CACHE_FILE = os.path.join(BASE_DIR, "cache_translate.json")
-CACHE_SIZE_LIMIT = 10000
+CACHE_SIZE_LIMIT = 10000  # Batas ukuran cache
 
-stopword_factory = StopWordRemoverFactory()
-stop_words = set(stopword_factory.get_stop_words()).union(
-    set(stopwords.words("indonesian"))
-)
-logger.info("Komponen NLP diinisialisasi") 
-
-# Load custom stopwords
+# Inisialisasi komponen NLP dengan penanganan error
 try:
-    with open(os.path.join(TXT_DIR, "stopword_list.txt"), "r", encoding="utf-8") as f:
-        stop_words.update(f.read().splitlines())
-    logger.info("Custom stopwords loaded successfully")
+    stopword_factory = StopWordRemoverFactory()
+    stemmer_factory = StemmerFactory()
+    stemmer = (
+        stemmer_factory.create_stemmer()
+    )  # Inisialisasi stemmer yang sebelumnya hilang
+
+    # Gabungkan stopwords dari berbagai sumber
+    stop_words = set(stopword_factory.get_stop_words()).union(
+        set(stopwords.words("indonesian"))
+    )
+
+    # Tambahkan stopwords kustom
+    custom_stopwords = [
+        "yg",
+        "dg",
+        "rt",
+        "dgn",
+        "ny",
+        "d",
+        "klo",
+        "kalo",
+        "amp",
+        "biar",
+        "bikin",
+        "bilang",
+        "gak",
+        "ga",
+        "krn",
+        "nya",
+        "nih",
+        "sih",
+        "si",
+        "tau",
+        "tdk",
+        "tuh",
+        "utk",
+        "ya",
+        "jd",
+        "jgn",
+        "sdh",
+        "aja",
+        "n",
+        "t",
+        "nyg",
+        "hehe",
+        "pen",
+        "u",
+        "nan",
+        "loh",
+        "rt",
+        "&amp",
+        "yah",
+    ]
+    stop_words.update(custom_stopwords)
+
+    logger.info("Komponen NLP berhasil diinisialisasi")
 except Exception as e:
-    logger.error(f"Failed to load custom stopwords: {e}")
+    logger.error(f"Gagal inisialisasi komponen NLP: {str(e)}")
     raise
 
+# Memuat stopwords kustom dengan penanganan error yang lebih baik
+try:
+    stopword_file = os.path.join(TXT_DIR, "stopword_list.txt")
+    if os.path.exists(stopword_file):
+        with open(stopword_file, "r", encoding="utf-8") as f:
+            stop_words.update(f.read().splitlines())
+        logger.info("Stopwords kustom berhasil dimuat")
+    else:
+        logger.warning(f"File stopword_list.txt tidak ditemukan di {stopword_file}")
+except Exception as e:
+    logger.error(f"Gagal memuat stopwords kustom: {str(e)}")
+
+# Memuat kamus normalisasi
 normalisasi_dict = {}
 try:
-    with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") as f:
-        for line in f:
-            if "=" in line:
-                k, v = line.strip().split("=", 1)
-                normalisasi_dict[k.strip().lower()] = v.strip().lower()
-    logger.info("Normalization dictionary loaded successfully")
+    normalisasi_file = os.path.join(TXT_DIR, "normalisasi_list.txt")
+    if os.path.exists(normalisasi_file):
+        with open(normalisasi_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    normalisasi_dict[k.strip().lower()] = v.strip().lower()
+        logger.info("Kamus normalisasi berhasil dimuat")
+    else:
+        logger.warning(
+            f"File normalisasi_list.txt tidak ditemukan di {normalisasi_file}"
+        )
 except Exception as e:
-    logger.error(f"Failed to load normalization dictionary: {e}")
-    raise
+    logger.error(f"Gagal memuat kamus normalisasi: {str(e)}")
 
+# Istilah khusus domain
 game_terms = {
-    "archon", "bot", "creep", "crownfall", "icefrog", "meta", 
-    "overwatch", "pudge", "spam", "valve", "warcraft", "willow"
+    "archon",
+    "bot",
+    "creep",
+    "crownfall",
+    "icefrog",
+    "meta",
+    "overwatch",
+    "pudge",
+    "spam",
+    "valve",
+    "warcraft",
+    "willow",
 }
-irrelevant_words = {"f4s", "bllyat", "crownfall", "groundhog", "qith", "mook"}
+kata_tidak_relevan = {"f4s", "bllyat", "crownfall", "groundhog", "qith", "mook"}
 
-# Translation cache with size limit
+# Cache terjemahan dengan penanganan error yang lebih baik
 terjemahan_cache = {}
-
 if os.path.exists(CACHE_FILE):
     try:
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
             terjemahan_cache = json.load(f)
-            # Enforce cache size limit
             if len(terjemahan_cache) > CACHE_SIZE_LIMIT:
-                terjemahan_cache = dict(list(terjemahan_cache.items())[:CACHE_SIZE_LIMIT])
-        logger.info(f"Loaded translation cache with {len(terjemahan_cache)} entries")
+                terjemahan_cache = dict(
+                    list(terjemahan_cache.items())[:CACHE_SIZE_LIMIT]
+                )
+        logger.info(f"Cache terjemahan dimuat dengan {len(terjemahan_cache)} entri")
     except Exception as e:
-        logger.error(f"Failed to load translation cache: {e}")
+        logger.error(f"Gagal memuat cache terjemahan: {str(e)}")
         terjemahan_cache = {}
 
+
 def simpan_cache_ke_file():
+    """Menyimpan cache terjemahan ke file dengan penanganan error"""
     try:
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved translation cache with {len(terjemahan_cache)} entries")
+        logger.info(f"Cache terjemahan disimpan dengan {len(terjemahan_cache)} entri")
     except Exception as e:
-        logger.error(f"Failed to save translation cache: {e}")
+        logger.error(f"Gagal menyimpan cache terjemahan: {str(e)}")
 
-def validate_input_file(file) -> Tuple[bool, Union[str, None]]:
-    if not file or not file.filename:
-        return False, "No file provided"
-    
+
+def validasi_file_input(file) -> Tuple[bool, Union[str, None]]:
+    """Validasi file input sebelum diproses"""
+    if file is None:
+        return False, "Tidak ada file yang diberikan"
+
+    if not hasattr(file, "filename") or not file.filename:
+        return False, "Nama file tidak valid"
+
     if not file.filename.lower().endswith(".csv"):
-        return False, "Only CSV files are supported"
-    
-    if file.content_length > MAX_FILE_SIZE:
-        return False, f"File size exceeds {MAX_FILE_SIZE/1024/1024}MB limit"
-    
+        return False, "Hanya file CSV yang didukung"
+
+    if not hasattr(file, "stream"):
+        return False, "File tidak memiliki atribut stream"
+
+    if hasattr(file, "content_length") and file.content_length > MAX_FILE_SIZE:
+        return False, f"Ukuran file melebihi batas {MAX_FILE_SIZE / 1024 / 1024}MB"
+
     return True, None
 
-def bersihkan_terjemahan(teks: str) -> str:
+
+def bersihkan_teks(teks: str) -> str:
+    """Membersihkan teks dari karakter tidak perlu"""
     if pd.isna(teks) or not isinstance(teks, str):
         return ""
-    
+
     try:
         teks = emoji.replace_emoji(teks, replace=" ")
         teks = re.sub(r"[-–—…“”‘’«»]", " ", teks)
@@ -129,205 +227,259 @@ def bersihkan_terjemahan(teks: str) -> str:
         teks = re.sub(r"\b[\d\w]*\d[\w\d]*\b", " ", teks)
         teks = re.sub(r"[^a-zA-Z0-9\s]", " ", teks)
         teks = re.sub(r"\b[a-zA-Z]{1,3}\b", " ", teks)
-        teks = unicodedata.normalize("NFKD", teks).encode("ascii", "ignore").decode("utf-8")
-        
+        teks = (
+            unicodedata.normalize("NFKD", teks)
+            .encode("ascii", "ignore")
+            .decode("utf-8")
+        )
         return re.sub(r"\s+", " ", teks).strip()
-    
     except Exception as e:
-        logger.error(f"Error in bersihkan_terjemahan: {e}")
+        logger.error(f"Error dalam bersihkan_teks: {str(e)}")
         return ""
 
-@lru_cache(maxsize=1000)
-def hapus_kata_ulang(word: str) -> str:
-    try:
-        return re.sub(r"\b(\w{3,}?)(?:\1)\b", r"\1", word)
-    except Exception as e:
-        logger.error(f"Error in hapus_kata_ulang: {e}")
-        return word
 
-def normalisasi_teks(words: List[str]) -> List[str]:
+@lru_cache(maxsize=1000)
+def hapus_kata_ulang(kata: str) -> str:
+    """Menghapus pengulangan kata dengan caching"""
+    try:
+        return re.sub(r"\b(\w{3,}?)(?:\1)\b", r"\1", kata)
+    except Exception as e:
+        logger.error(f"Error dalam hapus_kata_ulang: {str(e)}")
+        return kata
+
+
+def normalisasi_teks(kata_kata: List[str]) -> List[str]:
+    """Normalisasi kata menggunakan kamus"""
     try:
         return [
-            normalisasi_dict.get(hapus_kata_ulang(w).lower(), w) 
-            for w in words 
+            normalisasi_dict.get(hapus_kata_ulang(w).lower(), w)
+            for w in kata_kata
             if w.strip()
         ]
     except Exception as e:
-        logger.error(f"Error in normalisasi_teks: {e}")
-        return words
+        logger.error(f"Error dalam normalisasi_teks: {str(e)}")
+        return kata_kata
 
-def hapus_stopword(words: List[str]) -> List[str]:
+
+def hapus_stopword(kata_kata: List[str]) -> List[str]:
+    """Menghapus stopword dengan pengecualian istilah khusus"""
     try:
         return [
-            w for w in words
-            if (w not in stop_words and w not in irrelevant_words) or w in game_terms
+            w
+            for w in kata_kata
+            if (w not in stop_words and w not in kata_tidak_relevan) or w in game_terms
         ]
     except Exception as e:
-        logger.error(f"Error in hapus_stopword: {e}")
-        return words
+        logger.error(f"Error dalam hapus_stopword: {str(e)}")
+        return kata_kata
 
-def stemming_teks(words: List[str]) -> List[str]:
+
+def stemming_teks(kata_kata: List[str]) -> List[str]:
+    """Melakukan stemming pada list kata"""
     try:
-        return [stemmer.stem(w) for w in words]
+        return [stemmer.stem(w) for w in kata_kata]
     except Exception as e:
-        logger.error(f"Error in stemming_teks: {e}")
-        return words
+        logger.error(f"Error dalam stemming_teks: {str(e)}")
+        return kata_kata
 
-def translate_batch_cached(kata_non_id: List[str]) -> None:
+
+def terjemahkan_batch(kata_non_id: List[str]) -> None:
+    """Menerjemahkan batch kata non-Indonesia dengan caching"""
     if not kata_non_id:
         return
-    
+
     try:
-        kata_belum_diterjemahkan = [
-            w for w in kata_non_id 
-            if w not in terjemahan_cache and len(w) > 2
-        ]
-        
-        if not kata_belum_diterjemahkan:
+        kata_baru = [w for w in kata_non_id if w not in terjemahan_cache and len(w) > 2]
+        if not kata_baru:
             return
-        
-        logger.info(f"Translating batch of {len(kata_belum_diterjemahkan)} words")
-        
-        batch_size = 50
-        for i in range(0, len(kata_belum_diterjemahkan), batch_size):
-            batch = kata_belum_diterjemahkan[i:i + batch_size]
-            
+
+        logger.info(f"Menerjemahkan {len(kata_baru)} kata baru")
+
+        ukuran_batch = 50
+        for i in range(0, len(kata_baru), ukuran_batch):
+            batch = kata_baru[i : i + ukuran_batch]
+
             try:
-                translator = GoogleTranslator(source="auto", target="id")
-                hasil_batch = translator.translate_batch(batch)
-                
+                penerjemah = GoogleTranslator(source="auto", target="id")
+                hasil_batch = penerjemah.translate_batch(batch)
+
                 for asli, hasil in zip(batch, hasil_batch):
                     if hasil:
                         terjemahan_cache[asli] = hasil.lower()
-                        logger.debug(f"Translated: {asli} → {hasil.lower()}")
+                        logger.debug(f"Diterjemahkan: {asli} → {hasil.lower()}")
 
                 if i % 200 == 0:
                     simpan_cache_ke_file()
 
-                time.sleep(1)
+                time.sleep(1)  # Hindari rate limiting
 
             except dt_exceptions.TooManyRequests:
-                logger.warning("Translation API rate limit reached. Waiting...")
+                logger.warning("Batas API terjemahan tercapai. Menunggu...")
                 time.sleep(5)
             except Exception as e:
-                logger.error(f"Translation error for batch {i}: {e}")
+                logger.error(f"Error terjemahan batch {i}: {str(e)}")
                 continue
 
     except Exception as e:
-        logger.error(f"Error in translate_batch_cached: {e}")
+        logger.error(f"Error dalam terjemahkan_batch: {str(e)}")
     finally:
         simpan_cache_ke_file()
 
-def proses_baris_aman(terjemahan: str) -> List[Union[str, List[str]]]:
+
+def proses_satu_baris(teks: str) -> List[Union[str, List[str]]]:
+    """Pipeline pemrosesan untuk satu baris teks"""
     try:
-        if pd.isna(terjemahan) or not isinstance(terjemahan, str):
+        if pd.isna(teks) or not isinstance(teks, str):
             return ["", "", [], [], [], [], ""]
 
-        clean = bersihkan_terjemahan(terjemahan)
-        if not clean:
+        # Langkah 1: Pembersihan teks
+        bersih = bersihkan_teks(teks)
+        if not bersih:
             return ["", "", [], [], [], [], ""]
-        folded = clean.lower()
-        token = word_tokenize(folded)
-        if not token:
-            return [clean, folded, [], [], [], [], ""]
-        kata_non_id = []
-        for w in token:
+
+        # Langkah 2: Case folding
+        kecil = bersih.lower()
+
+        # Langkah 3: Tokenisasi
+        tokens = word_tokenize(kecil)
+        if not tokens:
+            return [bersih, kecil, [], [], [], [], ""]
+
+        # Identifikasi kata non-Indonesia
+        kata_asing = []
+        for w in tokens:
             try:
                 if len(w) <= 2:
                     continue
                 if detect(w) != "id":
-                    kata_non_id.append(w)
+                    kata_asing.append(w)
             except LangDetectException:
                 continue
 
-        if kata_non_id:
-            translate_batch_cached(kata_non_id)
-        hasil_token = []
-        for w in token:
+        # Terjemahkan kata asing
+        if kata_asing:
+            terjemahkan_batch(kata_asing)
+
+        # Gabungkan hasil terjemahan
+        hasil_tokens = []
+        for w in tokens:
             if len(w) <= 2:
                 continue
             if w in terjemahan_cache:
-                hasil_token.extend(word_tokenize(terjemahan_cache[w]))
+                hasil_tokens.extend(word_tokenize(terjemahan_cache[w]))
             else:
-                hasil_token.append(w)
-        stop = hapus_stopword(hasil_token)
-        norm = normalisasi_teks(stop)
-        stem = stemming_teks(norm)
-        hasil = " ".join(stem)
-        logger.debug(f"Processed: {terjemahan[:50]}... → {hasil[:50]}...")
-        return [clean, folded, token, stop, norm, stem, hasil]
+                hasil_tokens.append(w)
+
+        # Langkah 4: Stopword removal
+        tanpa_stopword = hapus_stopword(hasil_tokens)
+
+        # Langkah 5: Normalisasi
+        dinormalisasi = normalisasi_teks(tanpa_stopword)
+
+        # Langkah 6: Stemming
+        distem = stemming_teks(dinormalisasi)
+
+        # Hasil akhir
+        hasil_akhir = " ".join(distem)
+
+        logger.debug(f"Diproses: {teks[:50]}... → {hasil_akhir[:50]}...")
+        return [
+            bersih,
+            kecil,
+            tokens,
+            tanpa_stopword,
+            dinormalisasi,
+            distem,
+            hasil_akhir,
+        ]
 
     except Exception as e:
-        logger.error(f"Error in proses_baris_aman: {e}")
+        logger.error(f"Error dalam proses_satu_baris: {str(e)}")
         return ["", "", [], [], [], [], ""]
+
 
 @prepro_bp.route("/preproses", methods=["POST"])
 def preproses():
-    start_time = time.time()
-    
+    """Endpoint utama untuk preprocessing"""
+    waktu_mulai = time.time()
+
     try:
         file = request.files.get("file")
-        is_valid, error_msg = validate_input_file(file)
-        if not is_valid:
-            logger.error(f"Invalid file: {error_msg}")
-            return jsonify({"error": error_msg}), 400
+        valid, pesan_error = validasi_file_input(file)
+        if not valid:
+            logger.error(f"File tidak valid: {pesan_error}")
+            return jsonify({"error": pesan_error}), 400
 
+        # Proses file dalam chunk
         chunks = pd.read_csv(file.stream, chunksize=CHUNK_SIZE)
-        processed = []
-        total_rows = 0
+        hasil_proses = []
+        total_baris = 0
+
+        # Gunakan ThreadPool untuk pemrosesan paralel
         with ThreadPool(4) as pool:
             for i, chunk in enumerate(chunks, start=1):
-                logger.info(f"Processing chunk {i} with {len(chunk)} rows")
-                
+                logger.info(f"Memproses chunk {i} dengan {len(chunk)} baris")
+
                 if "Terjemahan" not in chunk.columns:
-                    logger.error("'Terjemahan' column not found")
-                    return jsonify({"error": "Kolom 'Terjemahan' tidak ditemukan."}), 400
-                
+                    logger.error("Kolom 'Terjemahan' tidak ditemukan")
+                    return jsonify({"error": "Kolom 'Terjemahan' tidak ditemukan"}), 400
+
                 chunk["Terjemahan"] = chunk["Terjemahan"].fillna("")
-                total_rows += len(chunk)
+                total_baris += len(chunk)
 
-                hasil_list = pool.map(proses_baris_aman, chunk["Terjemahan"].tolist())
+                # Proses setiap baris secara paralel
+                hasil_list = pool.map(proses_satu_baris, chunk["Terjemahan"].tolist())
 
-                hasil_df = pd.DataFrame(
+                # Gabungkan hasil
+                df_hasil = pd.DataFrame(
                     hasil_list,
                     columns=[
-                        "Clean Data",
+                        "Teks Bersih",
                         "Case Folding",
                         "Tokenisasi",
-                        "Stopword",
+                        "Tanpa Stopword",
                         "Normalisasi",
                         "Stemming",
                         "Hasil",
                     ],
                 )
 
-                chunk = pd.concat([chunk.reset_index(drop=True), hasil_df], axis=1)
-                if "Status" not in chunk.columns:
-                    chunk["Status"] = ""
-                processed.append(chunk)
+                chunk = pd.concat([chunk.reset_index(drop=True), df_hasil], axis=1)
+                chunk["Status"] = chunk.get("Status", "")
+                hasil_proses.append(chunk)
 
-        result_df = pd.concat(processed, ignore_index=True)
-        
-        df_for_file = result_df.copy(deep=True)
-        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
-        
-        for col in list_cols:
-            df_for_file[col] = df_for_file[col].apply(
-                lambda val: json.dumps(val, ensure_ascii=False) if isinstance(val, list) else "[]"
+        # Gabungkan semua chunk
+        df_final = pd.concat(hasil_proses, ignore_index=True)
+
+        # Siapkan untuk ekspor CSV
+        df_ekspor = df_final.copy()
+        kolom_list = ["Tokenisasi", "Tanpa Stopword", "Normalisasi", "Stemming"]
+
+        for kolom in kolom_list:
+            df_ekspor[kolom] = df_ekspor[kolom].apply(
+                lambda x: json.dumps(x, ensure_ascii=False)
+                if isinstance(x, list)
+                else "[]"
             )
-        
-        for col in df_for_file.columns:
-            if col not in list_cols:
-                df_for_file[col] = df_for_file[col].astype(str).replace({'"': '""'})
 
-        df_for_file.drop(
-            columns=[col for col in df_for_file.columns if col.lower() in {"ulasan", "terjemahan"}], 
-            inplace=True, 
-            errors="ignore"
+        for kolom in df_ekspor.columns:
+            if kolom not in kolom_list:
+                df_ekspor[kolom] = df_ekspor[kolom].astype(str).replace({'"': '""'})
+
+        # Hapus kolom mentah jika ada
+        df_ekspor.drop(
+            columns=[
+                col
+                for col in df_ekspor.columns
+                if col.lower() in {"ulasan", "terjemahan"}
+            ],
+            inplace=True,
+            errors="ignore",
         )
-        
+
+        # Simpan hasil
         os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
-        df_for_file.to_csv(
+        df_ekspor.to_csv(
             PREPRO_CSV_PATH,
             index=False,
             quoting=csv.QUOTE_ALL,
@@ -335,72 +487,79 @@ def preproses():
             lineterminator="\n",
             doublequote=True,
         )
-        
+
         simpan_cache_ke_file()
 
-        processing_time = time.time() - start_time
+        # Hitung statistik
+        waktu_proses = time.time() - waktu_mulai
         logger.info(
-            f"Processed {total_rows} rows in {processing_time:.2f} seconds "
-            f"({total_rows/processing_time:.2f} rows/sec)"
+            f"Memproses {total_baris} baris dalam {waktu_proses:.2f} detik "
+            f"({total_baris / waktu_proses:.2f} baris/detik)"
         )
 
-        return jsonify({
-            "message": "Preprocessing selesai dan disimpan!",
-            "stats": {
-                "total_rows": total_rows,
-                "processing_time": f"{processing_time:.2f} seconds",
-                "rows_per_second": f"{total_rows/processing_time:.2f}"
-            },
-            "data": result_df.head(50).to_dict(orient="records")  # Return first 50 rows only
-        })
+        return jsonify(
+            {
+                "pesan": "Preprocessing berhasil!",
+                "statistik": {
+                    "total_baris": total_baris,
+                    "waktu_proses": f"{waktu_proses:.2f} detik",
+                    "kecepatan": f"{total_baris / waktu_proses:.2f} baris/detik",
+                },
+                "contoh_data": df_final.head(50).to_dict(orient="records"),
+            }
+        )
 
     except pd.errors.EmptyDataError:
-        logger.error("Empty CSV file")
-        return jsonify({"error": "File CSV kosong atau tidak dapat dibaca."}), 400
+        logger.error("File CSV kosong")
+        return jsonify({"error": "File CSV kosong atau tidak valid"}), 400
     except RequestEntityTooLarge:
-        logger.error("File too large")
-        return jsonify({"error": "Ukuran file terlalu besar."}), 413
+        logger.error("File terlalu besar")
+        return jsonify({"error": "Ukuran file melebihi batas 2MB"}), 413
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        logger.error(f"Error tak terduga: {str(e)}")
         return jsonify({"error": f"Terjadi kesalahan: {str(e)}"}), 500
 
-@prepro_bp.route("/save_csv", methods=["POST"])
-def save_csv():
+
+@prepro_bp.route("/simpan_csv", methods=["POST"])
+def simpan_csv():
+    """Endpoint untuk menyimpan hasil preprocessing"""
     try:
         data = request.json
         if not data:
-            logger.error("No data provided for saving")
-            return jsonify({"error": "Tidak ada data untuk disimpan."}), 400
+            logger.error("Tidak ada data untuk disimpan")
+            return jsonify({"error": "Tidak ada data untuk disimpan"}), 400
 
         df = pd.DataFrame(data)
-        
-        expected_cols = [
+
+        kolom_wajib = [
             "SteamID",
-            "Clean Data",
+            "Teks Bersih",
             "Case Folding",
             "Tokenisasi",
-            "Stopword",
+            "Tanpa Stopword",
             "Normalisasi",
             "Stemming",
             "Hasil",
             "Status",
         ]
-        
-        for col in expected_cols:
-            if col not in df.columns:
-                df[col] = ""
-        
-        df = df.reindex(columns=expected_cols, fill_value="")
 
-        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
-        for col in list_cols:
-            df[col] = df[col].apply(
-                lambda val: json.dumps(val, ensure_ascii=False) if isinstance(val, list) else "[]"
+        for kolom in kolom_wajib:
+            if kolom not in df.columns:
+                df[kolom] = ""
+
+        df = df.reindex(columns=kolom_wajib, fill_value="")
+
+        kolom_list = ["Tokenisasi", "Tanpa Stopword", "Normalisasi", "Stemming"]
+        for kolom in kolom_list:
+            df[kolom] = df[kolom].apply(
+                lambda x: json.dumps(x, ensure_ascii=False)
+                if isinstance(x, list)
+                else "[]"
             )
 
-        for col in df.columns:
-            if col not in list_cols:
-                df[col] = df[col].astype(str).replace({'"': '""'})
+        for kolom in df.columns:
+            if kolom not in kolom_list:
+                df[kolom] = df[kolom].astype(str).replace({'"': '""'})
 
         os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
         df.to_csv(
@@ -414,31 +573,37 @@ def save_csv():
 
         simpan_cache_ke_file()
 
-        logger.info("Successfully saved processed data to CSV")
+        logger.info("Data berhasil disimpan ke CSV")
         return send_file(
             PREPRO_CSV_PATH,
             mimetype="text/csv",
             as_attachment=True,
-            download_name="processed_data.csv",
+            download_name="hasil_preprocessing.csv",
         )
 
     except Exception as e:
-        logger.error(f"Failed to save CSV: {e}")
+        logger.error(f"Gagal menyimpan CSV: {str(e)}")
         return jsonify({"error": f"Gagal menyimpan: {str(e)}"}), 500
 
-@prepro_bp.route("/download")
-def download_preprocessed():
+
+@prepro_bp.route("/unduh")
+def unduh_hasil():
+    """Endpoint untuk mengunduh hasil preprocessing"""
     if os.path.exists(PREPRO_CSV_PATH):
-        logger.info("Serving processed CSV file")
+        logger.info("Mengirim file hasil preprocessing")
         return send_file(PREPRO_CSV_PATH, as_attachment=True)
-    
-    logger.error("Processed file not found")
-    return jsonify({"error": "File hasil preproses tidak ditemukan."}), 404
+
+    logger.error("File hasil tidak ditemukan")
+    return jsonify({"error": "File hasil preprocessing tidak ditemukan"}), 404
+
 
 @prepro_bp.route("/")
-def index():
+def tampilan_utama():
+    """Endpoint untuk tampilan utama"""
     return render_template("preprosessing.html", page_name="prepro"), 200
 
-def register_template_filters(app):
-    app.jinja_env.filters["sanitize"] = escape
-    logger.info("Template filters registered")
+
+def daftarkan_filter_template(app):
+    """Mendaftarkan filter template"""
+    app.jinja_env.filters["saring"] = escape
+    logger.info("Filter template terdaftar")
