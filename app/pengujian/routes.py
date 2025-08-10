@@ -11,6 +11,7 @@ from keras.models import load_model
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,23 +89,29 @@ def index():
 
 @pengujian_bp.route("/health", methods=["GET"])
 def health_check():
-    """Health check endpoint"""
+    """Endpoint untuk memeriksa kesehatan sistem"""
     try:
         load_all_model_components()
-        return jsonify({"status": "ok", "message": "All systems operational"}), 200
+        return jsonify({"status": "ok", "message": "Sistem berjalan normal"}), 200
+
     except ModelLoadingError as e:
-        logger.error(f"Health check failed: {str(e)}")
+        logging.error(f"Error loading model: {str(e)}")
         return jsonify(
             {
                 "status": "error",
-                "detail": str(e),
+                "code": "MODEL_UNAVAILABLE",
                 "solution": "Please run model training first",
             }
         ), 503
-    except Exception as e:
-        logger.exception("Health check unexpected error")
+
+    except Exception as ex:
+        logging.exception("Unexpected system error")
         return jsonify(
-            {"status": "error", "detail": "Internal server error"}
+            {
+                "status": "error",
+                "code": "SERVER_ERROR",
+                "detail": "Internal server problem",
+            }
         ), 500
 
 
