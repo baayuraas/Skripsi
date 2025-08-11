@@ -5,7 +5,7 @@ import html
 import numpy as np
 from functools import lru_cache
 from typing import Optional
-from pydantic import BaseModel, ValidationError, constr
+from pydantic import BaseModel, ValidationError, constr, Field
 from flask import Blueprint, request, jsonify, render_template
 from keras.models import load_model
 from flask_limiter import Limiter
@@ -38,9 +38,10 @@ class ModelLoadingError(Exception):
     pass
 
 
-# Input Validation Model
+ConstrainedStr = constr(min_length=1, max_length=1000)  # definisikan dulu
+
 class PredictionRequest(BaseModel):
-    ulasan: constr(min_length=1, max_length=1000)
+    ulasan: str = Field(..., min_length=1, max_length=1000)
     label: Optional[str] = None
 
 
@@ -54,31 +55,28 @@ def proses_baris_aman(text: str) -> list:
     """Dummy preprocessing function - replace with actual implementation"""
     return [text.strip()]  # In production, add actual preprocessing steps
 
-
-# Cached Model Loading
 @lru_cache(maxsize=1)
 def load_all_model_components():
-    """Load and cache model components"""
-    try:
-        # Check if all model files exist
-        required_files = [MODEL_PATH, LABEL_PATH, TFIDF_PATH]
-        if not all(os.path.exists(path) for path in required_files):
-            missing = [p for p in required_files if not os.path.exists(p)]
-            raise ModelLoadingError(f"Model files not found: {', '.join(missing)}")
+    """Memuat model, encoder, dan vectorizer. 
+    Raise ModelLoadingError jika file tidak ditemukan.
+    """
+    if not os.path.exists(MODEL_PATH):
+        raise ModelLoadingError(f"Model tidak ditemukan: {MODEL_PATH}")
+    if not os.path.exists(LABEL_PATH):
+        raise ModelLoadingError(f"LabelEncoder tidak ditemukan: {LABEL_PATH}")
+    if not os.path.exists(TFIDF_PATH):
+        raise ModelLoadingError(f"TF-IDF vectorizer tidak ditemukan: {TFIDF_PATH}")
 
-        # Load components
+    try:
         model = load_model(MODEL_PATH)
         with open(LABEL_PATH, "rb") as f:
             encoder = pickle.load(f)
         with open(TFIDF_PATH, "rb") as f:
             vectorizer = pickle.load(f)
-
-        return model, encoder, vectorizer
-
     except Exception as e:
-        logger.error(f"Model loading error: {str(e)}")
-        raise ModelLoadingError("Prediction system is currently unavailable")
+        raise ModelLoadingError(f"Gagal memuat model: {e}")
 
+    return model, encoder, vectorizer
 
 # Routes
 @pengujian_bp.route("/", methods=["GET"])
@@ -92,27 +90,26 @@ def health_check():
     """Endpoint untuk memeriksa kesehatan sistem"""
     try:
         load_all_model_components()
-        return jsonify({"status": "ok", "message": "Sistem berjalan normal"}), 200
+        return jsonify({
+            "status": "ok",
+            "message": "Sistem berjalan normal"
+        }), 200
 
     except ModelLoadingError as e:
-        logging.error(f"Error loading model: {str(e)}")
-        return jsonify(
-            {
-                "status": "error",
-                "code": "MODEL_UNAVAILABLE",
-                "solution": "Please run model training first",
-            }
-        ), 503
+        logging.error(f"Error loading model: {e}")
+        return jsonify({
+            "status": "error",
+            "code": "MODEL_UNAVAILABLE",
+            "solution": "Please run model training first"
+        }), 503
 
     except Exception as ex:
-        logging.exception("Unexpected system error")
-        return jsonify(
-            {
-                "status": "error",
-                "code": "SERVER_ERROR",
-                "detail": "Internal server problem",
-            }
-        ), 500
+        logging.exception(f"Unexpected system error: {ex}")
+        return jsonify({
+            "status": "error",
+            "code": "SERVER_ERROR",
+            "detail": "Internal server problem"
+        }), 500
 
 
 @pengujian_bp.route("/predict", methods=["POST"])
@@ -188,7 +185,8 @@ def predict_sentimen():
         )
 
     except Exception as e:
-        logger.exception("Unexpected prediction error")
+        logger.exception(f"Unexpected prediction error: {e}")
         return jsonify(
             {"error": "System error", "detail": "Please try again later"}
         ), 500
+

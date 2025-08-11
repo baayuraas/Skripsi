@@ -77,13 +77,13 @@ $(function () {
             data: JSON.stringify({ ulasan, label: label_asli }),
             success: function (res) {
                 $('#hasil-box').show();
-                $('#hasil-terjemahan').text(res.terjemahan || "(tidak diterjemahkan)");
-                $('#hasil-prepro').text(res.preprocessing || "-");
-                $('#hasil-prediksi').text(res.prediksi || "-");
-
-                if (res.label_asli) {
-                    $('#label-asli').text(res.label_asli);
-                    $('#label-match').text(res.label_match ? '✅ Sesuai' : '❌ Tidak Sesuai');
+                $('#hasil-terjemahan').text(res.process?.translated ? "(diterjemahkan)" : "(tidak diterjemahkan)");
+                $('#hasil-prepro').text(res.process?.preprocessed_text || "-");
+                $('#hasil-prediksi').text(res.result?.prediction || "-");
+            
+                if (res.result?.label_match !== null && res.result?.label_match !== undefined) {
+                    $('#label-asli').text(label_asli || "-");
+                    $('#label-match').text(res.result.label_match ? '✅ Sesuai' : '❌ Tidak Sesuai');
                 } else {
                     $('#label-asli').text("-");
                     $('#label-match').text("-");
@@ -91,7 +91,12 @@ $(function () {
             },
             error: function (xhr) {
                 const msg = xhr.responseJSON?.error || xhr.responseText || 'Terjadi kesalahan saat memproses prediksi.';
-                alert(msg);
+
+                if (msg.toLowerCase().includes('model belum tersedia') || msg.toLowerCase().includes('file hilang')) {
+                    alert(msg + '\n\nSilakan jalankan proses perhitungan/training terlebih dahulu.');
+                } else {
+                    alert(msg);
+                }
             },
             complete: function () {
                 $('#sentimentForm button').prop('disabled', false);
