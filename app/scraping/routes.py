@@ -38,8 +38,8 @@ def get_reviews(appid, params={"json": 1}):
     return response.json()
 
 
-def get_n_reviews_balanced(appid, n=10):
-    target_positive = n // 2
+def get_n_reviews_flexible(appid, n=10):
+    target_positive = (n+1) // 2
     target_negative = n - target_positive
 
     def fetch_reviews_until(appid, target_count, is_positive):
@@ -131,16 +131,11 @@ def scrapdat():
     appid = request.form.get("appid")
     num_reviews = int(request.form.get("num_reviews", 10))
 
-    if num_reviews < 2 or num_reviews % 2 != 0:
-        return jsonify(
-            {"status": "error", "message": "Jumlah review harus genap dan minimal 2."}
-        ), 400
-
     if not appid:
         return jsonify({"status": "error", "message": "App ID harus diisi."}), 400
 
     try:
-        reviews = get_n_reviews_balanced(appid, num_reviews)
+        reviews = get_n_reviews_flexible(appid, num_reviews)
         processed_reviews = []
 
         seen_keys = set(r["id"] + r["review"] for r in data_store)
