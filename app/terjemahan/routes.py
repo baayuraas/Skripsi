@@ -4,7 +4,7 @@ import re
 import time
 import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
-from deep_translator import GoogleTranslator, MyMemoryTranslator
+from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
 from langdetect import detect
 from functools import wraps
@@ -110,8 +110,7 @@ def rate_limited(max_per_second):
     return decorator
 
 
-# ========== Fungsi Terjemahan yang Diperbarui ==========
-@rate_limited(max_per_second=2)  # Maksimal 2 request/detik
+@rate_limited(max_per_second=5)  # Maksimal 2 request/detik
 def translate_chunk(chunk, target_language="id"):
     try:
         translated = GoogleTranslator(source="auto", target=target_language).translate(
