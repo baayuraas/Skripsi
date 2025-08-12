@@ -131,6 +131,11 @@ def scrapdat():
     appid = request.form.get("appid")
     num_reviews = int(request.form.get("num_reviews", 10))
 
+    if num_reviews < 2:
+        return jsonify(
+            {"status": "error", "message": "Jumlah review harus genap dan minimal 2."}
+        ), 400
+
     if not appid:
         return jsonify({"status": "error", "message": "App ID harus diisi."}), 400
 

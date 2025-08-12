@@ -4,9 +4,10 @@ import re
 import time
 import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 from concurrent.futures import ThreadPoolExecutor
 from langdetect import detect
+from functools import wraps
 
 terjemahan_bp = Blueprint(
     "terjemahan",
@@ -89,45 +90,57 @@ def is_non_indonesian(text):
     except Exception:
         return True
 
+def rate_limited(max_per_second):
+    min_interval = 1.0 / max_per_second
+
+    def decorator(func):
+        last_time = [0.0]
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            elapsed = time.time() - last_time[0]
+            wait = max(0, min_interval - elapsed)
+            if wait > 0:
+                time.sleep(wait)
+            last_time[0] = time.time()
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+# ========== Fungsi Terjemahan yang Diperbarui ==========
+@rate_limited(max_per_second=2)  # Maksimal 2 request/detik
+def translate_chunk(chunk, target_language="id"):
+    try:
+        translated = GoogleTranslator(source="auto", target=target_language).translate(
+            chunk
+        )
+
+        translated = fix_hyphen_and_detect_reduplication(translated)
+
+        if is_non_indonesian(translated):
+            raise ValueError("Hasil terjemahan bukan Bahasa Indonesia")
+
+        return translated
+
+    except Exception as e:
+        logging.error(f"Gagal menerjemahkan chunk: {str(e)}")
+        if "rate limit" in str(e).lower():
+            time.sleep(5)  # Tunggu lebih lama jika kena limit
+            return translate_chunk(chunk)  # Retry sekali
+        return "[Gagal diterjemahkan]"
 
 def translate_large_text(text, target_language="id"):
     if not text or not isinstance(text, str) or text.strip() == "":
-        return "[Gagal diterjemahkan]"
+        return "[Teks kosong]"
 
     chunks = split_text_into_chunks(text, 5000)
     translated_chunks = []
 
     for chunk in chunks:
-        attempts = 0
-        translated = ""
-        while attempts < 3:
-            try:
-                translated = GoogleTranslator(
-                    source="auto", target=target_language
-                ).translate(chunk)
-                translated = fix_hyphen_and_detect_reduplication(translated)
-
-                if is_non_indonesian(translated):
-                    logging.warning(
-                        f"[LANG DETECT] Chunk hasil bukan Bahasa Indonesia: {translated[:50]}..."
-                    )
-                    attempts += 1
-                    time.sleep(1)
-                    continue
-
-                break  # keluar dari retry loop
-            except Exception as e:
-                logging.error(f"[ERROR] Translasi gagal: {e}")
-                attempts += 1
-                time.sleep(1)
-
-        # fallback terakhir jika tetap gagal atau hasil non-Bahasa Indonesia
-        if not translated or is_non_indonesian(translated):
-            logging.warning(
-                "[RETRY FAILED] Gunakan hasil terakhir walau mungkin belum benar."
-            )
-            translated = translated or "[Gagal diterjemahkan]"
-
+        translated = translate_chunk(chunk, target_language)
         translated_chunks.append(translated)
 
     return " ".join(translated_chunks)
@@ -168,6 +181,7 @@ def translate_file():
             elif ulasan in cache:
                 terjemahan = cache[ulasan]
             else:
+                time.sleep(0.3)
                 terjemahan = translate_large_text(ulasan, "id")
                 cache[ulasan] = terjemahan
             return {
@@ -177,8 +191,14 @@ def translate_file():
                 "Status": status,
             }
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            translated_data = list(executor.map(translate_row, rows))
+        with ThreadPoolExecutor(max_workers=3) as executor:  # Kurangi worker jadi 3
+            futures = []
+            for i, row in enumerate(rows):
+                if i % 10 == 0:  # Jeda setiap 10 request
+                    time.sleep(1)
+                futures.append(executor.submit(translate_row, row))
+
+            translated_data = [f.result() for f in futures]
 
 
         os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
