@@ -6,7 +6,8 @@ import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
 from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
-from langdetect import detect
+from langdetect import detect, DetectorFactory
+from langdetect.lang_detect_exception import LangDetectException
 from functools import wraps
 
 terjemahan_bp = Blueprint(
@@ -82,13 +83,20 @@ def fix_hyphen_and_detect_reduplication(text):
     return corrected
 
 
-def is_non_indonesian(text):
+DetectorFactory.seed = 0  # Konsistensi hasil deteksi
+
+
+def is_non_indonesian(text: str) -> bool:
+    """Cek apakah teks bukan bahasa Indonesia."""
     try:
-        if len(text.strip()) < 20:
+        cleaned = text.strip()
+        if len(cleaned) < 15:  # Kalau terlalu pendek, jangan dianggap non-ID
             return False
-        return detect(text) != "id"
-    except Exception:
-        return True
+        lang = detect(cleaned)
+        return lang != "id"
+    except LangDetectException:
+        # Kalau gagal deteksi, anggap saja ini ID supaya tidak langsung gagal
+        return False
 
 def rate_limited(max_per_second):
     min_interval = 1.0 / max_per_second
@@ -110,25 +118,26 @@ def rate_limited(max_per_second):
     return decorator
 
 
-@rate_limited(max_per_second=5)  # Maksimal 2 request/detik
+@rate_limited(max_per_second=5)
 def translate_chunk(chunk, target_language="id"):
     try:
         translated = GoogleTranslator(source="auto", target=target_language).translate(
             chunk
         )
-
         translated = fix_hyphen_and_detect_reduplication(translated)
 
+        # Ubah logika → jangan raise error, cukup beri warning
         if is_non_indonesian(translated):
-            raise ValueError("Hasil terjemahan bukan Bahasa Indonesia")
+            logging.warning(
+                "Hasil terjemahan tidak terdeteksi sebagai bahasa Indonesia."
+            )
 
         return translated
-
     except Exception as e:
         logging.error(f"Gagal menerjemahkan chunk: {str(e)}")
         if "rate limit" in str(e).lower():
-            time.sleep(5)  # Tunggu lebih lama jika kena limit
-            return translate_chunk(chunk)  # Retry sekali
+            time.sleep(5)
+            return translate_chunk(chunk)
         return "[Gagal diterjemahkan]"
 
 def translate_large_text(text, target_language="id"):

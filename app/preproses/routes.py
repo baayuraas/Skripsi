@@ -2,7 +2,6 @@ import csv
 import json
 import os
 import re
-import time
 import pandas as pd
 import emoji
 import unicodedata
@@ -14,10 +13,10 @@ from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from markupsafe import escape
 from langdetect import detect
 from langdetect.lang_detect_exception import LangDetectException
-from deep_translator import GoogleTranslator, exceptions as dt_exceptions
-from werkzeug.exceptions import RequestEntityTooLarge
+from deep_translator import GoogleTranslator
 from multiprocessing.pool import ThreadPool
 
+# --- Konfigurasi dasar ---
 prepro_bp = Blueprint(
     "prepro",
     __name__,
@@ -31,6 +30,7 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
 TXT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 stopword_factory = StopWordRemoverFactory()
 stemmer = StemmerFactory().create_stemmer()
 stop_words = set(stopword_factory.get_stop_words()).union(
@@ -65,8 +65,9 @@ kata_tidak_relevan = {"f4s", "bllyat", "crownfall", "groundhog", "qith", "mook"}
 CHUNK_SIZE = 500
 MAX_FILE_SIZE = 2 * 1024 * 1024
 CACHE_FILE = os.path.join(BASE_DIR, "cache_translate.json")
-terjemahan_cache = {}
 
+# --- Cache translate ---
+terjemahan_cache = {}
 if os.path.exists(CACHE_FILE):
     try:
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -83,6 +84,7 @@ def simpan_cache_ke_file():
         print(f"[ERROR simpan cache]: {e}")
 
 
+# --- Utility ---
 def register_template_filters(app):
     app.jinja_env.filters["sanitize"] = escape
 
@@ -130,19 +132,11 @@ def deteksi_bukan_indonesia(words: list) -> bool:
         return False
 
 
-def ada_kata_non_indonesia(words: list[str]) -> bool:
-    try:
-        teks = " ".join(words[:10])  # cukup 10 kata representatif
-        return detect(teks) != "id"
-    except LangDetectException:
-        return False
-
-
+# --- Translasi batch kata ---
 def translate_batch_cached(kata_non_id):
     kata_belum_diterjemahkan = [w for w in kata_non_id if w not in terjemahan_cache]
     if not kata_belum_diterjemahkan:
         return
-
     try:
         hasil_batch = GoogleTranslator(source="auto", target="id").translate_batch(
             kata_belum_diterjemahkan
@@ -155,6 +149,7 @@ def translate_batch_cached(kata_non_id):
         print(f"[ERROR translate_batch]: {str(e)}")
 
 
+# --- Proses per baris ---
 def proses_baris_aman(terjemahan):
     try:
         if pd.isna(terjemahan) or not isinstance(terjemahan, str):
@@ -164,20 +159,18 @@ def proses_baris_aman(terjemahan):
         folded = clean.lower()
         token = word_tokenize(folded)
 
-        hasil_token = []
+        # Deteksi kata non-ID
         kata_non_id = []
-
         for w in token:
-            try:
-                if len(w) <= 2:
+            if len(w) > 2:
+                try:
+                    if detect(w) != "id":
+                        kata_non_id.append(w)
+                except LangDetectException:
                     continue
-                if detect(w) != "id":
-                    kata_non_id.append(w)
-            except LangDetectException:
-                continue
-
         translate_batch_cached(kata_non_id)
 
+        hasil_token = []
         for w in token:
             if len(w) <= 2:
                 continue
@@ -191,19 +184,79 @@ def proses_baris_aman(terjemahan):
         stem = stemming_teks(norm)
         hasil = " ".join(stem)
 
-        print(f"[OK] Baris diproses: {terjemahan[:50]}... → {hasil[:50]}...")
-        return [clean, folded, token, stop, norm, stem, hasil]
+        if hasil.strip() and deteksi_bukan_indonesia([hasil]):
+            print(">> Translate ulang karena hasil masih bukan ID.")
+            translated = (
+                GoogleTranslator(source="auto", target="id").translate(clean).lower()
+            )
+            token = word_tokenize(translated)
+            stop = hapus_stopword(token)
+            norm = normalisasi_teks(stop)
+            stem = stemming_teks(norm)
+            hasil = " ".join(stem)
 
+        return [clean, folded, token, stop, norm, stem, hasil]
     except Exception as e:
         print(f"[ERROR hybrid]: {e}")
         return ["", "", [], [], [], [], ""]
 
 
+# --- Fungsi save_csv ---
+def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
+    """Menyimpan DataFrame ke CSV dengan format konsisten."""
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        df_for_file = df.copy(deep=True)
+
+        # Konversi kolom list menjadi string JSON
+        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+        for col in list_cols:
+            if col in df_for_file.columns:
+                df_for_file[col] = df_for_file[col].apply(
+                    lambda val: json.dumps(val, ensure_ascii=False)
+                    if isinstance(val, list)
+                    else "[]"
+                )
+
+        # Hapus kolom sensitif / tidak diperlukan
+        df_for_file.drop(
+            columns=[
+                col
+                for col in df_for_file.columns
+                if col.lower() in {"ulasan", "terjemahan"}
+            ],
+            inplace=True,
+            errors="ignore",
+        )
+
+        # Simpan CSV
+        df_for_file.to_csv(
+            file_path,
+            index=False,
+            quoting=csv.QUOTE_ALL,
+            encoding="utf-8-sig",
+            lineterminator="\n",
+            doublequote=True,
+        )
+
+        print(f"[SAVE CSV] File berhasil disimpan di {file_path}")
+        return True
+    except Exception as e:
+        print(f"[ERROR save_csv]: {e}")
+        return False
+
+
+# --- Routes ---
 @prepro_bp.route("/preproses", methods=["POST"])
 def preproses():
     try:
         file = request.files.get("file")
-        if not file or not file.filename or not file.filename.lower().endswith(".csv"):
+        if (
+            not file
+            or file.filename is None
+            or not file.filename.lower().endswith(".csv")
+        ):
             return jsonify(
                 {"error": "Format file tidak valid, hanya mendukung CSV."}
             ), 400
@@ -216,13 +269,10 @@ def preproses():
 
         for i, chunk in enumerate(chunks, start=1):
             print(f"[CHUNK {i}] Memproses {len(chunk)} baris...")
-
             if "Terjemahan" not in chunk.columns:
                 return jsonify({"error": "Kolom 'Terjemahan' tidak ditemukan."}), 400
             chunk["Terjemahan"] = chunk["Terjemahan"].fillna("")
-
             hasil_list = pool.map(proses_baris_aman, chunk["Terjemahan"].tolist())
-
             hasil_df = pd.DataFrame(
                 hasil_list,
                 columns=[
@@ -242,39 +292,8 @@ def preproses():
 
         result_df = pd.concat(processed, ignore_index=True)
 
-        df_for_file = result_df.copy(deep=True)
-        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
-        for col in list_cols:
-            df_for_file[col] = df_for_file[col].apply(
-                lambda val: json.dumps(val, ensure_ascii=False)
-                if isinstance(val, list)
-                else "[]"
-            )
-        for col in df_for_file.columns:
-            if col not in list_cols:
-                df_for_file[col] = df_for_file[col].astype(str).replace({'"': '""'})
-
-                # Hapus kolom input mentah dari file output
-        df_for_file.drop(
-            columns=[
-                col
-                for col in df_for_file.columns
-                if col.lower() in {"ulasan", "terjemahan"}
-            ],
-            inplace=True,
-            errors="ignore",
-        )
-
-        os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
-        df_for_file.to_csv(
-            PREPRO_CSV_PATH,
-            index=False,
-            quoting=csv.QUOTE_ALL,
-            encoding="utf-8-sig",
-            lineterminator="\n",
-            doublequote=True,
-        )
-
+        # Simpan CSV otomatis
+        save_csv(result_df)
         simpan_cache_ke_file()
 
         return jsonify(
@@ -283,79 +302,21 @@ def preproses():
                 "data": result_df.to_dict(orient="records"),
             }
         )
-
-    except pd.errors.EmptyDataError:
-        return jsonify({"error": "File CSV kosong atau tidak dapat dibaca."}), 400
-    except RequestEntityTooLarge:
-        return jsonify({"error": "Ukuran file terlalu besar."}), 413
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@prepro_bp.route("/save_csv", methods=["POST"])
-def save_csv():
-    try:
-        data = request.json
-        if not data:
-            return jsonify({"error": "Tidak ada data untuk disimpan."}), 400
-
-        df = pd.DataFrame(data)
-        expected_cols = [
-            "SteamID",
-            "Clean Data",
-            "Case Folding",
-            "Tokenisasi",
-            "Stopword",
-            "Normalisasi",
-            "Stemming",
-            "Hasil",
-            "Status",
-        ]
-        for col in expected_cols:
-            if col not in df.columns:
-                df[col] = ""
-        df = df.reindex(columns=expected_cols, fill_value="")
-
-        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
-        for col in list_cols:
-            df[col] = df[col].apply(
-                lambda val: json.dumps(val, ensure_ascii=False)
-                if isinstance(val, list)
-                else "[]"
-            )
-
-        for col in df.columns:
-            if col not in list_cols:
-                df[col] = df[col].astype(str).replace({'"': '""'})
-
-        os.makedirs(os.path.dirname(PREPRO_CSV_PATH), exist_ok=True)
-        df.to_csv(
-            PREPRO_CSV_PATH,
-            index=False,
-            quoting=csv.QUOTE_ALL,
-            encoding="utf-8-sig",
-            lineterminator="\n",
-            doublequote=True,
-        )
-
-        simpan_cache_ke_file()
-
+@prepro_bp.route("/download_csv", methods=["GET"])
+def download_csv():
+    """Mengunduh file hasil preprocessing CSV secara manual."""
+    if os.path.exists(PREPRO_CSV_PATH):
         return send_file(
             PREPRO_CSV_PATH,
-            mimetype="text/csv",
             as_attachment=True,
             download_name="processed_data.csv",
+            mimetype="text/csv",
         )
-
-    except Exception as e:
-        return jsonify({"error": f"Gagal menyimpan: {str(e)}"}), 500
-
-
-@prepro_bp.route("/download")
-def download_preprocessed():
-    if os.path.exists(PREPRO_CSV_PATH):
-        return send_file(PREPRO_CSV_PATH, as_attachment=True)
-    return jsonify({"error": "File hasil preproses tidak ditemukan."}), 404
+    return jsonify({"error": "File hasil preprocessing tidak ditemukan."}), 404
 
 
 @prepro_bp.route("/")
