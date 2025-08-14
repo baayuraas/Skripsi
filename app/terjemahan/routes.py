@@ -1,13 +1,13 @@
+# routes.py
 import os
 import csv
 import re
 import time
+import json
 import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
 from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
-from langdetect import detect, DetectorFactory
-from langdetect.lang_detect_exception import LangDetectException
 from functools import wraps
 
 terjemahan_bp = Blueprint(
@@ -25,10 +25,26 @@ logging.basicConfig(
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "terjemahan")
 TRANSLATED_PATH = os.path.join(UPLOAD_FOLDER, "terjemahan_steam_reviews.csv")
+CACHE_FILE = os.path.join(UPLOAD_FOLDER, "translation_cache.json")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 translated_data = []
 ignored_words = set()
+
+# ===== CACHE =====
+if os.path.exists(CACHE_FILE):
+    with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        translation_cache = json.load(f)
+else:
+    translation_cache = {}
+
+
+def save_cache():
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(translation_cache, f, ensure_ascii=False, indent=2)
+
+
+# =================
 
 
 def load_ignored_words():
@@ -83,21 +99,6 @@ def fix_hyphen_and_detect_reduplication(text):
     return corrected
 
 
-DetectorFactory.seed = 0  # Konsistensi hasil deteksi
-
-
-def is_non_indonesian(text: str) -> bool:
-    """Cek apakah teks bukan bahasa Indonesia."""
-    try:
-        cleaned = text.strip()
-        if len(cleaned) < 15:  # Kalau terlalu pendek, jangan dianggap non-ID
-            return False
-        lang = detect(cleaned)
-        return lang != "id"
-    except LangDetectException:
-        # Kalau gagal deteksi, anggap saja ini ID supaya tidak langsung gagal
-        return False
-
 def rate_limited(max_per_second):
     min_interval = 1.0 / max_per_second
 
@@ -118,20 +119,13 @@ def rate_limited(max_per_second):
     return decorator
 
 
-@rate_limited(max_per_second=5)
+@rate_limited(max_per_second=10)
 def translate_chunk(chunk, target_language="id"):
     try:
         translated = GoogleTranslator(source="auto", target=target_language).translate(
             chunk
         )
         translated = fix_hyphen_and_detect_reduplication(translated)
-
-        # Ubah logika → jangan raise error, cukup beri warning
-        if is_non_indonesian(translated):
-            logging.warning(
-                "Hasil terjemahan tidak terdeteksi sebagai bahasa Indonesia."
-            )
-
         return translated
     except Exception as e:
         logging.error(f"Gagal menerjemahkan chunk: {str(e)}")
@@ -140,17 +134,14 @@ def translate_chunk(chunk, target_language="id"):
             return translate_chunk(chunk)
         return "[Gagal diterjemahkan]"
 
+
 def translate_large_text(text, target_language="id"):
     if not text or not isinstance(text, str) or text.strip() == "":
         return "[Teks kosong]"
-
     chunks = split_text_into_chunks(text, 5000)
     translated_chunks = []
-
     for chunk in chunks:
-        translated = translate_chunk(chunk, target_language)
-        translated_chunks.append(translated)
-
+        translated_chunks.append(translate_chunk(chunk, target_language))
     return " ".join(translated_chunks)
 
 
@@ -176,7 +167,6 @@ def translate_file():
         load_ignored_words()
         translated_data = []
         rows = list(reader)
-        cache = {}
 
         def translate_row(row):
             steamid = row.get("SteamID", "")
@@ -186,12 +176,12 @@ def translate_file():
                 ulasan = ""
             if ulasan.strip() == "":
                 terjemahan = ""
-            elif ulasan in cache:
-                terjemahan = cache[ulasan]
+            elif ulasan in translation_cache:
+                terjemahan = translation_cache[ulasan]
             else:
-                time.sleep(0.3)
                 terjemahan = translate_large_text(ulasan, "id")
-                cache[ulasan] = terjemahan
+                translation_cache[ulasan] = terjemahan
+                save_cache()
             return {
                 "SteamID": steamid,
                 "Ulasan": ulasan,
@@ -199,15 +189,8 @@ def translate_file():
                 "Status": status,
             }
 
-        with ThreadPoolExecutor(max_workers=3) as executor:  # Kurangi worker jadi 3
-            futures = []
-            for i, row in enumerate(rows):
-                if i % 10 == 0:  # Jeda setiap 10 request
-                    time.sleep(1)
-                futures.append(executor.submit(translate_row, row))
-
-            translated_data = [f.result() for f in futures]
-
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            translated_data = list(executor.map(translate_row, rows))
 
         os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
@@ -250,7 +233,6 @@ def savedata():
         return jsonify({"status": "error", "message": "Tidak ada data untuk disimpan."})
 
     os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
-
     try:
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)

@@ -47,21 +47,13 @@ with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") 
             k, v = line.strip().split("=", 1)
             normalisasi_dict[k.strip().lower()] = v.strip().lower()
 
-game_terms = {
-    "archon",
-    "bot",
-    "creep",
-    "crownfall",
-    "icefrog",
-    "meta",
-    "overwatch",
-    "pudge",
-    "spam",
-    "valve",
-    "warcraft",
-    "willow",
-}
-kata_tidak_relevan = {"f4s", "bllyat", "crownfall", "groundhog", "qith", "mook"}
+with open(os.path.join(TXT_DIR, "game_terms.txt"), "r", encoding="utf-8") as f:
+    game_terms = set(line.strip().lower() for line in f if line.strip())
+
+with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8") as f:
+    kata_tidak_relevan = set(line.strip().lower() for line in f if line.strip())
+
+
 CHUNK_SIZE = 500
 MAX_FILE_SIZE = 2 * 1024 * 1024
 CACHE_FILE = os.path.join(BASE_DIR, "cache_translate.json")
@@ -119,7 +111,6 @@ def hapus_stopword(words):
         for w in words
         if (w not in stop_words and w not in kata_tidak_relevan) or w in game_terms
     ]
-
 
 def stemming_teks(words):
     return [stemmer.stem(w) for w in words]
