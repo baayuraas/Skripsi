@@ -1,4 +1,3 @@
-# routes.py
 import os
 import csv
 import re
@@ -8,7 +7,7 @@ import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
 from deep_translator import GoogleTranslator
 from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
+from threading import Lock
 
 terjemahan_bp = Blueprint(
     "terjemahan",
@@ -30,23 +29,35 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 translated_data = []
 ignored_words = set()
+translation_cache = {}
+cache_lock = Lock()
 
-# ===== CACHE =====
-if os.path.exists(CACHE_FILE):
-    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        translation_cache = json.load(f)
-else:
-    translation_cache = {}
-
+# =====================
+# Cache Functions
+# =====================
+def load_cache():
+    global translation_cache
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                translation_cache = json.load(f)
+            logging.info(f"Cache loaded: {len(translation_cache)} entries")
+        except Exception as e:
+            logging.error(f"Failed to load cache: {e}")
+            translation_cache = {}
 
 def save_cache():
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(translation_cache, f, ensure_ascii=False, indent=2)
+    with cache_lock:
+        try:
+            with open(CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(translation_cache, f, ensure_ascii=False, indent=2)
+            logging.info(f"Cache saved: {len(translation_cache)} entries")
+        except Exception as e:
+            logging.error(f"Failed to save cache: {e}")
 
-
-# =================
-
-
+# =====================
+# Utilities
+# =====================
 def load_ignored_words():
     global ignored_words
     file_path = os.path.join(os.path.dirname(__file__), "abai_singkat.txt")
@@ -55,7 +66,6 @@ def load_ignored_words():
         with open(file_path, "r", encoding="utf-8") as f:
             ignored_words = {word.strip().lower() for word in f if word.strip()}
     logging.info(f"Loaded {len(ignored_words)} ignored words.")
-
 
 def split_text_into_chunks(text, max_chars=5000):
     sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -70,10 +80,7 @@ def split_text_into_chunks(text, max_chars=5000):
         chunks.append(current_chunk)
     return chunks
 
-
 def fix_hyphen_and_detect_reduplication(text):
-    daftar_kata_ulang = []
-
     def is_kata_ulang(a, b):
         a, b = a.lower(), b.lower()
         if a == b:
@@ -91,60 +98,33 @@ def fix_hyphen_and_detect_reduplication(text):
     def koreksi(match):
         k1, k2 = match.group(1), match.group(2)
         if is_kata_ulang(k1, k2):
-            daftar_kata_ulang.append(f"{k1}-{k2}")
             return f"{k1} - {k2}"
         return f"{k1} {k2}"
 
-    corrected = re.sub(r"\b(\w+)\s*-\s*(\w+)\b", koreksi, text)
-    return corrected
-
-
-def rate_limited(max_per_second):
-    min_interval = 1.0 / max_per_second
-
-    def decorator(func):
-        last_time = [0.0]
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            elapsed = time.time() - last_time[0]
-            wait = max(0, min_interval - elapsed)
-            if wait > 0:
-                time.sleep(wait)
-            last_time[0] = time.time()
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-@rate_limited(max_per_second=10)
-def translate_chunk(chunk, target_language="id"):
-    try:
-        translated = GoogleTranslator(source="auto", target=target_language).translate(
-            chunk
-        )
-        translated = fix_hyphen_and_detect_reduplication(translated)
-        return translated
-    except Exception as e:
-        logging.error(f"Gagal menerjemahkan chunk: {str(e)}")
-        if "rate limit" in str(e).lower():
-            time.sleep(5)
-            return translate_chunk(chunk)
-        return "[Gagal diterjemahkan]"
-
+    return re.sub(r"\b(\w+)\s*-\s*(\w+)\b", koreksi, text)
 
 def translate_large_text(text, target_language="id"):
     if not text or not isinstance(text, str) or text.strip() == "":
-        return "[Teks kosong]"
+        return ""
     chunks = split_text_into_chunks(text, 5000)
     translated_chunks = []
     for chunk in chunks:
-        translated_chunks.append(translate_chunk(chunk, target_language))
+        attempts = 0
+        while attempts < 3:
+            try:
+                translated = GoogleTranslator(source="auto", target=target_language).translate(chunk)
+                translated = fix_hyphen_and_detect_reduplication(translated)
+                translated_chunks.append(translated)
+                break
+            except Exception as e:
+                attempts += 1
+                logging.error(f"Error translating chunk: {e}")
+                time.sleep(5)
     return " ".join(translated_chunks)
 
-
+# =====================
+# Routes
+# =====================
 @terjemahan_bp.route("/translate", methods=["POST"])
 def translate_file():
     try:
@@ -165,6 +145,7 @@ def translate_file():
             return jsonify({"error": f"Kolom wajib hilang: {', '.join(missing)}"}), 400
 
         load_ignored_words()
+        load_cache()
         translated_data = []
         rows = list(reader)
 
@@ -176,12 +157,13 @@ def translate_file():
                 ulasan = ""
             if ulasan.strip() == "":
                 terjemahan = ""
-            elif ulasan in translation_cache:
-                terjemahan = translation_cache[ulasan]
             else:
-                terjemahan = translate_large_text(ulasan, "id")
-                translation_cache[ulasan] = terjemahan
-                save_cache()
+                with cache_lock:
+                    if ulasan in translation_cache:
+                        terjemahan = translation_cache[ulasan]
+                    else:
+                        terjemahan = translate_large_text(ulasan, "id")
+                        translation_cache[ulasan] = terjemahan
             return {
                 "SteamID": steamid,
                 "Ulasan": ulasan,
@@ -192,6 +174,8 @@ def translate_file():
         with ThreadPoolExecutor(max_workers=5) as executor:
             translated_data = list(executor.map(translate_row, rows))
 
+        save_cache()  # ✅ Simpan cache sekali di akhir
+
         os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
@@ -199,14 +183,12 @@ def translate_file():
             for row in translated_data:
                 if not row["Ulasan"].strip():
                     continue
-                writer.writerow(
-                    [
-                        row["SteamID"],
-                        row["Ulasan"].replace("\n", " ").replace("\r", " "),
-                        row["Terjemahan"],
-                        row["Status"],
-                    ]
-                )
+                writer.writerow([
+                    row["SteamID"],
+                    row["Ulasan"].replace("\n", " ").replace("\r", " "),
+                    row["Terjemahan"],
+                    row["Status"],
+                ])
 
         return jsonify(
             {"message": "Berhasil diterjemahkan dan disimpan!", "data": translated_data}
@@ -218,20 +200,17 @@ def translate_file():
         logging.exception("Kesalahan tak terduga saat proses terjemahan")
         return jsonify({"error": f"Kesalahan server: {str(e)}"}), 500
 
-
 @terjemahan_bp.route("/cleardata", methods=["POST"])
 def clear_data():
     global translated_data
     translated_data = []
     return jsonify({"message": "Data cleared successfully"})
 
-
 @terjemahan_bp.route("/savedata", methods=["GET"])
 def savedata():
     global translated_data
     if not translated_data:
         return jsonify({"status": "error", "message": "Tidak ada data untuk disimpan."})
-
     os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
     try:
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
@@ -240,14 +219,12 @@ def savedata():
             for row in translated_data:
                 if not row["Ulasan"].strip():
                     continue
-                writer.writerow(
-                    [
-                        row["SteamID"],
-                        row["Ulasan"].replace("\n", " ").replace("\r", " "),
-                        row["Terjemahan"],
-                        row["Status"],
-                    ]
-                )
+                writer.writerow([
+                    row["SteamID"],
+                    row["Ulasan"].replace("\n", " ").replace("\r", " "),
+                    row["Terjemahan"],
+                    row["Status"],
+                ])
         return send_file(
             TRANSLATED_PATH,
             mimetype="text/csv",
@@ -255,17 +232,13 @@ def savedata():
             download_name="terjemahan_steam_reviews.csv",
         )
     except Exception as e:
-        return jsonify(
-            {"status": "error", "message": f"Gagal menyimpan file: {e}"}
-        ), 500
-
+        return jsonify({"status": "error", "message": f"Gagal menyimpan file: {e}"}), 500
 
 @terjemahan_bp.route("/download")
 def download_latest():
     if os.path.exists(TRANSLATED_PATH):
         return send_file(TRANSLATED_PATH, as_attachment=True)
     return jsonify({"error": "File hasil terjemahan tidak ditemukan."}), 404
-
 
 @terjemahan_bp.route("/")
 def index():

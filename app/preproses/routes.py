@@ -47,7 +47,7 @@ with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") 
             k, v = line.strip().split("=", 1)
             normalisasi_dict[k.strip().lower()] = v.strip().lower()
 
-with open(os.path.join(TXT_DIR, "game_terms.txt"), "r", encoding="utf-8") as f:
+with open(os.path.join(TXT_DIR, "game_term.txt"), "r", encoding="utf-8") as f:
     game_terms = set(line.strip().lower() for line in f if line.strip())
 
 with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8") as f:
