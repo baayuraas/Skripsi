@@ -306,6 +306,29 @@ def preproses():
         return jsonify({"error": str(e)}), 500
 
 
+@prepro_bp.route("/save_csv", methods=["POST"])
+def save_csv_manual():
+    """Menyimpan CSV secara manual dari data JSON yang dikirim frontend."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Tidak ada data yang dikirim."}), 400
+
+        df = pd.DataFrame(data)
+
+        if save_csv(df):
+            return send_file(
+                PREPRO_CSV_PATH,
+                as_attachment=True,
+                download_name="processed_data.csv",
+                mimetype="text/csv",
+            )
+        else:
+            return jsonify({"error": "Gagal menyimpan CSV."}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @prepro_bp.route("/download_csv", methods=["GET"])
 def download_csv():
     """Mengunduh file hasil preprocessing CSV secara manual."""
