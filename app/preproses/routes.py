@@ -31,6 +31,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
 TXT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 stopword_factory = StopWordRemoverFactory()
 stemmer = StemmerFactory().create_stemmer()
 stop_words = set(stopword_factory.get_stop_words()).union(
@@ -76,6 +77,28 @@ def simpan_cache_ke_file():
         print(f"[ERROR simpan cache]: {e}")
 
 
+def translate_long_text(text, source="auto", target="id", max_len=5000):
+    translator = GoogleTranslator(source=source, target=target)
+    hasil = []
+
+    # Pecah teks berdasarkan tanda baca atau newline
+    kalimat = re.split(r"(?<=[.!?]) +|\n", text)
+
+    buffer = ""
+    for k in kalimat:
+        if len(buffer) + len(k) < max_len:
+            buffer += " " + k
+        else:
+            if buffer.strip():
+                hasil.append(translator.translate(buffer.strip()))
+            buffer = k
+
+    if buffer.strip():
+        hasil.append(translator.translate(buffer.strip()))
+
+    return " ".join(hasil)
+
+
 # --- Utility ---
 def register_template_filters(app):
     app.jinja_env.filters["sanitize"] = escape
@@ -112,6 +135,7 @@ def hapus_stopword(words):
         if (w not in stop_words and w not in kata_tidak_relevan) or w in game_terms
     ]
 
+
 def stemming_teks(words):
     return [stemmer.stem(w) for w in words]
 
@@ -121,6 +145,19 @@ def deteksi_bukan_indonesia(words: list) -> bool:
         return detect(" ".join(words)) != "id"
     except LangDetectException:
         return False
+
+WHITELIST_FILE = os.path.join(TXT_DIR, "kata_ambigu.txt")
+kata_id_pasti = set()
+
+if os.path.exists(WHITELIST_FILE):
+    try:
+        with open(WHITELIST_FILE, "r", encoding="utf-8") as f:
+            kata_id_pasti = {line.strip().lower() for line in f if line.strip()}
+        print(f"[WHITELIST] Loaded {len(kata_id_pasti)} kata dari kata_ambigu.txt")
+    except Exception as e:
+        print(f"[ERROR baca whitelist]: {e}")
+else:
+    print("[WHITELIST] File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
 
 
 # --- Translasi batch kata ---
@@ -140,6 +177,22 @@ def translate_batch_cached(kata_non_id):
         print(f"[ERROR translate_batch]: {str(e)}")
 
 
+# --- Deteksi kata non-ID dengan whitelist ---
+def deteksi_kata_non_indonesia(words: list) -> list:
+    kata_non_id = []
+    try:
+        for w in words:
+            if len(w) > 2 and w.lower() not in kata_id_pasti:
+                try:
+                    if detect(w) != "id":
+                        kata_non_id.append(w)
+                except LangDetectException:
+                    continue
+    except Exception:
+        return []
+    return kata_non_id
+
+
 # --- Proses per baris ---
 def proses_baris_aman(terjemahan):
     try:
@@ -153,7 +206,7 @@ def proses_baris_aman(terjemahan):
         # Deteksi kata non-ID
         kata_non_id = []
         for w in token:
-            if len(w) > 2:
+            if len(w) > 2 and w.lower() not in kata_id_pasti:
                 try:
                     if detect(w) != "id":
                         kata_non_id.append(w)
@@ -175,11 +228,14 @@ def proses_baris_aman(terjemahan):
         stem = stemming_teks(norm)
         hasil = " ".join(stem)
 
-        if hasil.strip() and deteksi_bukan_indonesia([hasil]):
-            print(">> Translate ulang karena hasil masih bukan ID.")
-            translated = (
-                GoogleTranslator(source="auto", target="id").translate(clean).lower()
+        # Cek bahasa dan tampilkan kata pemicu
+        kata_pemicunya = deteksi_kata_non_indonesia(word_tokenize(hasil))
+        if hasil.strip() and kata_pemicunya:
+            print(
+                f">> Translate ulang karena hasil masih bukan ID. Kata pemicu: {kata_pemicunya}"
             )
+            translated = translate_long_text(clean).lower()
+
             token = word_tokenize(translated)
             stop = hapus_stopword(token)
             norm = normalisasi_teks(stop)
