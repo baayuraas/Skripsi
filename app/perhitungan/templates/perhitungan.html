@@ -29,6 +29,7 @@
         <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/data_uji.csv'">Download Data Uji</button>
         <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/model_mlp_custom.keras'">Download Model</button>
         <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/label_encoder.pkl'">Download Label Encoder</button>
+        <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/tfidf_vectorizer.pkl'">Download TF-IDF</button>
     </div>
 
     <div class="table-responsive mt-4">
@@ -54,7 +55,7 @@ $(function () {
                 <tr>
                     <td>${i + 1}</td>
                     ${headers.map(h => {
-                        const mismatch = h === "Prediksi" && row["Asli"] && row["Prediksi"] !== row["Asli"];
+                        const mismatch = h === "Prediksi" && row["Status"] && row["Prediksi"] !== row["Status"];
                         const cell = row[h] ?? "-";
                         return `<td style="${mismatch ? 'background:#f8d7da;color:#721c24' : ''}">${cell}</td>`;
                     }).join("")}
