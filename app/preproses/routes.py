@@ -48,6 +48,20 @@ with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") 
             k, v = line.strip().split("=", 1)
             normalisasi_dict[k.strip().lower()] = v.strip().lower()
 
+# --- Load stemming_list.txt ---
+stemming_dict = {}
+stemming_file = os.path.join(TXT_DIR, "stemming_list.txt")
+if os.path.exists(stemming_file):
+    with open(stemming_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                stemming_dict[k.strip().lower()] = v.strip().lower()
+    print(f"[STEMMING LIST] Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
+else:
+    print("[STEMMING LIST] File tidak ditemukan, gunakan default Sastrawi.")
+
+
 with open(os.path.join(TXT_DIR, "game_term.txt"), "r", encoding="utf-8") as f:
     game_terms = set(line.strip().lower() for line in f if line.strip())
 
@@ -123,9 +137,15 @@ def hapus_kata_ulang(word):
 
 
 def normalisasi_teks(words):
-    return [
-        normalisasi_dict.get(hapus_kata_ulang(w).lower(), w) for w in words if w.strip()
-    ]
+    hasil = []
+    for w in words:
+        wl = w.lower()
+        if wl in normalisasi_dict:  # cek di kamus normalisasi
+            mapped = normalisasi_dict[wl]
+            hasil.extend(mapped.split())  # pisah kalau ada spasi
+        else:
+            hasil.append(wl)
+    return hasil
 
 
 def hapus_stopword(words):
@@ -137,7 +157,17 @@ def hapus_stopword(words):
 
 
 def stemming_teks(words):
-    return [stemmer.stem(w) for w in words]
+    hasil = []
+    for w in words:
+        wl = w.lower()
+        if wl in stemming_dict:  # cek di kamus manual
+            mapped = stemming_dict[wl]
+            # kalau mapping mengandung spasi → pecah jadi beberapa kata
+            hasil.extend(mapped.split())
+        else:
+            hasil.append(stemmer.stem(wl))
+    return hasil
+
 
 
 def deteksi_bukan_indonesia(words: list) -> bool:
@@ -162,19 +192,25 @@ else:
 
 # --- Translasi batch kata ---
 def translate_batch_cached(kata_non_id):
-    kata_belum_diterjemahkan = [w for w in kata_non_id if w not in terjemahan_cache]
+    # Filter kata yang belum ada di cache, bukan game term, bukan kata ambigu
+    kata_belum_diterjemahkan = [
+        w for w in kata_non_id
+        if w not in terjemahan_cache
+        and w not in game_terms
+        and w not in kata_id_pasti  # kata_ambigu
+    ]
+
     if not kata_belum_diterjemahkan:
         return
+
     try:
         hasil_batch = GoogleTranslator(source="auto", target="id").translate_batch(
             kata_belum_diterjemahkan
         )
         for asli, hasil in zip(kata_belum_diterjemahkan, hasil_batch):
-            if hasil:
-                terjemahan_cache[asli] = hasil.lower()
-                print(f"[TRANSLATE BATCH] {asli} → {hasil.lower()}")
+            terjemahan_cache[asli] = hasil
     except Exception as e:
-        print(f"[ERROR translate_batch]: {str(e)}")
+        print(f"[ERROR] Gagal translate batch: {e}")
 
 
 # --- Deteksi kata non-ID dengan whitelist ---
@@ -203,36 +239,44 @@ def proses_baris_aman(terjemahan):
         folded = clean.lower()
         token = word_tokenize(folded)
 
-        # Deteksi kata non-ID
+        # --- Deteksi kata non-ID ---
         kata_non_id = []
         for w in token:
-            if len(w) > 2 and w.lower() not in kata_id_pasti:
+            wl = w.lower()
+            if len(wl) > 2 and wl not in kata_id_pasti and wl not in game_terms:
                 try:
-                    if detect(w) != "id":
-                        kata_non_id.append(w)
+                    if detect(wl) != "id":
+                        kata_non_id.append(wl)
                 except LangDetectException:
                     continue
         translate_batch_cached(kata_non_id)
 
+        # --- Gunakan cache hasil translate ---
         hasil_token = []
         for w in token:
-            if len(w) <= 2:
+            wl = w.lower()
+            if len(wl) <= 2:
                 continue
-            if w in terjemahan_cache:
-                hasil_token.extend(word_tokenize(terjemahan_cache[w]))
+            if wl in terjemahan_cache:
+                hasil_token.extend(word_tokenize(terjemahan_cache[wl]))
             else:
-                hasil_token.append(w)
+                hasil_token.append(wl)
 
+        # --- Proses NLP ---
         stop = hapus_stopword(hasil_token)
-        norm = normalisasi_teks(stop)
-        stem = stemming_teks(norm)
+        norm = normalisasi_teks(stop)       # support multi-kata dari normalisasi_list.txt
+        stem = stemming_teks(norm)          # support multi-kata dari stemming_list.txt
         hasil = " ".join(stem)
 
-        # Cek bahasa dan tampilkan kata pemicu
+        # --- Cek apakah perlu translate ulang ---
         kata_pemicunya = deteksi_kata_non_indonesia(word_tokenize(hasil))
-        if hasil.strip() and kata_pemicunya:
+        perlu_translate_ulang = [
+            k for k in kata_pemicunya if k not in kata_id_pasti and k not in game_terms
+        ]
+
+        if hasil.strip() and perlu_translate_ulang:
             print(
-                f">> Translate ulang karena hasil masih bukan ID. Kata pemicu: {kata_pemicunya}"
+                f">> Translate ulang karena hasil masih bukan ID. Kata pemicu: {perlu_translate_ulang}"
             )
             translated = translate_long_text(clean).lower()
 
@@ -392,3 +436,4 @@ def download_csv():
 @prepro_bp.route("/")
 def index():
     return render_template("preprosessing.html", page_name="prepro"), 200
+

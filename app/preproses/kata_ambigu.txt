@@ -1,6 +1,7 @@
 air
 akun
 alat
+ambien
 angka
 aturan
 aturanmain
@@ -26,7 +27,7 @@ online
 pengguna
 rumah
 server
-server
 sistem
 tingkat
 update
+

@@ -39,7 +39,6 @@
     </div>
 </form>
 
-
 <hr>
 
 <div id="hasil-box" style="display: none;">
@@ -53,7 +52,6 @@
     <p><strong>Prediksi Sentimen:</strong> <span id="hasil-prediksi" class="badge badge-info"></span></p>
     <p><strong>Label Asli:</strong> <span id="label-asli">-</span></p>
     <p><strong>Kecocokan:</strong> <span id="label-match">-</span></p>
-
 </div>
 {% endblock %}
 
@@ -77,10 +75,30 @@ $(function () {
             data: JSON.stringify({ ulasan, label: label_asli }),
             success: function (res) {
                 $('#hasil-box').show();
-                $('#hasil-terjemahan').text(res.process?.translated ? "(diterjemahkan)" : "(tidak diterjemahkan)");
+
+                // tampilkan hasil terjemahan
+                const translatedText = res.process?.translation_text || "-";
+                $('#hasil-terjemahan').text(translatedText);
+
+                // hasil preprocessing
                 $('#hasil-prepro').text(res.process?.preprocessed_text || "-");
-                $('#hasil-prediksi').text(res.result?.prediction || "-");
-            
+
+                // hasil prediksi
+                const prediksi = res.result?.prediction || "-";
+                const predEl = $('#hasil-prediksi');
+                predEl.text(prediksi);
+
+                // warna badge sesuai hasil
+                predEl.removeClass('badge-info badge-success badge-danger');
+                if (prediksi.toLowerCase().includes('positif') || prediksi.toLowerCase().includes('recommended')) {
+                    predEl.addClass('badge badge-success');
+                } else if (prediksi.toLowerCase().includes('negatif') || prediksi.toLowerCase().includes('not')) {
+                    predEl.addClass('badge badge-danger');
+                } else {
+                    predEl.addClass('badge badge-info');
+                }
+
+                // label asli & match
                 if (res.result?.label_match !== null && res.result?.label_match !== undefined) {
                     $('#label-asli').text(label_asli || "-");
                     $('#label-match').text(res.result.label_match ? '✅ Sesuai' : '❌ Tidak Sesuai');
@@ -91,12 +109,7 @@ $(function () {
             },
             error: function (xhr) {
                 const msg = xhr.responseJSON?.error || xhr.responseText || 'Terjadi kesalahan saat memproses prediksi.';
-
-                if (msg.toLowerCase().includes('model belum tersedia') || msg.toLowerCase().includes('file hilang')) {
-                    alert(msg + '\n\nSilakan jalankan proses perhitungan/training terlebih dahulu.');
-                } else {
-                    alert(msg);
-                }
+                alert(msg);
             },
             complete: function () {
                 $('#sentimentForm button').prop('disabled', false);
@@ -106,5 +119,126 @@ $(function () {
     });
 });
 </script>
+{% endblock %}
+{% extends 'base.html' %}
 
+{% block page_title %}
+<div class="page-title">
+    <div><h1><i class="icon-shield"></i> Data Steam</h1></div>
+</div>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div id="breadcrumbs">
+    <ul class="breadcrumb"><li class="active"><i class="icon-home"></i> Home</li></ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<h3>Analisis Sentimen Ulasan Steam</h3>
+<form id="sentimentForm">
+    <div class="form-group">
+        <label for="ulasan">Tulis Ulasan:</label>
+        <textarea id="ulasan" name="ulasan" rows="5" class="form-control" required></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="label_asli">Label Asli (opsional):</label>
+        <select id="label_asli" name="label_asli" class="form-control">
+            <option value="">-- Pilih Label --</option>
+            <option value="positif">Recommended</option>
+            <option value="negatif">Not Recommended</option>
+        </select>
+    </div>
+    
+    <div>
+        <button type="submit" class="btn btn-primary">Prediksi Sentimen</button>
+    </div>
+
+    <div id="loading-spinner" style="display:none; margin-top: 10px;">
+        <span class="spinner-border spinner-border-sm text-primary"></span>
+        <span>Memproses prediksi...</span>
+    </div>
+</form>
+
+<hr>
+
+<div id="hasil-box" style="display: none;">
+    <h4>Hasil Analisis</h4>
+    <p><strong>Terjemahan (jika dari Inggris):</strong></p>
+    <div class="well" id="hasil-terjemahan"></div>
+
+    <p><strong>Hasil Preprocessing:</strong></p>
+    <div class="well" id="hasil-prepro"></div>
+
+    <p><strong>Prediksi Sentimen:</strong> <span id="hasil-prediksi" class="badge badge-info"></span></p>
+    <p><strong>Label Asli:</strong> <span id="label-asli">-</span></p>
+    <p><strong>Kecocokan:</strong> <span id="label-match">-</span></p>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+$(function () {
+    $('#sentimentForm').submit(function (e) {
+        e.preventDefault();
+        const ulasan = $('#ulasan').val().trim();
+        const label_asli = $('#label_asli').val();
+
+        if (!ulasan) return alert("Ulasan tidak boleh kosong!");
+
+        $('#sentimentForm button').prop('disabled', true);
+        $('#loading-spinner').show();
+
+        $.ajax({
+            url: '/pengujian/predict',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ ulasan, label: label_asli }),
+            success: function (res) {
+                $('#hasil-box').show();
+
+                // tampilkan hasil terjemahan
+                const translatedText = res.process?.translation_text || "-";
+                $('#hasil-terjemahan').text(translatedText);
+
+                // hasil preprocessing
+                $('#hasil-prepro').text(res.process?.preprocessed_text || "-");
+
+                // hasil prediksi
+                const prediksi = res.result?.prediction || "-";
+                const predEl = $('#hasil-prediksi');
+                predEl.text(prediksi);
+
+                // warna badge sesuai hasil
+                predEl.removeClass('badge-info badge-success badge-danger');
+                if (prediksi.toLowerCase().includes('positif') || prediksi.toLowerCase().includes('recommended')) {
+                    predEl.addClass('badge badge-success');
+                } else if (prediksi.toLowerCase().includes('negatif') || prediksi.toLowerCase().includes('not')) {
+                    predEl.addClass('badge badge-danger');
+                } else {
+                    predEl.addClass('badge badge-info');
+                }
+
+                // label asli & match
+                if (res.result?.label_match !== null && res.result?.label_match !== undefined) {
+                    $('#label-asli').text(label_asli || "-");
+                    $('#label-match').text(res.result.label_match ? '✅ Sesuai' : '❌ Tidak Sesuai');
+                } else {
+                    $('#label-asli').text("-");
+                    $('#label-match').text("-");
+                }
+            },
+            error: function (xhr) {
+                const msg = xhr.responseJSON?.error || xhr.responseText || 'Terjadi kesalahan saat memproses prediksi.';
+                alert(msg);
+            },
+            complete: function () {
+                $('#sentimentForm button').prop('disabled', false);
+                $('#loading-spinner').hide();
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
