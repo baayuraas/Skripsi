@@ -27,6 +27,10 @@
     <div style="margin-top: 1rem;">
       <button id="clear-data" class="btn btn-danger">Hapus Data</button>
       <button id="save-csv" class="btn btn-success">Simpan ke CSV</button>
+      <button id="download-train-csv" class="btn btn-secondary">⬇️ Train CSV</button>
+      <button id="download-test-csv" class="btn btn-secondary">⬇️ Test CSV</button>
+      <button id="download-train-model" class="btn btn-secondary">⬇️ Train Model</button>
+      <button id="download-test-model" class="btn btn-secondary">⬇️ Test Model</button>
     </div>
 
     <div class="table-responsive mt-3">
@@ -99,22 +103,15 @@ $(function () {
         }).fail(() => alert("Gagal menghapus data."));
     });
 
-    $("#save-csv").click(() => {
-        if (!processedData.length) return alert("Tidak ada data.");
-        const rows = document.querySelectorAll("table tr");
-        let csv = [];
-        rows.forEach(r => {
-            const cols = [...r.querySelectorAll("th, td")].slice(1);
-            csv.push(cols.map(c => `"${c.innerText.replace(/"/g, '""')}"`).join(","));
-        });
-        const blob = new Blob([csv.join("\n")], { type: "text/csv" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "hasil_tfidf.csv";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
+    $("#save-csv").click(() => triggerDownload("full_csv"));
+    $("#download-train-csv").click(() => triggerDownload("train_csv"));
+    $("#download-test-csv").click(() => triggerDownload("test_csv"));
+    $("#download-train-model").click(() => triggerDownload("train_model"));
+    $("#download-test-model").click(() => triggerDownload("test_model"));
+
+    function triggerDownload(type) {
+        window.location.href = `/tfidf/download/${type}`;
+    }
 });
 </script>
 {% endblock %}
