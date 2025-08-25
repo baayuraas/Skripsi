@@ -1,4 +1,3 @@
-# file: perhitungan.py
 import os
 import traceback
 import numpy as np
@@ -6,7 +5,6 @@ import pandas as pd
 import pickle
 from flask import Blueprint, request, jsonify, render_template, send_file
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -29,15 +27,12 @@ perhitungan_bp = Blueprint(
     static_folder="static",
 )
 
-# Folder target utama (global): pakkur/uploads/perhitungan
+# Folder utama
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ROOT_UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "perhitungan")
 os.makedirs(ROOT_UPLOAD_FOLDER, exist_ok=True)
 
-# Jalur file hasil pelatihan
-CSV_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "train.csv")
-EVAL_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "data_uji.csv")
-LATIH_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "data_latih.csv")
+# Jalur model & encoder
 MODEL_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "model_mlp_custom.keras")
 LABEL_ENCODER_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "label_encoder.pkl")
 
@@ -51,7 +46,7 @@ def load_and_prepare_data(csv_path):
     if "Status" not in df.columns:
         raise ValueError("Kolom 'Status' tidak ditemukan di CSV.")
 
-    # Semua kolom selain Status dianggap sebagai fitur (TF-IDF)
+    # Fitur (TF-IDF hasil preprocessing sebelumnya)
     X = df.drop(columns=["Status"]).to_numpy()
 
     # Label encoding
@@ -62,23 +57,18 @@ def load_and_prepare_data(csv_path):
     if len(np.unique(y_encoded)) < 2:
         raise ValueError("Data harus memiliki minimal 2 kelas berbeda.")
 
-    # Simpan encoder
+    # Simpan encoder otomatis
     with open(LABEL_ENCODER_PATH, "wb") as f:
         pickle.dump(label_encoder, f)
 
-    df_clean = df.copy()
-    return X, y_encoded, label_encoder, len(np.unique(y_encoded)), df_clean
+    return X, y_encoded, label_encoder, len(np.unique(y_encoded)), df
 
 
 def build_and_train_model(X, y, output_dim):
     model = Sequential(
         [
             Input(shape=(X.shape[1],)),
-            Dense(
-                64,
-                activation="relu",
-                kernel_initializer=RandomUniform(-0.12, 0.12),
-            ),
+            Dense(64, activation="relu", kernel_initializer=RandomUniform(-0.12, 0.12)),
             Dense(32, activation="relu"),
             Dense(output_dim, activation="softmax"),
         ]
@@ -87,6 +77,8 @@ def build_and_train_model(X, y, output_dim):
         optimizer=Adam(), loss=SparseCategoricalCrossentropy(), metrics=["accuracy"]
     )
     model.fit(X, y, epochs=10, batch_size=32, verbose=0)
+
+    # Simpan model otomatis
     model.save(MODEL_PATH)
     return model
 
@@ -104,43 +96,32 @@ def process_csv():
         return jsonify({"error": "File harus CSV."}), 400
 
     try:
-        file.save(CSV_PATH)
-        X, y, encoder, output_dim, df_clean = load_and_prepare_data(CSV_PATH)
+        csv_path = os.path.join(ROOT_UPLOAD_FOLDER, file.filename)
+        file.save(csv_path)
 
-        X_train, X_eval, y_train, y_eval, df_train, df_eval = train_test_split(
-            X, y, df_clean, test_size=0.3, random_state=42, stratify=y
-        )
+        X, y, encoder, output_dim, df_clean = load_and_prepare_data(csv_path)
 
-        model = build_and_train_model(X_train, y_train, output_dim)
+        model = build_and_train_model(X, y, output_dim)
         le = encoder
 
-        y_pred_train = le.inverse_transform(np.argmax(model.predict(X_train), axis=1))
-        y_actual_train = le.inverse_transform(y_train)
+        # Prediksi training set (hanya evaluasi internal)
+        y_pred = le.inverse_transform(np.argmax(model.predict(X), axis=1))
+        y_actual = le.inverse_transform(y)
 
-        df_train["Status"] = y_actual_train
-        df_train["Prediksi"] = y_pred_train
+        df_clean["Prediksi"] = y_pred
 
-        df_clean.to_csv(CSV_PATH, index=False)
-        df_train.to_csv(LATIH_PATH, index=False)
-        df_eval.to_csv(EVAL_PATH, index=False)
-
-        acc = accuracy_score(y_actual_train, y_pred_train)
-        prec = precision_score(
-            y_actual_train, y_pred_train, average="weighted", zero_division=0
-        )
-        rec = recall_score(
-            y_actual_train, y_pred_train, average="weighted", zero_division=0
-        )
-        f1 = f1_score(y_actual_train, y_pred_train, average="weighted", zero_division=0)
-        cm = confusion_matrix(
-            y_actual_train, y_pred_train, labels=np.unique(y_actual_train)
-        ).tolist()
-        labels = list(np.unique(y_actual_train))
+        # Hitung metrik evaluasi
+        acc = accuracy_score(y_actual, y_pred)
+        prec = precision_score(y_actual, y_pred, average="weighted", zero_division=0)
+        rec = recall_score(y_actual, y_pred, average="weighted", zero_division=0)
+        f1 = f1_score(y_actual, y_pred, average="weighted", zero_division=0)
+        cm = confusion_matrix(y_actual, y_pred, labels=np.unique(y_actual)).tolist()
+        labels = list(np.unique(y_actual))
 
         return jsonify(
             {
                 "message": "Pelatihan selesai.",
-                "train": df_train.to_dict(orient="records"),
+                "train": df_clean.to_dict(orient="records"),
                 "accuracy": round(float(acc) * 100, 2),
                 "precision": round(float(prec) * 100, 2),
                 "recall": round(float(rec) * 100, 2),
@@ -158,9 +139,6 @@ def process_csv():
 @perhitungan_bp.route("/download/<filename>")
 def download_file(filename):
     safe_files = {
-        "train.csv": CSV_PATH,
-        "data_uji.csv": EVAL_PATH,
-        "data_latih.csv": LATIH_PATH,
         "model_mlp_custom.keras": MODEL_PATH,
         "label_encoder.pkl": LABEL_ENCODER_PATH,
     }
@@ -173,7 +151,7 @@ def download_file(filename):
 @perhitungan_bp.route("/clear", methods=["POST"])
 def clear_data():
     global model, le
-    for path in [CSV_PATH, EVAL_PATH, LATIH_PATH, MODEL_PATH, LABEL_ENCODER_PATH]:
+    for path in [MODEL_PATH, LABEL_ENCODER_PATH]:
         if os.path.exists(path):
             os.remove(path)
     model, le = None, None
