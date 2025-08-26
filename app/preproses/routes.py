@@ -31,7 +31,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
 TXT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-
 stopword_factory = StopWordRemoverFactory()
 stemmer = StemmerFactory().create_stemmer()
 stop_words = set(stopword_factory.get_stop_words()).union(
@@ -61,13 +60,11 @@ if os.path.exists(stemming_file):
 else:
     print("[STEMMING LIST] File tidak ditemukan, gunakan default Sastrawi.")
 
-
 with open(os.path.join(TXT_DIR, "game_term.txt"), "r", encoding="utf-8") as f:
     game_terms = set(line.strip().lower() for line in f if line.strip())
 
 with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8") as f:
     kata_tidak_relevan = set(line.strip().lower() for line in f if line.strip())
-
 
 CHUNK_SIZE = 500
 MAX_FILE_SIZE = 2 * 1024 * 1024
@@ -82,14 +79,12 @@ if os.path.exists(CACHE_FILE):
     except Exception:
         terjemahan_cache = {}
 
-
 def simpan_cache_ke_file():
     try:
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"[ERROR simpan cache]: {e}")
-
 
 def translate_long_text(text, source="auto", target="id", max_len=5000):
     translator = GoogleTranslator(source=source, target=target)
@@ -112,11 +107,9 @@ def translate_long_text(text, source="auto", target="id", max_len=5000):
 
     return " ".join(hasil)
 
-
 # --- Utility ---
 def register_template_filters(app):
     app.jinja_env.filters["sanitize"] = escape
-
 
 def bersihkan_terjemahan(teks: str) -> str:
     if pd.isna(teks) or not isinstance(teks, str):
@@ -131,22 +124,19 @@ def bersihkan_terjemahan(teks: str) -> str:
     teks = unicodedata.normalize("NFKD", teks).encode("ascii", "ignore").decode("utf-8")
     return re.sub(r"\s+", " ", teks).strip()
 
-
 def hapus_kata_ulang(word):
     return re.sub(r"\b(\w{3,}?)(?:\1)\b", r"\1", word)
-
 
 def normalisasi_teks(words):
     hasil = []
     for w in words:
         wl = w.lower()
-        if wl in normalisasi_dict:  # cek di kamus normalisasi
+        if wl in normalisasi_dict:
             mapped = normalisasi_dict[wl]
-            hasil.extend(mapped.split())  # pisah kalau ada spasi
+            hasil.extend(mapped.split())
         else:
             hasil.append(wl)
     return hasil
-
 
 def hapus_stopword(words):
     return [
@@ -155,20 +145,16 @@ def hapus_stopword(words):
         if (w not in stop_words and w not in kata_tidak_relevan) or w in game_terms
     ]
 
-
 def stemming_teks(words):
     hasil = []
     for w in words:
         wl = w.lower()
-        if wl in stemming_dict:  # cek di kamus manual
+        if wl in stemming_dict:
             mapped = stemming_dict[wl]
-            # kalau mapping mengandung spasi → pecah jadi beberapa kata
             hasil.extend(mapped.split())
         else:
             hasil.append(stemmer.stem(wl))
     return hasil
-
-
 
 def deteksi_bukan_indonesia(words: list) -> bool:
     try:
@@ -189,110 +175,114 @@ if os.path.exists(WHITELIST_FILE):
 else:
     print("[WHITELIST] File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
 
-
-# --- Translasi batch kata ---
+# --- PERBAIKAN: Translasi batch kata yang lebih baik ---
 def translate_batch_cached(kata_non_id):
     # Filter kata yang belum ada di cache, bukan game term, bukan kata ambigu
     kata_belum_diterjemahkan = [
         w for w in kata_non_id
         if w not in terjemahan_cache
         and w not in game_terms
-        and w not in kata_id_pasti  # kata_ambigu
+        and w not in kata_id_pasti
+        and len(w) > 2  # hanya kata dengan panjang > 2
     ]
 
     if not kata_belum_diterjemahkan:
         return
 
     try:
-        hasil_batch = GoogleTranslator(source="auto", target="id").translate_batch(
-            kata_belum_diterjemahkan
-        )
-        for asli, hasil in zip(kata_belum_diterjemahkan, hasil_batch):
-            terjemahan_cache[asli] = hasil
+        # Batch translation dengan chunking
+        chunk_size = 50  # Google Translate batch limit
+        for i in range(0, len(kata_belum_diterjemahkan), chunk_size):
+            chunk = kata_belum_diterjemahkan[i:i + chunk_size]
+            hasil_batch = GoogleTranslator(source="auto", target="id").translate_batch(chunk)
+            
+            for asli, hasil in zip(chunk, hasil_batch):
+                if hasil and hasil.strip():  # hanya simpan jika hasil valid
+                    terjemahan_cache[asli] = hasil.lower()  # simpan dalam lowercase
+                    
     except Exception as e:
         print(f"[ERROR] Gagal translate batch: {e}")
 
-
-# --- Deteksi kata non-ID dengan whitelist ---
+# --- PERBAIKAN: Deteksi kata non-ID dengan whitelist yang lebih baik ---
 def deteksi_kata_non_indonesia(words: list) -> list:
     kata_non_id = []
     try:
         for w in words:
-            if len(w) > 2 and w.lower() not in kata_id_pasti:
-                try:
-                    if detect(w) != "id":
-                        kata_non_id.append(w)
-                except LangDetectException:
-                    continue
+            wl = w.lower()
+            # Skip kata pendek, kata game, dan kata whitelist
+            if (len(wl) <= 2 or 
+                wl in kata_id_pasti or 
+                wl in game_terms or
+                wl in normalisasi_dict or  # kata yang sudah dinormalisasi
+                wl in stemming_dict):     # kata yang sudah di-stem
+                continue
+            
+            try:
+                # Deteksi dengan confidence check
+                lang = detect(wl)
+                if lang != "id":
+                    kata_non_id.append(wl)
+            except LangDetectException:
+                continue
     except Exception:
         return []
     return kata_non_id
 
-
-# --- Proses per baris ---
+# --- PERBAIKAN: Proses per baris dengan handling error yang lebih baik ---
 def proses_baris_aman(terjemahan):
     try:
-        if pd.isna(terjemahan) or not isinstance(terjemahan, str):
+        # Validasi input
+        if pd.isna(terjemahan) or not isinstance(terjemahan, str) or not terjemahan.strip():
             return ["", "", [], [], [], [], ""]
 
         clean = bersihkan_terjemahan(terjemahan)
+        if not clean.strip():
+            return ["", "", [], [], [], [], ""]
+            
         folded = clean.lower()
         token = word_tokenize(folded)
 
-        # --- Deteksi kata non-ID ---
-        kata_non_id = []
-        for w in token:
-            wl = w.lower()
-            if len(wl) > 2 and wl not in kata_id_pasti and wl not in game_terms:
-                try:
-                    if detect(wl) != "id":
-                        kata_non_id.append(wl)
-                except LangDetectException:
-                    continue
+        # Deteksi kata non-ID dengan filter yang lebih baik
+        kata_non_id = deteksi_kata_non_indonesia(token)
+        
+        # Translate batch dengan filter
         translate_batch_cached(kata_non_id)
 
-        # --- Gunakan cache hasil translate ---
+        # Proses token dengan terjemahan
         hasil_token = []
         for w in token:
             wl = w.lower()
-            if len(wl) <= 2:
-                continue
             if wl in terjemahan_cache:
-                hasil_token.extend(word_tokenize(terjemahan_cache[wl]))
+                translated_text = terjemahan_cache[wl]
+                if translated_text and translated_text.strip():
+                    translated_tokens = word_tokenize(translated_text.lower())
+                    hasil_token.extend(translated_tokens)
+                else:
+                    hasil_token.append(wl)
             else:
                 hasil_token.append(wl)
 
-        # --- Proses NLP ---
+        # Proses NLP
         stop = hapus_stopword(hasil_token)
-        norm = normalisasi_teks(stop)       # support multi-kata dari normalisasi_list.txt
-        stem = stemming_teks(norm)          # support multi-kata dari stemming_list.txt
+        norm = normalisasi_teks(stop)
+        stem = stemming_teks(norm)
         hasil = " ".join(stem)
 
-        # --- Cek apakah perlu translate ulang ---
-        kata_pemicunya = deteksi_kata_non_indonesia(word_tokenize(hasil))
-        perlu_translate_ulang = [
-            k for k in kata_pemicunya if k not in kata_id_pasti and k not in game_terms
-        ]
-
-        if hasil.strip() and perlu_translate_ulang:
-            print(
-                f">> Translate ulang karena hasil masih bukan ID. Kata pemicu: {perlu_translate_ulang}"
-            )
-            translated = translate_long_text(clean).lower()
-
-            token = word_tokenize(translated)
-            stop = hapus_stopword(token)
-            norm = normalisasi_teks(stop)
-            stem = stemming_teks(norm)
-            hasil = " ".join(stem)
+        # Validasi hasil akhir
+        if not hasil.strip():
+            # Fallback ke case folding
+            hasil = folded
 
         return [clean, folded, token, stop, norm, stem, hasil]
+        
     except Exception as e:
         print(f"[ERROR hybrid]: {e}")
-        return ["", "", [], [], [], [], ""]
+        # Return minimal data instead of empty
+        clean = bersihkan_terjemahan(terjemahan) if isinstance(terjemahan, str) else ""
+        folded = clean.lower() if clean else ""
+        return [clean, folded, [], [], [], [], folded]
 
-
-# --- Fungsi save_csv ---
+# --- PERBAIKAN: Fungsi save_csv dengan handling empty data yang lebih baik ---
 def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     """Menyimpan DataFrame ke CSV dengan format konsisten."""
     try:
@@ -306,20 +296,36 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
             if col in df_for_file.columns:
                 df_for_file[col] = df_for_file[col].apply(
                     lambda val: json.dumps(val, ensure_ascii=False)
-                    if isinstance(val, list)
+                    if isinstance(val, list) and val
                     else "[]"
                 )
 
         # Hapus kolom sensitif / tidak diperlukan
         df_for_file.drop(
             columns=[
-                col
-                for col in df_for_file.columns
+                col for col in df_for_file.columns
                 if col.lower() in {"ulasan", "terjemahan"}
             ],
             inplace=True,
             errors="ignore",
         )
+
+        # Atur ulang kolom sesuai urutan yang diinginkan
+        kolom_urutan = [
+            "SteamID",
+            "Clean Data",
+            "Case Folding",
+            "Tokenisasi",
+            "Stopword",
+            "Normalisasi",
+            "Stemming",
+            "Hasil",
+            "Status"
+        ]
+        
+        # Pastikan hanya ambil kolom yang memang ada
+        kolom_ada = [col for col in kolom_urutan if col in df_for_file.columns]
+        df_for_file = df_for_file[kolom_ada]
 
         # Simpan CSV
         df_for_file.to_csv(
@@ -336,7 +342,6 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     except Exception as e:
         print(f"[ERROR save_csv]: {e}")
         return False
-
 
 # --- Routes ---
 @prepro_bp.route("/preproses", methods=["POST"])
@@ -396,7 +401,6 @@ def preproses():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @prepro_bp.route("/save_csv", methods=["POST"])
 def save_csv_manual():
     """Menyimpan CSV secara manual dari data JSON yang dikirim frontend."""
@@ -419,7 +423,6 @@ def save_csv_manual():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @prepro_bp.route("/download_csv", methods=["GET"])
 def download_csv():
     """Mengunduh file hasil preprocessing CSV secara manual."""
@@ -432,8 +435,6 @@ def download_csv():
         )
     return jsonify({"error": "File hasil preprocessing tidak ditemukan."}), 404
 
-
 @prepro_bp.route("/")
 def index():
     return render_template("preprosessing.html", page_name="prepro"), 200
-

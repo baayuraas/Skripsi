@@ -103,24 +103,47 @@ def fix_hyphen_and_detect_reduplication(text):
 
     return re.sub(r"\b(\w+)\s*-\s*(\w+)\b", koreksi, text)
 
-def translate_large_text(text, target_language="id"):
+def clean_text(text: str) -> str:
+    """Hilangkan tag, simbol, atau teks kosong sebelum diterjemahkan"""
+    if not text or not isinstance(text, str):
+        return ""
+    text = re.sub(r"\[/?[a-zA-Z0-9]+\]", "", text)  # hapus tag [h1], [b], dll
+    text = text.strip()
+    if re.fullmatch(r"[\W_]+", text):  # hanya simbol
+        return ""
+    return text
+
+def translate_chunk(chunk, target_language="id", retries=3, delay=1.0) -> str:
+    """Terjemahkan satu potongan dengan retry otomatis"""
+    original_chunk = chunk  # simpan teks asli
+    chunk = clean_text(chunk)
+    if not chunk:
+        logging.warning(f"Chunk kosong setelah clean_text: '{original_chunk[:80]}...'")
+        return "[Gagal diterjemahkan]"
+    
+    for attempt in range(1, retries + 1):
+        try:
+            translated = GoogleTranslator(source="auto", target=target_language).translate(chunk)
+            if not translated or translated.strip() == "":
+                logging.warning(f"Terjemahan kosong untuk chunk: '{chunk[:80]}...'")
+                continue
+            return fix_hyphen_and_detect_reduplication(translated)
+        except Exception as e:
+            logging.warning(
+                f"Percobaan {attempt} gagal terjemahkan chunk (potongan: {chunk[:80]}...): {e}"
+            )
+            if attempt < retries:
+                time.sleep(delay)
+    return "[Gagal diterjemahkan]"
+
+
+def translate_large_text(text, target_language="id") -> str:
+    """Pisahkan teks besar jadi potongan, lalu terjemahkan"""
     if not text or not isinstance(text, str) or text.strip() == "":
         return ""
     chunks = split_text_into_chunks(text, 5000)
-    translated_chunks = []
-    for chunk in chunks:
-        attempts = 0
-        while attempts < 3:
-            try:
-                translated = GoogleTranslator(source="auto", target=target_language).translate(chunk)
-                translated = fix_hyphen_and_detect_reduplication(translated)
-                translated_chunks.append(translated)
-                break
-            except Exception as e:
-                attempts += 1
-                logging.error(f"Error translating chunk: {e}")
-                time.sleep(5)
-    return " ".join(translated_chunks)
+    translated_chunks = [translate_chunk(c, target_language) for c in chunks]
+    return " ".join(translated_chunks).strip()
 
 # =====================
 # Routes
@@ -171,10 +194,11 @@ def translate_file():
                 "Status": status,
             }
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        # Kurangi paralelisme agar lebih stabil
+        with ThreadPoolExecutor(max_workers=2) as executor:
             translated_data = list(executor.map(translate_row, rows))
 
-        save_cache()  # ✅ Simpan cache sekali di akhir
+        save_cache()  # simpan cache sekali di akhir
 
         os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
