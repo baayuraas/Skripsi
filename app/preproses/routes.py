@@ -68,7 +68,8 @@ with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8"
 
 CHUNK_SIZE = 500
 MAX_FILE_SIZE = 2 * 1024 * 1024
-CACHE_FILE = os.path.join(BASE_DIR, "cache_translate.json")
+CACHE_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
+CACHE_FILE = os.path.join(CACHE_FOLDER, "cache_translate.json")
 
 # --- Cache translate ---
 terjemahan_cache = {}
@@ -76,17 +77,65 @@ if os.path.exists(CACHE_FILE):
     try:
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
             terjemahan_cache = json.load(f)
+            
+        # Bersihkan cache dari pesan error yang mungkin ada
+        keys_to_remove = []
+        for key, value in terjemahan_cache.items():
+            if is_error_message(value) or is_error_message(key):
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            del terjemahan_cache[key]
+            
+        if keys_to_remove:
+            print(f"[CACHE CLEANUP] Menghapus {len(keys_to_remove)} entri error dari cache")
+            simpan_cache_ke_file()
+            
     except Exception:
         terjemahan_cache = {}
 
 def simpan_cache_ke_file():
     try:
+        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"[ERROR simpan cache]: {e}")
 
+# --- Fungsi untuk mendeteksi pesan error ---
+def is_error_message(text):
+    """Mendeteksi apakah teks mengandung pesan error"""
+    if not text or not isinstance(text, str):
+        return False
+        
+    error_patterns = [
+        r'error\s*\d+',
+        r'server\s*error',
+        r'try\s*later',
+        r'internal\s*error',
+        r'bad\s*request',
+        r'gateway',
+        r'timeout',
+        r'service\s*unavailable',
+        r'connection\s*refused',
+        r'too\s*many\s*requests',
+        r'quota\s*exceeded',
+        r'api\s*key',
+        r'limit\s*exceeded',
+    ]
+    
+    text_lower = text.lower()
+    for pattern in error_patterns:
+        if re.search(pattern, text_lower):
+            return True
+            
+    return False
+
 def translate_long_text(text, source="auto", target="id", max_len=5000):
+    # Skip jika teks mengandung error
+    if is_error_message(text):
+        return text.lower()
+        
     translator = GoogleTranslator(source=source, target=target)
     hasil = []
 
@@ -99,11 +148,27 @@ def translate_long_text(text, source="auto", target="id", max_len=5000):
             buffer += " " + k
         else:
             if buffer.strip():
-                hasil.append(translator.translate(buffer.strip()))
+                try:
+                    translated = translator.translate(buffer.strip())
+                    if not is_error_message(translated):
+                        hasil.append(translated)
+                    else:
+                        hasil.append(buffer.strip())  # Fallback ke teks asli
+                except Exception as e:
+                    print(f"[ERROR translate chunk]: {e}")
+                    hasil.append(buffer.strip())  # Fallback ke teks asli
             buffer = k
 
     if buffer.strip():
-        hasil.append(translator.translate(buffer.strip()))
+        try:
+            translated = translator.translate(buffer.strip())
+            if not is_error_message(translated):
+                hasil.append(translated)
+            else:
+                hasil.append(buffer.strip())  # Fallback ke teks asli
+        except Exception as e:
+            print(f"[ERROR translate chunk]: {e}")
+            hasil.append(buffer.strip())  # Fallback ke teks asli
 
     return " ".join(hasil)
 
@@ -114,6 +179,11 @@ def register_template_filters(app):
 def bersihkan_terjemahan(teks: str) -> str:
     if pd.isna(teks) or not isinstance(teks, str):
         return ""
+        
+    # Skip jika teks mengandung error
+    if is_error_message(teks):
+        return ""
+        
     teks = emoji.replace_emoji(teks, replace=" ")
     teks = re.sub(r"[-–—…“”‘’«»]", " ", teks)
     teks = re.sub(r"\[.*?\]", " ", teks)
@@ -184,6 +254,7 @@ def translate_batch_cached(kata_non_id):
         and w not in game_terms
         and w not in kata_id_pasti
         and len(w) > 2  # hanya kata dengan panjang > 2
+        and not is_error_message(w)  # skip kata yang mengandung error
     ]
 
     if not kata_belum_diterjemahkan:
@@ -197,7 +268,7 @@ def translate_batch_cached(kata_non_id):
             hasil_batch = GoogleTranslator(source="auto", target="id").translate_batch(chunk)
             
             for asli, hasil in zip(chunk, hasil_batch):
-                if hasil and hasil.strip():  # hanya simpan jika hasil valid
+                if hasil and hasil.strip() and not is_error_message(hasil):  # hanya simpan jika hasil valid
                     terjemahan_cache[asli] = hasil.lower()  # simpan dalam lowercase
                     
     except Exception as e:
@@ -209,12 +280,13 @@ def deteksi_kata_non_indonesia(words: list) -> list:
     try:
         for w in words:
             wl = w.lower()
-            # Skip kata pendek, kata game, dan kata whitelist
+            # Skip kata pendek, kata game, kata whitelist, dan kata error
             if (len(wl) <= 2 or 
                 wl in kata_id_pasti or 
                 wl in game_terms or
                 wl in normalisasi_dict or  # kata yang sudah dinormalisasi
-                wl in stemming_dict):     # kata yang sudah di-stem
+                wl in stemming_dict or     # kata yang sudah di-stem
+                is_error_message(wl)):     # kata yang mengandung error
                 continue
             
             try:
@@ -235,12 +307,28 @@ def proses_baris_aman(terjemahan):
         if pd.isna(terjemahan) or not isinstance(terjemahan, str) or not terjemahan.strip():
             return ["", "", [], [], [], [], ""]
 
+        # Skip jika teks mengandung error
+        if is_error_message(terjemahan):
+            return ["", "", [], [], [], [], ""]
+
         clean = bersihkan_terjemahan(terjemahan)
         if not clean.strip():
             return ["", "", [], [], [], [], ""]
             
         folded = clean.lower()
-        token = word_tokenize(folded)
+        
+        # Tokenisasi dengan fallback jika word_tokenize gagal
+        try:
+            token = word_tokenize(folded)
+        except Exception as e:
+            print(f"[WARN] word_tokenize gagal, menggunakan fallback: {e}")
+            token = re.findall(r'\b\w+\b', folded)
+            
+        # Bersihkan token dari kata error
+        token = [t for t in token if t and not is_error_message(t)]
+
+        if not token:
+            return [clean, folded, [], [], [], [], folded]
 
         # Deteksi kata non-ID dengan filter yang lebih baik
         kata_non_id = deteksi_kata_non_indonesia(token)
@@ -252,24 +340,43 @@ def proses_baris_aman(terjemahan):
         hasil_token = []
         for w in token:
             wl = w.lower()
+            
+            # Skip kata error
+            if is_error_message(wl):
+                continue
+                
             if wl in terjemahan_cache:
                 translated_text = terjemahan_cache[wl]
-                if translated_text and translated_text.strip():
-                    translated_tokens = word_tokenize(translated_text.lower())
+                if translated_text and translated_text.strip() and not is_error_message(translated_text):
+                    try:
+                        translated_tokens = word_tokenize(translated_text.lower())
+                    except Exception:
+                        translated_tokens = re.findall(r'\b\w+\b', translated_text.lower())
                     hasil_token.extend(translated_tokens)
                 else:
                     hasil_token.append(wl)
             else:
                 hasil_token.append(wl)
 
+        # Bersihkan hasil token dari kata error
+        hasil_token = [t for t in hasil_token if t and not is_error_message(t)]
+        
+        # Jika hasil_token kosong, gunakan token asli
+        if not hasil_token:
+            hasil_token = [w.lower() for w in token if w and len(w) > 2 and not is_error_message(w)]
+
         # Proses NLP
         stop = hapus_stopword(hasil_token)
         norm = normalisasi_teks(stop)
         stem = stemming_teks(norm)
-        hasil = " ".join(stem)
+        
+        # Bersihkan hasil stemming dari kata error
+        stem = [s for s in stem if s and not is_error_message(s)]
+        
+        hasil = " ".join(stem) if stem else ""
 
         # Validasi hasil akhir
-        if not hasil.strip():
+        if not hasil.strip() or is_error_message(hasil):
             # Fallback ke case folding
             hasil = folded
 
@@ -392,10 +499,24 @@ def preproses():
         save_csv(result_df)
         simpan_cache_ke_file()
 
+        # Hitung statistik
+        total_baris = len(result_df)
+        baris_kosong = len(result_df[result_df["Hasil"].str.strip() == ""])
+        baris_error = len(result_df[result_df["Hasil"].apply(is_error_message)])
+        persentase_kosong = (baris_kosong / total_baris * 100) if total_baris > 0 else 0
+        persentase_error = (baris_error / total_baris * 100) if total_baris > 0 else 0
+
         return jsonify(
             {
-                "message": "Preprocessing selesai dan disimpan!",
+                "message": f"Preprocessing selesai dan disimpan! {baris_kosong} baris kosong ({persentase_kosong:.2f}%), {baris_error} baris error ({persentase_error:.2f}%)",
                 "data": result_df.to_dict(orient="records"),
+                "stats": {
+                    "total": total_baris,
+                    "kosong": baris_kosong,
+                    "error": baris_error,
+                    "persentase_kosong": persentase_kosong,
+                    "persentase_error": persentase_error
+                }
             }
         )
     except Exception as e:

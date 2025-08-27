@@ -1,3 +1,5 @@
+# file: terjemahan_bp.py
+
 import os
 import csv
 import re
@@ -104,18 +106,16 @@ def fix_hyphen_and_detect_reduplication(text):
     return re.sub(r"\b(\w+)\s*-\s*(\w+)\b", koreksi, text)
 
 def clean_text(text: str) -> str:
-    """Hilangkan tag, simbol, atau teks kosong sebelum diterjemahkan"""
     if not text or not isinstance(text, str):
         return ""
-    text = re.sub(r"\[/?[a-zA-Z0-9]+\]", "", text)  # hapus tag [h1], [b], dll
+    text = re.sub(r"\[/?[a-zA-Z0-9]+\]", "", text)
     text = text.strip()
-    if re.fullmatch(r"[\W_]+", text):  # hanya simbol
+    if re.fullmatch(r"[\W_]+", text):
         return ""
     return text
 
 def translate_chunk(chunk, target_language="id", retries=3, delay=1.0) -> str:
-    """Terjemahkan satu potongan dengan retry otomatis"""
-    original_chunk = chunk  # simpan teks asli
+    original_chunk = chunk
     chunk = clean_text(chunk)
     if not chunk:
         logging.warning(f"Chunk kosong setelah clean_text: '{original_chunk[:80]}...'")
@@ -127,18 +127,27 @@ def translate_chunk(chunk, target_language="id", retries=3, delay=1.0) -> str:
             if not translated or translated.strip() == "":
                 logging.warning(f"Terjemahan kosong untuk chunk: '{chunk[:80]}...'")
                 continue
+
+            # 🔴 Tambahan filter: jangan terima hasil error server
+            if any(err in translated for err in ["Error 500", "Server Error", "Please try again later"]):
+                logging.error(f"Server error diterima sebagai teks: '{translated[:80]}...'")
+                if attempt < retries:
+                    time.sleep(delay * attempt)
+                    continue
+                return "[Gagal diterjemahkan]"
+
             return fix_hyphen_and_detect_reduplication(translated)
+
         except Exception as e:
             logging.warning(
                 f"Percobaan {attempt} gagal terjemahkan chunk (potongan: {chunk[:80]}...): {e}"
             )
             if attempt < retries:
-                time.sleep(delay)
+                time.sleep(delay * attempt)
+
     return "[Gagal diterjemahkan]"
 
-
 def translate_large_text(text, target_language="id") -> str:
-    """Pisahkan teks besar jadi potongan, lalu terjemahkan"""
     if not text or not isinstance(text, str) or text.strip() == "":
         return ""
     chunks = split_text_into_chunks(text, 5000)
@@ -194,11 +203,10 @@ def translate_file():
                 "Status": status,
             }
 
-        # Kurangi paralelisme agar lebih stabil
         with ThreadPoolExecutor(max_workers=2) as executor:
             translated_data = list(executor.map(translate_row, rows))
 
-        save_cache()  # simpan cache sekali di akhir
+        save_cache()
 
         os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
