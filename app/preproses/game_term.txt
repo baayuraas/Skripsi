@@ -43,6 +43,8 @@ dd
 def
 dive
 dota
+dota1
+dota2
 dotabuff
 draft
 e-sport
