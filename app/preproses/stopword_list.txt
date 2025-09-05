@@ -406,8 +406,8 @@ menaiki
 menambahkan
 menandaskan
 menanti
-menanti-nanti
 menantikan
+menanti-nanti
 menanya
 menanyai
 menanyakan
@@ -521,8 +521,8 @@ sama
 sama-sama
 sambil
 sampai
-sampai-sampai
 sampaikan
+sampai-sampai
 sana
 sangat
 sangatlah
@@ -575,11 +575,10 @@ sejumlah
 sekadar
 sekadarnya
 sekali
-sekali-kali
 sekalian
 sekaligus
+sekali-kali
 sekalipun
-sekarang
 sekarang
 sekecil
 seketika
@@ -648,8 +647,8 @@ seterusnya
 setiap
 setiba
 setibanya
-setidak-tidaknya
 setidaknya
+setidak-tidaknya
 setinggi
 seusai
 sewaktu

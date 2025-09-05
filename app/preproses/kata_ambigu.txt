@@ -4,7 +4,7 @@ alat
 ambien
 angka
 aturan
-aturanmain
+aturan
 ban
 block
 downtime
@@ -30,4 +30,3 @@ server
 sistem
 tingkat
 update
-
