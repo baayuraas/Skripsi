@@ -7,6 +7,7 @@ aghanim
 allpick
 alt
 ancient
+antimage
 aquila
 arcade
 arcana

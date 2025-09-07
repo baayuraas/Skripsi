@@ -19,6 +19,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
 from functools import lru_cache
 import random
+from collections import Counter
 
 # --- Konfigurasi dasar ---
 prepro_bp = Blueprint(
@@ -44,85 +45,138 @@ INITIAL_DELAY = 1
 MAX_DELAY = 10
 REQUEST_DELAY = 0.5
 
+# Daftar file txt yang diperlukan
+required_txt_files = [
+    "stopword_list.txt",
+    "stopword_list_ing.txt",
+    "normalisasi_list.txt",
+    "stemming_list.txt",
+    "game_term.txt",
+    "kata_tidak_relevan.txt",
+    "kata_ambigu.txt"
+]
+
+# Validasi file yang diperlukan
+for file_name in required_txt_files:
+    file_path = os.path.join(TXT_DIR, file_name)
+    if not os.path.exists(file_path):
+        print(f"[WARNING] File {file_name} tidak ditemukan di {TXT_DIR}")
+    else:
+        print(f"[INFO] File {file_name} ditemukan")
+
+# Fungsi untuk memuat stopword dengan format yang konsisten
+def load_stopwords(filename):
+    """Memuat stopword dari file dan memastikan format konsisten"""
+    stopwords_set = set()
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f:
+                word = line.strip().lower()
+                # Hapus karakter tidak diinginkan dan pastikan hanya huruf
+                word = re.sub(r'[^a-z]', '', word)
+                if word and len(word) > 1:  # Hanya tambahkan jika tidak kosong dan panjang > 1
+                    stopwords_set.add(word)
+        print(f"[STOPWORD] Loaded {len(stopwords_set)} kata dari {filename}")
+    except Exception as e:
+        print(f"[ERROR load_stopwords {filename}]: {e}")
+    return stopwords_set
+
+# Inisialisasi stopword factory
 stopword_factory = StopWordRemoverFactory()
 stemmer = StemmerFactory().create_stemmer()
-stop_words = set(stopword_factory.get_stop_words()).union(
+
+# Load stopword dasar Indonesia
+stop_words_id = set(stopword_factory.get_stop_words()).union(
     set(stopwords.words("indonesian"))
 )
 
 # Load stopword Indonesia dari file
-with open(os.path.join(TXT_DIR, "stopword_list.txt"), "r", encoding="utf-8") as f:
-    stop_words.update(f.read().splitlines())
+id_stopwords = load_stopwords(os.path.join(TXT_DIR, "stopword_list.txt"))
+stop_words_id.update(id_stopwords)
 
 # Load stopword Inggris dari file
 stopword_ing_file = os.path.join(TXT_DIR, "stopword_list_ing.txt")
 stop_words_ing = set()
 if os.path.exists(stopword_ing_file):
-    with open(stopword_ing_file, "r", encoding="utf-8") as f:
-        stop_words_ing = set(f.read().splitlines())
-    print(f"[STOPWORD ING] Loaded {len(stop_words_ing)} kata dari stopword_list_ing.txt")
+    stop_words_ing = load_stopwords(stopword_ing_file)
 else:
     # Fallback ke stopword Inggris dari NLTK jika file tidak ada
     stop_words_ing = set(stopwords.words("english"))
     print("[STOPWORD ING] Using NLTK English stopwords as fallback")
 
-# Gabungkan stopword Indonesia dan Inggris
-stop_words_combined = stop_words.union(stop_words_ing)
+print(f"[STOPWORD] Total stopwords Indonesia: {len(stop_words_id)}")
+print(f"[STOPWORD] Total stopwords Inggris: {len(stop_words_ing)}")
 
+# Fungsi validasi stopword
+def validate_stopwords():
+    """Validasi bahwa file stopword berisi kata-kata yang diharapkan"""
+    # Contoh kata stopword yang seharusnya ada
+    expected_id_stopwords = {"yang", "dan", "di", "dari", "ke"}
+    expected_ing_stopwords = {"the", "and", "is", "in", "to"}
+    
+    # Periksa stopword Indonesia
+    missing_id = expected_id_stopwords - stop_words_id
+    if missing_id:
+        print(f"[WARNING] Stopword ID yang hilang: {missing_id}")
+    
+    # Periksa stopword Inggris
+    missing_ing = expected_ing_stopwords - stop_words_ing
+    if missing_ing:
+        print(f"[WARNING] Stopword ING yang hilang: {missing_ing}")
+
+# Panggil fungsi validasi
+validate_stopwords()
+
+# Load normalisasi dictionary
 normalisasi_dict = {}
 with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") as f:
     for line in f:
         if "=" in line:
             k, v = line.strip().split("=", 1)
-            normalisasi_dict[k.strip().lower()] = v.strip().lower()
+            # Pastikan format konsisten (huruf kecil)
+            k = k.strip().lower()
+            v = v.strip().lower()
+            normalisasi_dict[k] = v
 
-# --- Load stemming_list.txt ---
+# --- Load stemming_list.txt dengan handling yang lebih baik ---
 stemming_dict = {}
 stemming_file = os.path.join(TXT_DIR, "stemming_list.txt")
 if os.path.exists(stemming_file):
     with open(stemming_file, "r", encoding="utf-8") as f:
         for line in f:
+            line = line.strip()
             if "=" in line:
-                k, v = line.strip().split("=", 1)
-                stemming_dict[k.strip().lower()] = v.strip().lower()
+                parts = line.split("=", 1)
+                k = parts[0].strip().lower()
+                v = parts[1].strip().lower()
+                stemming_dict[k] = v
+                
+                # Tambahkan juga varian dengan normalisasi pengulangan huruf
+                k_normalized = re.sub(r'(.)\1+', r'\1', k)
+                if k_normalized != k and k_normalized not in stemming_dict:
+                    stemming_dict[k_normalized] = v
+                    
     print(f"[STEMMING LIST] Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
 else:
     print("[STEMMING LIST] File tidak ditemukan, gunakan default Sastrawi.")
 
-# --- Pola Regex untuk Stemming Tambahan ---
-stemming_regex_patterns = [
-    # Prefix rules
-    (r'^me([lr])(.*)$', r'\1\2'),      # melepas -> lepas, melupakan -> lupakan
-    (r'^di(.*)$', r'\1'),              # dilakukan -> lakukan
-    (r'^ter(.*)$', r'\1'),             # terbang -> bang
-    (r'^pe(.*)$', r'\1'),              # pelari -> lari
-    
-    # Suffix rules
-    (r'(kan)$', ''),                   # mencarikan -> cari
-    (r'(an)$', ''),                    # makanan -> makan
-    (r'(i)$', ''),                     # menuruti -> turut
-    
-    # Infix rules (lebih jarang)
-    (r'(el)$', ''),                    # telunjuk -> tunjuk
-    (r'(em)$', ''),                    # temurun -> turun
-    
-    # Penggabungan prefix + suffix
-    (r'^me(.*)kan$', r'\1'),           # mengerjakan -> kerja
-    (r'^di(.*)i$', r'\1'),             # dipahami -> paham
-    
-    # Kata slang dan informal
-    (r'^(bang)(et|ett|ed)$', 'banget'), # banged, bangett -> banget
-    (r'^(gan)(te|teng|ting)$', 'ganteng'), # gante, ganting -> ganteng
-    (r'^(ca)(ng|n)(ek|ik)$', 'cantik'), # cangek, canik -> cantik
-    (r'^(ko)(wi|wy|wi)$', 'kowi'),     # kowwy, kowi -> kowi (game term)
-    (r'^(gra)(fi|fik|fikx)$', 'grafik'), # grafik, grafiks -> grafik
-]
-
+# Load game terms
+game_terms = set()
 with open(os.path.join(TXT_DIR, "game_term.txt"), "r", encoding="utf-8") as f:
-    game_terms = set(line.strip().lower() for line in f if line.strip())
+    for line in f:
+        term = line.strip().lower()
+        if term:
+            game_terms.add(term)
+print(f"[GAME TERMS] Loaded {len(game_terms)} terms")
 
+# Load kata tidak relevan
+kata_tidak_relevan = set()
 with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8") as f:
-    kata_tidak_relevan = set(line.strip().lower() for line in f if line.strip())
+    for line in f:
+        word = line.strip().lower()
+        if word:
+            kata_tidak_relevan.add(word)
+print(f"[KATA TIDAK RELEVAN] Loaded {len(kata_tidak_relevan)} words")
 
 CHUNK_SIZE = 1000
 MAX_FILE_SIZE = 2 * 1024 * 1024
@@ -211,7 +265,7 @@ emoji_pattern = re.compile("["
     u"\U000024C2-\U0001F251"
     "]+", flags=re.UNICODE)
 
-special_char_pattern = re.compile(r"[-–—…“”‘’«»]")
+special_char_pattern = re.compile(r"[-–—…“»«]")
 bracket_pattern = re.compile(r"\[.*?\]")
 url_pattern = re.compile(r"http\S+")
 digit_pattern = re.compile(r"\b\d+\b")
@@ -402,56 +456,88 @@ def bersihkan_token(tokens):
     
     return hasil
 
-def hapus_stopword(words):
+# --- Fungsi Stopword Removal dengan Prioritas yang Diperbarui ---
+def hapus_stopword(words, debug=False):
     # Bersihkan token tidak diinginkan terlebih dahulu
     words = bersihkan_token(words)
     
-    # Selalu gunakan stopword gabungan (Indonesia + Inggris)
-    return [
-        w
-        for w in words
-        if (w not in stop_words_combined and w not in kata_tidak_relevan) or w in game_terms
-    ]
-
-# --- Fungsi Regex Stemmer ---
-def regex_stemmer(word):
-    """
-    Melakukan stemming menggunakan regex pattern untuk kata-kata yang tidak tertangani Sastrawi
-    """
-    original_word = word
+    if debug:
+        print(f"[DEBUG STOPWORD] Kata sebelum filter: {words}")
     
-    # Coba semua pola regex
-    for pattern, replacement in stemming_regex_patterns:
-        new_word = re.sub(pattern, replacement, word)
-        if new_word != word:
-            word = new_word
-            break
+    result = []
+    for w in words:
+        # Pengecualian: Jika kata adalah game term, selalu pertahankan
+        if w in game_terms:
+            if debug:
+                print(f"[DEBUG STOPWORD] Menyimpan game term: '{w}'")
+            result.append(w)
+            continue
+            
+        # Prioritas 1: Cek kata tidak relevan terlebih dahulu (jika bukan stopword Indonesia)
+        if w not in stop_words_id and w in kata_tidak_relevan:
+            if debug:
+                print(f"[DEBUG STOPWORD] Menghapus kata tidak relevan: '{w}'")
+            continue
+            
+        # Prioritas 2: Cek stopword Inggris
+        if w in stop_words_ing:
+            if debug:
+                print(f"[DEBUG STOPWORD] Menghapus stopword Inggris: '{w}'")
+            continue
+            
+        # Prioritas 3: Cek stopword Indonesia
+        if w in stop_words_id:
+            if debug:
+                print(f"[DEBUG STOPWORD] Menghapus stopword Indonesia: '{w}'")
+            continue
+            
+        # Jika bukan stopword atau kata tidak relevan, simpan
+        if debug:
+            print(f"[DEBUG STOPWORD] Menyimpan kata: '{w}'")
+        result.append(w)
     
-    # Pastikan hasil stemming tidak terlalu pendek
-    if len(word) < 2:
-        return original_word
-        
-    return word
+    if debug:
+        print(f"[DEBUG STOPWORD] Kata setelah filter: {result}")
+    
+    return result
 
-def stemming_teks(words):
+# --- Fungsi Stemming yang Diperbarui ---
+def stemming_teks(words, debug=False):
     hasil = []
+    stem_methods = []  # Untuk melacak metode yang digunakan (opsional, untuk debugging)
+    
     for w in words:
         wl = w.lower()
+        wl_normalized = normalize_repeated_letters(wl)
+        method_used = "original"  # Default
         
-        # 1. Cek kamus kustom terlebih dahulu
+        # 1. PRIORITAS PERTAMA: Cek kamus custom (stemming_list.txt)
         if wl in stemming_dict:
             mapped = stemming_dict[wl]
             hasil.extend(mapped.split())
-            continue
-            
-        # 2. Coba stemming dengan regex untuk pola-pola tertentu
-        stemmed_regex = regex_stemmer(wl)
-        
-        # 3. Gunakan Sastrawi hanya jika regex tidak mengubah kata
-        if stemmed_regex != wl:
-            hasil.append(stemmed_regex)
+            method_used = "custom_dict"
+        elif wl_normalized in stemming_dict:
+            mapped = stemming_dict[wl_normalized]
+            hasil.extend(mapped.split())
+            method_used = "custom_dict_normalized"
         else:
-            hasil.append(cached_stemmer_stem(wl))
+            # 2. PRIORITAS KEDUA: Gunakan Sastrawi
+            stemmed_sastrawi = cached_stemmer_stem(wl_normalized)
+            
+            if stemmed_sastrawi != wl_normalized:
+                hasil.append(stemmed_sastrawi)
+                method_used = "sastrawi"
+            else:
+                # Jika semua metode gagal, gunakan kata asli yang sudah dinormalisasi
+                hasil.append(wl_normalized)
+                method_used = "normalized"
+        
+        stem_methods.append(method_used)
+    
+    # Log metode yang digunakan (opsional, untuk debugging)
+    if debug and stem_methods:
+        method_counts = Counter(stem_methods)
+        print(f"[STEMMING METHODS] Digunakan: {dict(method_counts)}")
     
     return hasil
 
@@ -504,7 +590,7 @@ def contains_foreign_words(text):
     return False
 
 # --- Fungsi preprocessing standar yang digunakan oleh kedua fase ---
-def proses_preprocessing_standar(teks):
+def proses_preprocessing_standar(teks, debug=False):
     """Fungsi preprocessing standar yang digunakan oleh kedua fase dengan stopword gabungan"""
     if pd.isna(teks) or not isinstance(teks, str) or not teks.strip():
         return ["", "", [], [], [], [], ""]
@@ -522,10 +608,24 @@ def proses_preprocessing_standar(teks):
     # Bersihkan token tidak diinginkan
     token = bersihkan_token(token)
         
+    if debug:
+        print(f"[DEBUG PREPRO] Setelah tokenisasi: {token}")
+    
     # Proses NLP dengan stopword gabungan
-    stop = hapus_stopword(token) if token else []
+    stop = hapus_stopword(token, debug) if token else []
+    
+    if debug:
+        print(f"[DEBUG PREPRO] Setelah stopword removal: {stop}")
+    
     norm = normalisasi_teks(stop) if stop else []
-    stem = stemming_teks(norm) if norm else []
+    
+    if debug:
+        print(f"[DEBUG PREPRO] Setelah normalisasi: {norm}")
+    
+    stem = stemming_teks(norm, debug) if norm else []
+    
+    if debug:
+        print(f"[DEBUG PREPRO] Setelah stemming: {stem}")
     
     # Gabungkan hasil
     hasil = " ".join(stem) if stem else folded
@@ -533,14 +633,14 @@ def proses_preprocessing_standar(teks):
     return [clean, folded, token, stop, norm, stem, hasil]
 
 # --- Proses baris dengan preprocessing standar ---
-def proses_baris_standar(terjemahan):
+def proses_baris_standar(terjemahan, debug=False):
     try:
         if pd.isna(terjemahan) or not isinstance(terjemahan, str) or not terjemahan.strip():
             clean_minimal = whitespace_pattern.sub(" ", str(terjemahan)).strip() if isinstance(terjemahan, str) else ""
             folded_minimal = clean_minimal.lower()
             return [clean_minimal, folded_minimal, [], [], [], [], folded_minimal]
 
-        return proses_preprocessing_standar(terjemahan)
+        return proses_preprocessing_standar(terjemahan, debug)
         
     except Exception as e:
         print(f"[ERROR proses standar]: {e}")
@@ -550,11 +650,11 @@ def proses_baris_standar(terjemahan):
         return [clean, folded, [], [], [], [], hasil]
 
 # --- Proses batch untuk preprocessing standar ---
-def proses_batch_standar(terjemahan_list):
+def proses_batch_standar(terjemahan_list, debug=False):
     """Proses batch data untuk preprocessing standar"""
     hasil = []
     for terjemahan in terjemahan_list:
-        hasil.append(proses_baris_standar(terjemahan))
+        hasil.append(proses_baris_standar(terjemahan, debug))
     return hasil
 
 # --- Fungsi untuk terjemahan ulang dengan retry ---
@@ -811,6 +911,32 @@ def download_csv():
             mimetype="text/csv",
         )
     return jsonify({"error": "File hasil preprocessing tidak ditemukan."}), 404
+
+@prepro_bp.route("/debug_prepro", methods=["POST"])
+def debug_prepro():
+    """Endpoint untuk debugging preprocessing pada teks tertentu"""
+    try:
+        data = request.get_json()
+        if not data or "text" not in data:
+            return jsonify({"error": "Tidak ada teks yang dikirim."}), 400
+        
+        teks = data["text"]
+        print(f"[DEBUG] Memproses teks: {teks}")
+        
+        # Lakukan preprocessing dengan debug mode
+        hasil = proses_preprocessing_standar(teks, debug=True)
+        
+        return jsonify({
+            "clean": hasil[0],
+            "folded": hasil[1],
+            "tokens": hasil[2],
+            "stopwords_removed": hasil[3],
+            "normalized": hasil[4],
+            "stemmed": hasil[5],
+            "final": hasil[6]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @prepro_bp.route("/")
 def index():
