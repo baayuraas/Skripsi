@@ -1,5 +1,3 @@
-# file: terjemahan_bp.py
-
 import os
 import csv
 import re
