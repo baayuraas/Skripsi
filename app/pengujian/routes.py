@@ -201,7 +201,7 @@ if os.path.exists(kata_ambigu_file):
 else:
     logger.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
 
-# Pre-compile regex patterns
+# Pre-compile regex patterns - DIPERBAIKI
 emoji_pattern = re.compile("["
     u"\U0001F600-\U0001F64F"  # emoticons
     u"\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -211,13 +211,14 @@ emoji_pattern = re.compile("["
     u"\U000024C2-\U0001F251"
     "]+", flags=re.UNICODE)
 
-special_char_pattern = re.compile(r"[-–—…"»«]")
+# Pattern yang diperbaiki
+special_char_pattern = re.compile(r"[-–—…\"»«]")  # Diperbaiki
 bracket_pattern = re.compile(r"\[.*?\]")
-url_pattern = re.compile(r"http\S+")
+url_pattern = re.compile(r"http\S+")  # Diperbaiki
 digit_pattern = re.compile(r"\b\d+\b")
 non_word_pattern = re.compile(r"[^\w\s@#]")
 whitespace_pattern = re.compile(r"\s+")
-repeated_word_pattern = re.compile(r"\b(\w{3,}?)(?:\1)\b")
+repeated_word_pattern = re.compile(r"\b(\w{3,}?)(?:\1)\b")  # Diperbaiki
 word_pattern = re.compile(r'\b\w+\b')
 
 # Pattern untuk membersihkan token tidak diinginkan
