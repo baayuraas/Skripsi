@@ -55,7 +55,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 MODEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "model_mlp_custom.keras")
 LABEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "label_encoder.pkl")
 TFIDF_PATH = os.path.join(BASE_DIR, "uploads", "tfidf", "tfidf_train.pkl")
-TXT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Perbaikan: Path ke direktori preproses yang berisi file TXT
+TXT_DIR = os.path.join(BASE_DIR, "app", "preproses")
 
 # Daftar file txt yang diperlukan
 required_txt_files = [
@@ -239,10 +241,12 @@ class PreprocessingError(Exception):
 class PredictionError(Exception):
     pass
 
-ConstrainedStr = constr(min_length=1, max_length=1000)
+# PERBAIKAN: Ubah batas maksimum karakter dari 1000 menjadi 2000
+ConstrainedStr = constr(min_length=1, max_length=2000)
 
 class PredictionRequest(BaseModel):
-    ulasan: str = Field(..., min_length=1, max_length=1000)
+    # PERBAIKAN: Ubah batas maksimum karakter dari 1000 menjadi 2000
+    ulasan: str = Field(..., min_length=1, max_length=2000)
     label: Optional[str] = None
 
 # Translation implementation with deep_translator
@@ -617,11 +621,23 @@ def predict_sentimen():
         try:
             data = PredictionRequest(**request.get_json())
         except ValidationError as e:
+            # PERBAIKAN: Menambahkan penanganan error yang lebih spesifik dan aman
+            error_details = []
+            for error in e.errors():
+                if error['type'] == 'string_too_long':
+                    
+                    if 'ctx' in error and 'limit_value' in error['ctx']:
+                        error_details.append(f"Field {error['loc'][0]} melebihi batas maksimum {error['ctx']['limit_value']} karakter")
+                    else:
+                        error_details.append(f"Field {error['loc'][0]} melebihi batas maksimum karakter")
+                else:
+                    error_details.append(error['msg'])
+            
             return jsonify({
                 "status": "error",
                 "code": "VALIDATION_ERROR",
                 "message": "Input tidak valid",
-                "details": e.errors()
+                "details": error_details
             }), 400
 
         # Load model components
@@ -639,8 +655,9 @@ def predict_sentimen():
                 "message": str(e)
             }), 503
 
+        # PERBAIKAN: Hapus html.escape() dari pemrosesan input
         # Sanitize and validate input
-        ulasan = html.escape(data.ulasan.strip())
+        ulasan = data.ulasan.strip()  # DIUBAH: menghapus html.escape()
         if not ulasan:
             return jsonify({
                 "status": "error",
