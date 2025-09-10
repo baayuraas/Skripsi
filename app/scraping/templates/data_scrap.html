@@ -71,6 +71,21 @@ $(function () {
     let rowsPerPage = parseInt($('#rowsPerPageSelect').val());
     let allData = [];
 
+    // Fungsi untuk memuat semua data dari server
+    function loadAllData() {
+        $.get('/scraping/getdata', function(res) {
+            allData = res.data;
+            updateStats(res.total_data, res.positive_count, res.negative_count);
+            renderTable(allData);
+            if (allData.length > 0) {
+                $('#review-table-box').show();
+            }
+        });
+    }
+
+    // Muat data saat halaman pertama kali dimuat
+    loadAllData();
+
     $('#rowsPerPageSelect').change(function () {
         rowsPerPage = parseInt($(this).val());
         currentPage = 1;
@@ -81,17 +96,27 @@ $(function () {
         const tableBody = $('#reviews-table-body').empty();
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
-        data.slice(start, end).forEach((review, index) => {
-            tableBody.append(`
-                <tr>
-                    <td>${start + index + 1}</td>
-                    <td>${review.id}</td>
-                    <td style="white-space: pre-wrap;">${review.review}</td>
-                    <td>${review.status}</td>
-                </tr>
-            `);
-        });
+        const paginatedData = data.slice(start, end);
+        
+        if (paginatedData.length === 0) {
+            tableBody.append('<tr><td colspan="4" class="text-center">Tidak ada data</td></tr>');
+        } else {
+            paginatedData.forEach((review, index) => {
+                tableBody.append(`
+                    <tr>
+                        <td>${start + index + 1}</td>
+                        <td>${review.id}</td>
+                        <td style="white-space: pre-wrap;">${review.review}</td>
+                        <td>${review.status}</td>
+                    </tr>
+                `);
+            });
+        }
         $('#current-page').text(currentPage);
+        
+        // Atur status tombol pagination
+        $('#prev-page').prop('disabled', currentPage === 1);
+        $('#next-page').prop('disabled', end >= data.length);
     }
 
     function updateStats(total, positive, negative) {
@@ -115,11 +140,8 @@ $(function () {
             $('#loading-indicator').hide();
             if (res.status === 'success') {
                 alert('✅ Ulasan berhasil diambil!');
-                allData = res.data;
-                currentPage = 1;
-                updateStats(res.total_data, res.positive_count, res.negative_count);
-                renderTable(allData);
-                $('#review-table-box').show();
+                // Muat semua data dari server (termasuk yang baru ditambahkan)
+                loadAllData();
             } else {
                 alert(res.message || 'Terjadi kesalahan.');
             }
@@ -130,17 +152,28 @@ $(function () {
     });
 
     $('#clear-data').click(function () {
-        $.post('/scraping/cleardata', function (res) {
-            alert(res.message);
-            allData = [];
-            updateStats(0, 0, 0);
-            renderTable([]);
-            $('#review-table-box').hide();
-        });
+        if (confirm('Apakah Anda yakin ingin menghapus semua data?')) {
+            $.post('/scraping/cleardata', function (res) {
+                alert(res.message);
+                // Muat ulang data (yang sekarang kosong)
+                loadAllData();
+            });
+        }
     });
 
-    $('#prev-page').click(() => { if (currentPage > 1) { currentPage--; renderTable(allData); } });
-    $('#next-page').click(() => { if (currentPage * rowsPerPage < allData.length) { currentPage++; renderTable(allData); } });
+    $('#prev-page').click(() => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTable(allData);
+        }
+    });
+    
+    $('#next-page').click(() => {
+        if (currentPage * rowsPerPage < allData.length) {
+            currentPage++;
+            renderTable(allData);
+        }
+    });
 });
 </script>
 {% endblock %}

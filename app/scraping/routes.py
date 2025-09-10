@@ -143,12 +143,12 @@ def scrapdat():
         reviews = get_n_reviews_flexible(appid, num_reviews)
         processed_reviews = []
 
-        seen_keys = set(r["id"] + r["review"] for r in data_store)
+        seen_keys = set(f"{r['id']}_{r['review']}" for r in data_store)
 
         for review in reviews:
             raw_review = review["review"]
             formatted_review = re.sub(r";", "", raw_review)
-            unique_key = review["author"]["steamid"] + formatted_review
+            unique_key = f"{review['author']['steamid']}_{formatted_review}"
 
             if unique_key in seen_keys:
                 continue
