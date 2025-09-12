@@ -152,9 +152,6 @@ def translate_large_text(text, target_language="id") -> str:
     translated_chunks = [translate_chunk(c, target_language) for c in chunks]
     return " ".join(translated_chunks).strip()
 
-# =====================
-# Routes
-# =====================
 @terjemahan_bp.route("/translate", methods=["POST"])
 def translate_file():
     try:
@@ -179,21 +176,40 @@ def translate_file():
         translated_data = []
         rows = list(reader)
 
+        # Counter untuk tracking progres
+        processed_count = 0
+        failed_count = 0
+        progress_lock = Lock()
+
         def translate_row(row):
+            nonlocal processed_count, failed_count
             steamid = row.get("SteamID", "")
             ulasan = row.get("Ulasan") or ""
             status = row.get("Status", "")
             if not isinstance(ulasan, str):
                 ulasan = ""
-            if ulasan.strip() == "":
-                terjemahan = ""
-            else:
+            
+            terjemahan = ""
+            if ulasan.strip() != "":
                 with cache_lock:
                     if ulasan in translation_cache:
                         terjemahan = translation_cache[ulasan]
                     else:
                         terjemahan = translate_large_text(ulasan, "id")
                         translation_cache[ulasan] = terjemahan
+
+                # Cek jika terjemahan gagal
+                if terjemahan == "[Gagal diterjemahkan]":
+                    with progress_lock:
+                        failed_count += 1
+                        logging.error(f"Gagal menerjemahkan SteamID {steamid}")
+
+            # Update counter dan log setiap 100 baris
+            with progress_lock:
+                processed_count += 1
+                if processed_count % 100 == 0:
+                    logging.info(f"Berhasil memproses {processed_count} baris")
+
             return {
                 "SteamID": steamid,
                 "Ulasan": ulasan,
@@ -203,6 +219,10 @@ def translate_file():
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             translated_data = list(executor.map(translate_row, rows))
+
+        # Log hasil akhir
+        logging.info(f"Total baris diproses: {processed_count}")
+        logging.info(f"Total gagal diterjemahkan: {failed_count}")
 
         save_cache()
 
@@ -221,7 +241,7 @@ def translate_file():
                 ])
 
         return jsonify(
-            {"message": "Berhasil diterjemahkan dan disimpan!", "data": translated_data}
+            {"message": f"Berhasil diterjemahkan! Diproses: {processed_count}, Gagal: {failed_count}", "data": translated_data}
         ), 200
 
     except UnicodeDecodeError:
@@ -229,6 +249,7 @@ def translate_file():
     except Exception as e:
         logging.exception("Kesalahan tak terduga saat proses terjemahan")
         return jsonify({"error": f"Kesalahan server: {str(e)}"}), 500
+
 
 @terjemahan_bp.route("/cleardata", methods=["POST"])
 def clear_data():
