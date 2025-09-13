@@ -11,7 +11,6 @@ from keras.models import load_model
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from datetime import datetime
-from sklearn.feature_extraction.text import TfidfVectorizer
 import scipy.sparse as sp
 import nltk
 from nltk.tokenize import word_tokenize
