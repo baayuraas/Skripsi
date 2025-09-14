@@ -5,6 +5,7 @@ import textwrap
 import time
 import requests
 from flask import Blueprint, request, jsonify, render_template, send_file
+from datetime import datetime
 
 scraping_bp = Blueprint(
     "scraping",
@@ -19,11 +20,48 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads", "scraping")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 SCRAPE_PATH = os.path.join(UPLOAD_FOLDER, "hasil_scraping.csv")
 
-global_data_store = []
+
+def load_data_from_csv():
+    """Memuat data dari file CSV"""
+    data = []
+    if os.path.exists(SCRAPE_PATH):
+        try:
+            with open(SCRAPE_PATH, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    data.append(
+                        {
+                            "id": row["SteamID"],
+                            "review": row["Ulasan"],
+                            "status": row["Status"],
+                            "app_id": row.get("App ID", ""),
+                            "created_at": row.get("Tanggal", ""),
+                        }
+                    )
+        except Exception as e:
+            print(f"Error loading CSV: {e}")
+    return data
 
 
-def get_data_store():
-    return global_data_store
+def save_data_to_csv(data):
+    """Menyimpan data ke file CSV"""
+    os.makedirs(os.path.dirname(SCRAPE_PATH), exist_ok=True)
+    try:
+        with open(SCRAPE_PATH, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(["SteamID", "Ulasan", "Status", "App ID", "Tanggal"])
+            for item in data:
+                writer.writerow(
+                    [
+                        item["id"],
+                        item["review"],
+                        item["status"],
+                        item.get("app_id", ""),
+                        item.get("created_at", ""),
+                    ]
+                )
+    except Exception as e:
+        print(f"Error saving CSV: {e}")
 
 
 def wrap_text(text, width):
@@ -39,7 +77,7 @@ def get_reviews(appid, params={"json": 1}):
 
 
 def get_n_reviews_flexible(appid, n=10):
-    target_positive = (n+1) // 2
+    target_positive = (n + 1) // 2
     target_negative = n - target_positive
 
     def fetch_reviews_until(appid, target_count, is_positive):
@@ -127,7 +165,6 @@ def index():
 
 @scraping_bp.route("/scrapdat", methods=["POST"])
 def scrapdat():
-    data_store = get_data_store()
     appid = request.form.get("appid")
     num_reviews = int(request.form.get("num_reviews", 10))
 
@@ -140,101 +177,119 @@ def scrapdat():
         return jsonify({"status": "error", "message": "App ID harus diisi."}), 400
 
     try:
+        # Muat data yang sudah ada dari CSV
+        existing_data = load_data_from_csv()
+        existing_keys = set(f"{item['id']}_{item['review']}" for item in existing_data)
+
+        # Dapatkan review baru
         reviews = get_n_reviews_flexible(appid, num_reviews)
         processed_reviews = []
-
-        seen_keys = set(f"{r['id']}_{r['review']}" for r in data_store)
 
         for review in reviews:
             raw_review = review["review"]
             formatted_review = re.sub(r";", "", raw_review)
-            unique_key = f"{review['author']['steamid']}_{formatted_review}"
-
-            if unique_key in seen_keys:
-                continue
-
-            seen_keys.add(unique_key)
             voted_up = "baik" if review["voted_up"] else "buruk"
+            steam_id = review["author"]["steamid"]
+
+            # Cek apakah review sudah ada
+            unique_key = f"{steam_id}_{formatted_review}"
+            if unique_key in existing_keys:
+                continue
 
             processed_reviews.append(
                 {
-                    "id": review["author"]["steamid"],
+                    "id": steam_id,
                     "review": formatted_review,
                     "status": voted_up,
+                    "app_id": appid,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
 
             if len(processed_reviews) >= num_reviews:
                 break
 
-        data_store.extend(processed_reviews)
+        # Inisialisasi all_data dengan existing_data
+        all_data = existing_data
 
-        os.makedirs(os.path.dirname(SCRAPE_PATH), exist_ok=True)
-        with open(SCRAPE_PATH, "w", encoding="utf-8", newline="") as f:
-            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(["SteamID", "Ulasan", "Status"])
-            for review in data_store:
-                formatted = review["review"].replace("\n", " ").replace("\r", " ")
-                writer.writerow([review["id"], formatted, review["status"]])
+        # Simpan data baru ke CSV jika ada data baru
+        if processed_reviews:
+            all_data = existing_data + processed_reviews
+            save_data_to_csv(all_data)
 
-        total_collected = len(processed_reviews)
-        progress = min(int((total_collected / num_reviews) * 100), 100)
+        # Hitung statistik - pastikan all_data sudah terdefinisi
+        total_data = len(all_data)
+        positive_count = sum(1 for item in all_data if item["status"] == "baik")
+        negative_count = sum(1 for item in all_data if item["status"] == "buruk")
+
+        progress = min(int((len(processed_reviews) / num_reviews) * 100), 100)
 
         return jsonify(
             {
                 "status": "success",
-                "data": processed_reviews,
-                "total_data": len(data_store),
+                "message": f"Berhasil menambahkan {len(processed_reviews)} ulasan baru.",
+                "total_data": total_data,
                 "progress": progress,
-                "positive_count": sum(1 for r in data_store if r["status"] == "baik"),
-                "negative_count": sum(1 for r in data_store if r["status"] == "buruk"),
+                "positive_count": positive_count,
+                "negative_count": negative_count,
             }
         )
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
 @scraping_bp.route("/getdata", methods=["GET"])
 def getdata():
-    data_store = get_data_store()
-    print(f"[DEBUG] Total yang dikembalikan ke frontend: {len(data_store)}")
+    # Muat data dari CSV
+    all_data = load_data_from_csv()
+
+    # Hitung statistik
+    total_data = len(all_data)
+    positive_count = sum(1 for item in all_data if item["status"] == "baik")
+    negative_count = sum(1 for item in all_data if item["status"] == "buruk")
+
     return jsonify(
         {
-            "data": data_store,
-            "total_data": len(data_store),
-            "positive_count": sum(1 for r in data_store if r["status"] == "baik"),
-            "negative_count": sum(1 for r in data_store if r["status"] == "buruk"),
+            "data": all_data,
+            "total_data": total_data,
+            "positive_count": positive_count,
+            "negative_count": negative_count,
         }
     )
 
 
 @scraping_bp.route("/cleardata", methods=["POST"])
 def cleardata():
-    global_data_store.clear()
+    # Hapus semua data dengan menyimpan array kosong ke CSV
+    save_data_to_csv([])
     return jsonify({"status": "success", "message": "Data berhasil dihapus."})
 
 
 @scraping_bp.route("/savedata", methods=["GET"])
 def savedata():
-    data_store = get_data_store()
+    # Muat data dari CSV
+    all_data = load_data_from_csv()
 
-    if not data_store:
+    if not all_data:
         return jsonify(
             {"status": "error", "message": "Tidak ada data untuk disimpan."}
         ), 400
 
-    os.makedirs(os.path.dirname(SCRAPE_PATH), exist_ok=True)
-
     try:
         with open(SCRAPE_PATH, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(["SteamID", "Ulasan", "Status"])
-            for review in data_store:
-                formatted_review = (
-                    review["review"].replace("\n", " ").replace("\r", " ")
+            writer.writerow(["SteamID", "Ulasan", "Status", "App ID", "Tanggal"])
+            for item in all_data:
+                formatted_review = item["review"].replace("\n", " ").replace("\r", " ")
+                writer.writerow(
+                    [
+                        item["id"],
+                        formatted_review,
+                        item["status"],
+                        item.get("app_id", ""),
+                        item.get("created_at", ""),
+                    ]
                 )
-                writer.writerow([review["id"], formatted_review, review["status"]])
 
         if not os.path.isfile(SCRAPE_PATH):
             return jsonify(
