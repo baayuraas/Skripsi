@@ -16,8 +16,10 @@
 <h3>Terjemahan</h3>
 
 <form id="upload-form" enctype="multipart/form-data">
-    <label for="file">Unggah File CSV:</label>
-    <input type="file" name="file" id="file" accept=".csv" required>
+    <div class="form-group">
+        <label for="file">Unggah File CSV:</label>
+        <input type="file" name="file" id="file" accept=".csv" required>
+    </div>
     <button type="submit" class="btn btn-primary">Unggah dan Terjemahkan</button>
 </form>
 
@@ -25,29 +27,41 @@
     <span>⏳ Sedang menerjemahkan...</span>
 </div>
 
-<div id="review-table-box" style="display: none;">
-    <div>
+<div id="message" class="alert" style="display: none;"></div>
+
+<div id="review-table-box" class="mt-4"class="mt-4" style="display: none;">
+    <div class="d-flex justify-content-between mb-3">
         <button id="clear-data" class="btn btn-danger">Hapus Data</button>
-        <a href="/terjemahan/savedata" class="btn btn-success">Simpan Data (CSV)</a>
+        <button id="download-btn" class="btn btn-success">Download Hasil (CSV)</button>
     </div>
 
-    <label for="rowsPerPageSelect">Baris per halaman:</label>
-    <select id="rowsPerPageSelect" class="form-control" style="width: 100px; display: inline-block;">
-        <option value="10" selected>10</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-    </select>
+    <div class="form-inline" style="margin-bottom: 15px;">
+        <label for="rowsPerPageSelect">Baris per halaman:</label>
+        <select id="rowsPerPageSelect" class="form-control">
+            <option value="10" selected>10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
 
-    <table class="table table-bordered">
-        <thead>
-            <tr><th>#</th><th>SteamID</th><th>Ulasan</th><th>Terjemahan</th><th>Status</th></tr>
-        </thead>
-        <tbody id="reviews-table-body"></tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>SteamID</th>
+                    <th>Ulasan</th>
+                    <th>Terjemahan</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="reviews-table-body"></tbody>
+        </table>
+    </div>
 
-    <div id="pagination">
+    <div id="pagination" class="text-center">
         <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
-        <span>Halaman <span id="current-page">1</span></span>
+        <span>Halaman <span id="current-page">1</span> dari <span id="total-pages">1</span></span>
         <button id="next-page" class="btn btn-primary">Berikutnya</button>
     </div>
 </div>
@@ -58,38 +72,100 @@
 $(function () {
     let translatedData = [], currentPage = 1, rowsPerPage = 10;
 
-    $('#rowsPerPageSelect').change(function () {
-        rowsPerPage = parseInt($(this).val());
-        currentPage = 1;
-        renderTable(translatedData);
-    });
+    // Fungsi untuk menampilkan pesan
+    function showMessage(message, type) {
+        const messageDiv = $('#message');
+        messageDiv.removeClass('alert-success alert-danger alert-info')
+                 .addClass('alert-' + type)
+                 .text(message)
+                 .show();
+        
+        setTimeout(() => {
+            messageDiv.fadeOut();
+        }, 5000);
+    }
 
+    // Fungsi untuk merender tabel dengan pagination
     function renderTable(data) {
         const tableBody = $('#reviews-table-body').empty();
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
+        const totalPages = Math.ceil(data.length / rowsPerPage);
+        
+        $('#total-pages').text(totalPages);
+        
         if (!data.length) {
             tableBody.append(`<tr><td colspan="5" class="text-center">Tidak ada data</td></tr>`);
+            $('#prev-page, #next-page').prop('disabled', true);
             return;
         }
+        
+        // Update status tombol pagination
+        $('#prev-page').prop('disabled', currentPage === 1);
+        $('#next-page').prop('disabled', currentPage === totalPages);
+        
         data.slice(start, end).forEach((row, i) => {
             tableBody.append(`
                 <tr>
                     <td>${start + i + 1}</td>
-                    <td>${row.SteamID}</td>
-                    <td>${row.Ulasan}</td>
-                    <td>${row.Terjemahan}</td>
-                    <td>${row.Status}</td>
+                    <td>${escapeHtml(row.SteamID || '')}</td>
+                    <td>${escapeHtml(row.Ulasan || '')}</td>
+                    <td>${escapeHtml(row.Terjemahan || '')}</td>
+                    <td>${escapeHtml(row.Status || '')}</td>
                 </tr>
             `);
         });
         $('#current-page').text(currentPage);
     }
 
+    // Fungsi untuk escape HTML (mencegah XSS)
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    // Fungsi untuk memuat data dari server
+    function loadSavedData() {
+        $.get('/terjemahan/get_saved_data')
+            .done(function(response) {
+                if (response.error) {
+                    console.log('Tidak ada data tersimpan:', response.error);
+                } else if (response.data && response.data.length > 0) {
+                    translatedData = response.data;
+                    currentPage = 1;
+                    renderTable(translatedData);
+                    $('#review-table-box').show();
+                    showMessage('Data terjemahan dimuat dari penyimpanan server', 'info');
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Gagal memuat data tersimpan:', error);
+            });
+    }
+
+    // Memuat data yang sudah ada saat halaman dimuat
+    loadSavedData();
+
+    // Event handler untuk perubahan jumlah baris per halaman
+    $('#rowsPerPageSelect').change(function () {
+        rowsPerPage = parseInt($(this).val());
+        currentPage = 1;
+        renderTable(translatedData);
+    });
+
+    // Event handler untuk form upload
     $('#upload-form').submit(function (e) {
         e.preventDefault();
         const formData = new FormData(this);
         $('#loading-spinner').show();
+        
         $.ajax({
             url: '/terjemahan/translate',
             method: 'POST',
@@ -98,7 +174,8 @@ $(function () {
             contentType: false,
             success: res => {
                 $('#loading-spinner').hide();
-                alert(res.message);
+                showMessage(res.message, 'success');
+                
                 if (res.data) {
                     translatedData = res.data;
                     currentPage = 1;
@@ -108,23 +185,47 @@ $(function () {
             },
             error: xhr => {
                 $('#loading-spinner').hide();
-                alert(xhr.responseJSON?.error || '❌ Terjadi kesalahan saat menerjemahkan.');
+                const errorMsg = xhr.responseJSON?.error || '❌ Terjadi kesalahan saat menerjemahkan.';
+                showMessage(errorMsg, 'danger');
             }
         });
     });
 
+    // Event handler untuk tombol hapus data
     $('#clear-data').click(function () {
-        $.post('/terjemahan/cleardata', function (res) {
-            alert(res.message);
-            translatedData = [];
-            currentPage = 1;
-            $('#review-table-box').hide();
-            renderTable([]);
-        });
+        if (confirm('Apakah Anda yakin ingin menghapus semua data?')) {
+            $.post('/terjemahan/cleardata', function (res) {
+                showMessage(res.message, 'success');
+                translatedData = [];
+                currentPage = 1;
+                $('#review-table-box').hide();
+                renderTable([]);
+            }).fail(function(xhr) {
+                showMessage('Gagal menghapus data', 'danger');
+            });
+        }
     });
 
-    $('#prev-page').click(() => { if (currentPage > 1) currentPage--; renderTable(translatedData); });
-    $('#next-page').click(() => { if (currentPage * rowsPerPage < translatedData.length) currentPage++; renderTable(translatedData); });
+    // Event handler untuk tombol download
+    $('#download-btn').click(function() {
+        // Menggunakan endpoint /terjemahan/savedata untuk download manual
+        window.location.href = '/terjemahan/savedata';
+    });
+
+    // Event handler untuk tombol pagination
+    $('#prev-page').click(() => { 
+        if (currentPage > 1) {
+            currentPage--; 
+            renderTable(translatedData);
+        }
+    });
+    
+    $('#next-page').click(() => { 
+        if (currentPage * rowsPerPage < translatedData.length) {
+            currentPage++; 
+            renderTable(translatedData);
+        }
+    });
 });
 </script>
 {% endblock %}
