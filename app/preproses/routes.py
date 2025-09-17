@@ -2,7 +2,7 @@ import json
 import os
 import re
 import pandas as pd
-from flask import Blueprint, request, jsonify, render_template, send_file
+from flask import Blueprint, request, jsonify, render_template, send_file, session
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
@@ -77,7 +77,7 @@ def load_stopwords(filename):
                     stopwords_set.add(word)
         print(f"[STOPWORD] Loaded {len(stopwords_set)} kata dari {filename}")
     except Exception as e:
-        print(f"[ERROR load_stopwords {filename}]: {e}")
+        print(f"[ERROR load_stopwords {filename]}: {e}")
     return stopwords_set
 
 
@@ -931,6 +931,14 @@ def preproses():
         simpan_cache_ke_file()
         simpan_cache_bahasa()
 
+        # Simpan data ke session untuk digunakan kembali
+        session['preprocessed_data'] = result_df.to_dict(orient='records')
+        session['preprocessed_stats'] = {
+            'total': len(result_df),
+            'diperbaiki': baris_diperbaiki,
+            'kosong': len(result_df[result_df["Hasil"].str.strip() == ""])
+        }
+
         # Hitung statistik
         total_baris = len(result_df)
         baris_kosong = len(result_df[result_df["Hasil"].str.strip() == ""])
@@ -1015,6 +1023,49 @@ def debug_prepro():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@prepro_bp.route("/get_saved_data", methods=["GET"])
+def get_saved_data():
+    """Endpoint untuk mengambil data yang sudah diproses dari session"""
+    try:
+        data = session.get('preprocessed_data', [])
+        stats = session.get('preprocessed_stats', {})
+        return jsonify({
+            "data": data,
+            "stats": stats,
+            "has_data": len(data) > 0
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@prepro_bp.route("/clear_saved_data", methods=["POST"])
+def clear_saved_data():
+    """Endpoint untuk menghapus data yang disimpan di session"""
+    try:
+        session.pop('preprocessed_data', None)
+        session.pop('preprocessed_stats', None)
+        return jsonify({"status": "success", "message": "Data berhasil dihapus"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@prepro_bp.route("/get_csv_data", methods=["GET"])
+def get_csv_data():
+    """Mengambil data dari CSV yang sudah disimpan di server"""
+    if not os.path.exists(PREPRO_CSV_PATH):
+        return jsonify({"exists": False, "error": "File tidak ditemukan"})
+
+    try:
+        # Baca CSV dengan format yang sesuai
+        df = pd.read_csv(PREPRO_CSV_PATH, encoding='utf-8-sig')
+        
+        # Konversi ke format dictionary
+        data = df.to_dict(orient='records')
+        return jsonify({"exists": True, "data": data})
+    except Exception as e:
+        return jsonify({"exists": False, "error": str(e)})
 
 
 @prepro_bp.route("/")

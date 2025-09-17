@@ -15,25 +15,62 @@
 {% block content %}
 <h3>Preprocessing</h3>
 
-<form id="upload-form" enctype="multipart/form-data">
-    <label for="file">Unggah File CSV:</label>
-    <input type="file" name="file" id="file" accept=".csv" required>
+<!-- Notifikasi data tersimpan di server -->
+<div id="server-data-notification" class="alert alert-info" style="display: none;">
+    <strong>Data tersimpan di server ditemukan!</strong> 
+    <button id="load-server-data" class="btn btn-sm btn-primary ms-2">Muat Data dari Server</button>
+    <button id="ignore-server-data" class="btn btn-sm btn-secondary ms-1">Abaikan</button>
+</div>
+
+<form id="upload-form" enctype="multipart/form-data" class="mb-3">
+    <div class="form-group">
+        <label for="file">Unggah File CSV:</label>
+        <input type="file" name="file" id="file" accept=".csv" class="form-control-file" required>
+    </div>
     <button type="button" id="btn-upload" class="btn btn-primary">Unggah & Proses</button>
 </form>
 
-<div id="loading-spinner" style="display: none; margin-top: 10px;">
-    <span>⏳ Sedang memproses data...</span>
+<div id="loading-spinner" class="card mb-3" style="display: none;">
+    <div class="card-body text-center">
+        <span>⏳ Sedang memproses data...</span>
+        <div class="progress mt-2">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Container - Diperbarui -->
+<div id="stats-container" class="stats-container mb-4" style="display: none;">
+    <h5 class="stats-header">Statistik Preprocessing</h5>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Total Data</div>
+            <div class="stat-value" id="total-rows">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Diperbaiki</div>
+            <div class="stat-value" id="fixed-rows">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Kosong</div>
+            <div class="stat-value" id="empty-rows">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Persentase Kosong</div>
+            <div class="stat-percent" id="empty-percent">0%</div>
+        </div>
+    </div>
 </div>
 
 <div id="review-table-box" style="display: none;">
-  <div>
-      <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+  <div class="mb-3">
+      <button id="clear-data" class="btn btn-danger">Hapus Semua Data</button>
       <button id="save-csv" class="btn btn-success">Simpan ke CSV</button>
   </div>
 
   <div class="table-responsive">
-      <table class="table table-bordered">
-          <thead>
+      <table class="table table-bordered table-striped">
+          <thead class="thead-dark">
               <tr>
                   <th>#</th><th>SteamID</th><th>Clean Data</th><th>Case Folding</th>
                   <th>Tokenisasi</th><th>Stopword</th><th>Normalisasi</th><th>Stemming</th>
@@ -44,10 +81,10 @@
       </table>
   </div>
 
-  <div id="pagination">
-      <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
+  <div id="pagination" class="d-flex justify-content-center align-items-center mt-3">
+      <button id="prev-page" class="btn btn-primary mr-2">Sebelumnya</button>
       <span>Halaman <span id="current-page">1</span></span>
-      <button id="next-page" class="btn btn-primary">Berikutnya</button>
+      <button id="next-page" class="btn btn-primary ml-2">Berikutnya</button>
   </div>
 </div>
 {% endblock %}
@@ -56,6 +93,149 @@
 <script>
 $(function () {
     let processedData = [], currentPage = 1, rowsPerPage = 5;
+    let currentStats = {};
+
+    // Fungsi untuk update progress bar
+    function updateProgress(percent) {
+        $('.progress-bar').css('width', percent + '%').attr('aria-valuenow', percent);
+    }
+
+    // Cek apakah ada data tersimpan di server (CSV)
+    function checkServerData() {
+        $.get('/prepro/get_csv_data', function(response) {
+            if (response.exists) {
+                $('#server-data-notification').show();
+            }
+        }).fail(function() {
+            console.log('Tidak ada data CSV di server');
+        });
+    }
+
+    // Cek apakah ada data tersimpan di localStorage browser
+    function checkLocalStorageData() {
+        const savedData = localStorage.getItem('preprocessedData');
+        const savedStats = localStorage.getItem('preprocessedStats');
+        
+        if (savedData && savedStats) {
+            try {
+                processedData = JSON.parse(savedData);
+                currentStats = JSON.parse(savedStats);
+                
+                currentPage = 1;
+                renderTable();
+                displayStats();
+                
+                $('#review-table-box').show();
+                $('#stats-container').show();
+                
+                console.log('Data berhasil dimuat dari localStorage');
+            } catch (e) {
+                console.error('Error loading saved data:', e);
+                // Jika error, cek session
+                checkSessionData();
+            }
+        } else {
+            // Jika tidak ada data di localStorage, cek session
+            checkSessionData();
+        }
+    }
+
+    // Cek apakah ada data tersimpan di session
+    function checkSessionData() {
+        $.get('/prepro/get_saved_data', function(response) {
+            if (response.has_data) {
+                processedData = response.data;
+                currentStats = response.stats;
+                
+                currentPage = 1;
+                renderTable();
+                displayStats();
+                
+                $('#review-table-box').show();
+                $('#stats-container').show();
+                
+                // Simpan juga ke localStorage untuk akses lebih cepat next time
+                localStorage.setItem('preprocessedData', JSON.stringify(processedData));
+                localStorage.setItem('preprocessedStats', JSON.stringify(currentStats));
+            } else {
+                // Jika tidak ada di session, cek server
+                checkServerData();
+            }
+        }).fail(function() {
+            checkServerData();
+        });
+    }
+
+    // Muat data yang tersimpan dari server (CSV)
+    function loadServerData() {
+        $("#loading-spinner").show();
+        updateProgress(30);
+        
+        $.get('/prepro/get_csv_data', function(response) {
+            $("#loading-spinner").hide();
+            updateProgress(100);
+            
+            if (response.exists) {
+                processedData = response.data;
+                
+                // Hitung statistik sederhana
+                currentStats = {
+                    total: processedData.length,
+                    diperbaiki: 0, // Tidak tersedia dari CSV
+                    kosong: processedData.filter(item => !item.Hasil || item.Hasil.trim() === '').length,
+                    persentase_kosong: 0
+                };
+                
+                currentStats.persentase_kosong = currentStats.total > 0 ? 
+                    (currentStats.kosong / currentStats.total * 100) : 0;
+                
+                currentPage = 1;
+                renderTable();
+                displayStats();
+                
+                $('#review-table-box').show();
+                $('#stats-container').show();
+                $('#server-data-notification').hide();
+                
+                // Simpan ke localStorage
+                localStorage.setItem('preprocessedData', JSON.stringify(processedData));
+                localStorage.setItem('preprocessedStats', JSON.stringify(currentStats));
+                
+                alert('Data berhasil dimuat dari server!');
+            } else {
+                alert('Gagal memuat data dari server: ' + (response.error || ''));
+            }
+        }).fail(function() {
+            $("#loading-spinner").hide();
+            alert('Gagal memuat data dari server');
+        });
+    }
+
+    // Tampilkan statistik
+    function displayStats() {
+        if (currentStats && Object.keys(currentStats).length > 0) {
+            $('#total-rows').text(currentStats.total || 0);
+            $('#fixed-rows').text(currentStats.diperbaiji || 0);
+            $('#empty-rows').text(currentStats.kosong || 0);
+            
+            const percent = currentStats.persentase_kosong ? 
+                currentStats.persentase_kosong.toFixed(2) + '%' : '0%';
+            $('#empty-percent').text(percent);
+            
+            // Tambahkan kelas warna berdasarkan persentase
+            const percentValue = currentStats.persentase_kosong || 0;
+            const percentElement = $('#empty-percent');
+            percentElement.removeClass('percent-low percent-medium percent-high');
+            
+            if (percentValue < 10) {
+                percentElement.addClass('percent-low');
+            } else if (percentValue < 30) {
+                percentElement.addClass('percent-medium');
+            } else {
+                percentElement.addClass('percent-high');
+            }
+        }
+    }
 
     function renderTable() {
         const start = (currentPage - 1) * rowsPerPage;
@@ -67,10 +247,10 @@ $(function () {
                     <td>${row.SteamID || "-"}</td>
                     <td>${row["Clean Data"] || "-"}</td>
                     <td>${row["Case Folding"] || "-"}</td>
-                    <td>${row["Tokenisasi"]?.join(';') || '-'}</td>
-                    <td>${row["Stopword"]?.join(';') || '-'}</td>
-                    <td>${row["Normalisasi"]?.join(';') || '-'}</td>
-                    <td>${row["Stemming"]?.join(';') || '-'}</td>
+                    <td>${Array.isArray(row.Tokenisasi) ? row.Tokenisasi.join(' ') : (row.Tokenisasi || '-')}</td>
+                    <td>${Array.isArray(row.Stopword) ? row.Stopword.join(' ') : (row.Stopword || '-')}</td>
+                    <td>${Array.isArray(row.Normalisasi) ? row.Normalisasi.join(' ') : (row.Normalisasi || '-')}</td>
+                    <td>${Array.isArray(row.Stemming) ? row.Stemming.join(' ') : (row.Stemming || '-')}</td>
                     <td>${row["Hasil"] || "-"}</td>
                     <td>${row["Status"] || "-"}</td>
                 </tr>
@@ -81,12 +261,17 @@ $(function () {
         $("#next-page").prop("disabled", currentPage * rowsPerPage >= processedData.length);
     }
 
+    // Cek data tersimpan saat halaman dimuat
+    checkLocalStorageData();
+
     $("#btn-upload").click(() => $("#upload-form").submit());
 
     $("#upload-form").submit(function (e) {
         e.preventDefault();
         const formData = new FormData(this);
         $("#loading-spinner").show();
+        updateProgress(10);
+        
         $.ajax({
             url: "/prepro/preproses",
             type: "POST",
@@ -95,10 +280,29 @@ $(function () {
             contentType: false,
             success: res => {
                 $("#loading-spinner").hide();
+                updateProgress(100);
+                
+                if (res.error) {
+                    alert("Error: " + res.error);
+                    return;
+                }
+                
                 processedData = res.data || [];
+                currentStats = res.stats || {};
+                
+                // Simpan ke localStorage
+                localStorage.setItem('preprocessedData', JSON.stringify(processedData));
+                localStorage.setItem('preprocessedStats', JSON.stringify(currentStats));
+                
                 currentPage = 1;
                 renderTable();
+                displayStats();
+                
                 $('#review-table-box').show();
+                $('#stats-container').show();
+                $('#server-data-notification').hide();
+                
+                alert(res.message || "Preprocessing selesai!");
             },
             error: xhr => {
                 $("#loading-spinner").hide();
@@ -110,6 +314,8 @@ $(function () {
     $("#save-csv").click(() => {
         if (!processedData.length) return alert("Tidak ada data untuk disimpan.");
         $("#loading-spinner").show();
+        updateProgress(30);
+        
         $.ajax({
             url: "/prepro/save_csv",
             type: "POST",
@@ -117,6 +323,7 @@ $(function () {
             data: JSON.stringify(processedData),
             xhrFields: { responseType: "blob" },
             success: blob => {
+                updateProgress(100);
                 const link = document.createElement("a");
                 link.href = URL.createObjectURL(blob);
                 link.download = "processed_data.csv";
@@ -135,29 +342,46 @@ $(function () {
     });
 
     $("#clear-data").click(() => {
-        processedData = [];
-        renderTable();
-        $('#review-table-box').hide();
+        if (confirm("Apakah Anda yakin ingin menghapus semua data?")) {
+            $.post('/prepro/clear_saved_data', function(response) {
+                if (response.status === 'success') {
+                    processedData = [];
+                    currentStats = {};
+                    // Hapus juga dari localStorage
+                    localStorage.removeItem('preprocessedData');
+                    localStorage.removeItem('preprocessedStats');
+                    renderTable();
+                    $('#review-table-box').hide();
+                    $('#stats-container').hide();
+                    alert('Data berhasil dihapus');
+                } else {
+                    alert('Gagal menghapus data: ' + response.error);
+                }
+            }).fail(function() {
+                alert('Gagal menghapus data');
+            });
+        }
     });
 
-    $("#prev-page").click(() => { currentPage--; renderTable(); });
-    $("#next-page").click(() => { currentPage++; renderTable(); });
+    $("#prev-page").click(() => { 
+        currentPage--; 
+        renderTable(); 
+    });
+    
+    $("#next-page").click(() => { 
+        currentPage++; 
+        renderTable(); 
+    });
+
+    // Event listener untuk tombol muat data dari server
+    $("#load-server-data").click(() => {
+        loadServerData();
+    });
+
+    // Event listener untuk tombol abaikan data server
+    $("#ignore-server-data").click(() => {
+        $('#server-data-notification').hide();
+    });
 });
 </script>
-<style>
-    .table-responsive {
-      width: 100%;
-      overflow-x: auto;
-    }
-    table td {
-      word-wrap: break-word;
-      white-space: normal;
-    }
-    table {
-      table-layout: fixed;
-    }
-    table th, table td {
-      max-width: 150px;
-    }
-  </style>
 {% endblock %}
