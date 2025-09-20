@@ -2,7 +2,7 @@ import json
 import os
 import re
 import pandas as pd
-from flask import Blueprint, request, jsonify, render_template, send_file, session
+from flask import Blueprint, request, jsonify, render_template, send_file
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
@@ -16,6 +16,7 @@ import time
 from functools import lru_cache
 import random
 from collections import Counter
+import logging
 
 # --- Konfigurasi dasar ---
 prepro_bp = Blueprint(
@@ -24,6 +25,11 @@ prepro_bp = Blueprint(
     url_prefix="/prepro",
     template_folder="templates",
     static_folder="static",
+)
+
+# Konfigurasi logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 # Pastikan hasil deteksi bahasa konsisten
@@ -56,9 +62,44 @@ required_txt_files = [
 for file_name in required_txt_files:
     file_path = os.path.join(TXT_DIR, file_name)
     if not os.path.exists(file_path):
-        print(f"[WARNING] File {file_name} tidak ditemukan di {TXT_DIR}")
+        logging.warning(f"File {file_name} tidak ditemukan di {TXT_DIR}")
     else:
-        print(f"[INFO] File {file_name} ditemukan")
+        logging.info(f"File {file_name} ditemukan")
+
+
+# --- Fungsi untuk menyimpan dan membaca data yang sudah diproses ---
+def save_processed_data(df, file_path=PREPRO_CSV_PATH):
+    """Menyimpan data yang sudah diproses ke file CSV"""
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        df.to_csv(file_path, index=False, encoding="utf-8-sig")
+        logging.info(f"Data berhasil disimpan ke {file_path}")
+        return True
+    except Exception as e:
+        logging.error(f"Gagal menyimpan data: {e}")
+        return False
+
+
+def load_processed_data(file_path=PREPRO_CSV_PATH):
+    """Membaca data yang sudah diproses dari file CSV"""
+    try:
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            df = pd.read_csv(file_path)
+            logging.info(f"Data berhasil dimuat dari {file_path}")
+
+            # Konversi kolom string kembali ke list jika diperlukan
+            list_columns = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+            for col in list_columns:
+                if col in df.columns:
+                    df[col] = df[col].apply(
+                        lambda x: x.split() if isinstance(x, str) and x != "" else []
+                    )
+
+            return df
+        return None
+    except Exception as e:
+        logging.error(f"Gagal memuat data: {e}")
+        return None
 
 
 # Fungsi untuk memuat stopword dengan format yang konsisten
@@ -75,9 +116,9 @@ def load_stopwords(filename):
                     word and len(word) > 1
                 ):  # Hanya tambahkan jika tidak kosong dan panjang > 1
                     stopwords_set.add(word)
-        print(f"[STOPWORD] Loaded {len(stopwords_set)} kata dari {filename}")
+        logging.info(f"Loaded {len(stopwords_set)} kata dari {filename}")
     except Exception as e:
-        print(f"[ERROR load_stopwords {filename}]: {e}")
+        logging.error(f"Error load_stopwords {filename}: {e}")
     return stopwords_set
 
 
@@ -102,28 +143,28 @@ if os.path.exists(stopword_ing_file):
 else:
     # Fallback ke stopword Inggris dari NLTK jika file tidak ada
     stop_words_ing = set(stopwords.words("english"))
-    print("[STOPWORD ING] Using NLTK English stopwords as fallback")
+    logging.info("Using NLTK English stopwords as fallback")
 
-print(f"[STOPWORD] Total stopwords Indonesia: {len(stop_words_id)}")
-print(f"[STOPWORD] Total stopwords Inggris: {len(stop_words_ing)}")
+logging.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
+logging.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
 
 
 # Fungsi validasi stopword
 def validate_stopwords():
     """Validasi bahwa file stopword berisi kata-kata yang diharapkan"""
-    # Contoh kata stopword yang seharusnya ada
+    # Contoh kata stopword yang seharousnya ada
     expected_id_stopwords = {"yang", "dan", "di", "dari", "ke"}
     expected_ing_stopwords = {"the", "and", "is", "in", "to"}
 
     # Periksa stopword Indonesia
     missing_id = expected_id_stopwords - stop_words_id
     if missing_id:
-        print(f"[WARNING] Stopword ID yang hilang: {missing_id}")
+        logging.warning(f"Stopword ID yang hilang: {missing_id}")
 
     # Periksa stopword Inggris
     missing_ing = expected_ing_stopwords - stop_words_ing
     if missing_ing:
-        print(f"[WARNING] Stopword ING yang hilang: {missing_ing}")
+        logging.warning(f"Stopword ING yang hilang: {missing_ing}")
 
 
 # Panggil fungsi validasi
@@ -158,11 +199,9 @@ if os.path.exists(stemming_file):
                 if k_normalized != k and k_normalized not in stemming_dict:
                     stemming_dict[k_normalized] = v
 
-    print(
-        f"[STEMMING LIST] Loaded {len(stemming_dict)} pasangan dari stemming_list.txt"
-    )
+    logging.info(f"Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
 else:
-    print("[STEMMING LIST] File tidak ditemukan, gunakan default Sastrawi.")
+    logging.warning("File stemming_list.txt tidak ditemukan, gunakan default Sastrawi.")
 
 # Load game terms
 game_terms = set()
@@ -171,7 +210,7 @@ with open(os.path.join(TXT_DIR, "game_term.txt"), "r", encoding="utf-8") as f:
         term = line.strip().lower()
         if term:
             game_terms.add(term)
-print(f"[GAME TERMS] Loaded {len(game_terms)} terms")
+logging.info(f"Loaded {len(game_terms)} game terms")
 
 # Load kata tidak relevan
 kata_tidak_relevan = set()
@@ -180,7 +219,7 @@ with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8"
         word = line.strip().lower()
         if word:
             kata_tidak_relevan.add(word)
-print(f"[KATA TIDAK RELEVAN] Loaded {len(kata_tidak_relevan)} words")
+logging.info(f"Loaded {len(kata_tidak_relevan)} kata tidak relevan")
 
 CHUNK_SIZE = 1000
 MAX_FILE_SIZE = 2 * 1024 * 1024
@@ -204,7 +243,7 @@ def simpan_cache_bahasa():
         with open(LANGUAGE_CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(language_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"[ERROR simpan cache bahasa]: {e}")
+        logging.error(f"Error simpan cache bahasa: {e}")
 
 
 # --- Fungsi untuk mendeteksi pesan error ---
@@ -251,7 +290,7 @@ def simpan_cache_ke_file():
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"[ERROR simpan cache]: {e}")
+        logging.error(f"Error simpan cache: {e}")
 
 
 # --- Cache translate ---
@@ -270,9 +309,7 @@ if os.path.exists(CACHE_FILE):
             del terjemahan_cache[key]
 
         if keys_to_remove:
-            print(
-                f"[CACHE CLEANUP] Menghapus {len(keys_to_remove)} entri error dari cache"
-            )
+            logging.info(f"Menghapus {len(keys_to_remove)} entri error dari cache")
             simpan_cache_ke_file()
 
     except Exception:
@@ -378,7 +415,7 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
                             else:
                                 hasil.append(buffer.strip())
                         except Exception as e:
-                            print(f"[ERROR translate chunk]: {e}")
+                            logging.error(f"Error translate chunk: {e}")
                             hasil.append(buffer.strip())
                     buffer = k
 
@@ -390,14 +427,16 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
                     else:
                         hasil.append(buffer.strip())
                 except Exception as e:
-                    print(f"[ERROR translate chunk]: {e}")
+                    logging.error(f"Error translate chunk: {e}")
                     hasil.append(buffer.strip())
 
             return " ".join(hasil)
 
         except Exception as e:
             error_msg = str(e).lower()
-            print(f"[ATTEMPT {attempt + 1}/{MAX_RETRIES}] Error dalam terjemahan: {e}")
+            logging.warning(
+                f"Attempt {attempt + 1}/{MAX_RETRIES} Error dalam terjemahan: {e}"
+            )
 
             # Deteksi apakah error terkait koneksi
             is_connection_error = any(
@@ -417,7 +456,7 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
                 raise e
 
             # Jika error koneksi, tunggu sebentar dan coba lagi
-            print(f"Menunggu {delay} detik sebelum mencoba lagi...")
+            logging.info(f"Menunggu {delay} detik sebelum mencoba lagi...")
             time.sleep(delay)
 
             # Exponential backoff dengan jitter
@@ -459,7 +498,7 @@ def bersihkan_terjemahan(teks: str) -> str:
 
         return teks
     except Exception as e:
-        print(f"[ERROR bersihkan_terjemahan]: {e}")
+        logging.error(f"Error bersihkan_terjemahan: {e}")
         return whitespace_pattern.sub(" ", teks_asli).strip()
 
 
@@ -511,42 +550,42 @@ def hapus_stopword(words, debug=False):
     words = bersihkan_token(words)
 
     if debug:
-        print(f"[DEBUG STOPWORD] Kata sebelum filter: {words}")
+        logging.debug(f"Kata sebelum filter: {words}")
 
     result = []
     for w in words:
         # Pengecualian: Jika kata adalah game term, selalu pertahankan
         if w in game_terms:
             if debug:
-                print(f"[DEBUG STOPWORD] Menyimpan game term: '{w}'")
+                logging.debug(f"Menyimpan game term: '{w}'")
             result.append(w)
             continue
 
         # Prioritas 1: Cek kata tidak relevan terlebih dahulu (jika bukan stopword Indonesia)
         if w not in stop_words_id and w in kata_tidak_relevan:
             if debug:
-                print(f"[DEBUG STOPWORD] Menghapus kata tidak relevan: '{w}'")
+                logging.debug(f"Menghapus kata tidak relevan: '{w}'")
             continue
 
         # Prioritas 2: Cek stopword Inggris
         if w in stop_words_ing:
             if debug:
-                print(f"[DEBUG STOPWORD] Menghapus stopword Inggris: '{w}'")
+                logging.debug(f"Menghapus stopword Inggris: '{w}'")
             continue
 
         # Prioritas 3: Cek stopword Indonesia
         if w in stop_words_id:
             if debug:
-                print(f"[DEBUG STOPWORD] Menghapus stopword Indonesia: '{w}'")
+                logging.debug(f"Menghapus stopword Indonesia: '{w}'")
             continue
 
         # Jika bukan stopword atau kata tidak relevan, simpan
         if debug:
-            print(f"[DEBUG STOPWORD] Menyimpan kata: '{w}'")
+            logging.debug(f"Menyimpan kata: '{w}'")
         result.append(w)
 
     if debug:
-        print(f"[DEBUG STOPWORD] Kata setelah filter: {result}")
+        logging.debug(f"Kata setelah filter: {result}")
 
     return result
 
@@ -587,7 +626,7 @@ def stemming_teks(words, debug=False):
     # Log metode yang digunakan (opsional, untuk debugging)
     if debug and stem_methods:
         method_counts = Counter(stem_methods)
-        print(f"[STEMMING METHODS] Digunakan: {dict(method_counts)}")
+        logging.debug(f"Stemming methods digunakan: {dict(method_counts)}")
 
     return hasil
 
@@ -606,11 +645,11 @@ if os.path.exists(WHITELIST_FILE):
     try:
         with open(WHITELIST_FILE, "r", encoding="utf-8") as f:
             kata_id_pasti = {line.strip().lower() for line in f if line.strip()}
-        print(f"[WHITELIST] Loaded {len(kata_id_pasti)} kata dari kata_ambigu.txt")
+        logging.info(f"Loaded {len(kata_id_pasti)} kata dari kata_ambigu.txt")
     except Exception as e:
-        print(f"[ERROR baca whitelist]: {e}")
+        logging.error(f"Error baca whitelist: {e}")
 else:
-    print("[WHITELIST] File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
+    logging.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
 
 
 # --- Fungsi untuk mendeteksi kata asing dalam teks ---
@@ -640,7 +679,7 @@ def contains_foreign_words(text):
                 continue
 
     except Exception as e:
-        print(f"[ERROR deteksi kata asing]: {e}")
+        logging.error(f"Error deteksi kata asing: {e}")
 
     return False
 
@@ -665,23 +704,23 @@ def proses_preprocessing_standar(teks, debug=False):
     token = bersihkan_token(token)
 
     if debug:
-        print(f"[DEBUG PREPRO] Setelah tokenisasi: {token}")
+        logging.debug(f"Setelah tokenisasi: {token}")
 
     # Proses NLP dengan stopword gabungan
     stop = hapus_stopword(token, debug) if token else []
 
     if debug:
-        print(f"[DEBUG PREPRO] Setelah stopword removal: {stop}")
+        logging.debug(f"Setelah stopword removal: {stop}")
 
     norm = normalisasi_teks(stop) if stop else []
 
     if debug:
-        print(f"[DEBUG PREPRO] Setelah normalisasi: {norm}")
+        logging.debug(f"Setelah normalisasi: {norm}")
 
     stem = stemming_teks(norm, debug) if norm else []
 
     if debug:
-        print(f"[DEBUG PREPRO] Setelah stemming: {stem}")
+        logging.debug(f"Setelah stemming: {stem}")
 
     # Gabungkan hasil
     hasil = " ".join(stem) if stem else folded
@@ -708,7 +747,7 @@ def proses_baris_standar(terjemahan, debug=False):
         return proses_preprocessing_standar(terjemahan, debug)
 
     except Exception as e:
-        print(f"[ERROR proses standar]: {e}")
+        logging.error(f"Error proses standar: {e}")
         clean = bersihkan_terjemahan(terjemahan) if isinstance(terjemahan, str) else ""
         folded = clean.lower() if clean else ""
         hasil = folded if folded else (clean if clean else str(terjemahan))
@@ -743,7 +782,7 @@ def proses_terjemahan_ulang(teks_asal, hasil_sebelumnya, data_preprocessing_sebe
         return proses_preprocessing_standar(terjemahan_baru)
 
     except Exception as e:
-        print(f"[ERROR terjemahan ulang setelah {MAX_RETRIES} percobaan]: {e}")
+        logging.error(f"Error terjemahan ulang setelah {MAX_RETRIES} percobaan: {e}")
         return data_preprocessing_sebelumnya
 
 
@@ -809,10 +848,10 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
                         row_data.append('"' + str(value) + '"')
                 f.write(",".join(row_data) + "\r\n")
 
-        print(f"[SAVE CSV] File berhasil disimpan di {file_path}")
+        logging.info(f"File berhasil disimpan di {file_path}")
         return True
     except Exception as e:
-        print(f"[ERROR save_csv]: {e}")
+        logging.error(f"Error save_csv: {e}")
         return False
 
 
@@ -842,7 +881,7 @@ def preproses():
         df["Terjemahan"] = df["Terjemahan"].fillna("")
 
         # Fase 1: Preprocessing standar
-        print("Fase 1: Preprocessing standar...")
+        logging.info("Fase 1: Preprocessing standar...")
         with ProcessPoolExecutor(max_workers=4) as executor:
             chunks = [df[i : i + CHUNK_SIZE] for i in range(0, total_rows, CHUNK_SIZE)]
             futures = []
@@ -854,7 +893,7 @@ def preproses():
 
             processed_chunks = []
             for i, future in enumerate(as_completed(futures)):
-                print(f"[CHUNK {i + 1}] Memproses {len(chunks[i])} baris...")
+                logging.info(f"Chunk {i + 1}: Memproses {len(chunks[i])} baris...")
                 hasil_list = future.result()
                 hasil_df = pd.DataFrame(
                     hasil_list,
@@ -878,11 +917,11 @@ def preproses():
         result_df = pd.concat(processed_chunks, ignore_index=True)
 
         # Fase 2: Terjemahan ulang untuk baris yang membutuhkan
-        print("Fase 2: Terjemahan ulang...")
+        logging.info("Fase 2: Terjemahan ulang...")
         baris_diperbaiki = 0
         for idx in range(len(result_df)):
             if idx % 100 == 0:
-                print(f"Memeriksa baris {idx + 1} dari {len(result_df)}")
+                logging.info(f"Memeriksa baris {idx + 1} dari {len(result_df)}")
 
             teks_asal = result_df.at[idx, "Terjemahan"]
             hasil_sebelumnya = result_df.at[idx, "Hasil"]
@@ -924,20 +963,12 @@ def preproses():
                 result_df.at[idx, "Stemming"] = data_preprocessing_sebelumnya[5]
                 result_df.at[idx, "Hasil"] = data_preprocessing_sebelumnya[6]
 
-        print(f"Terjemahan ulang selesai. {baris_diperbaiki} baris diperbaiki.")
+        logging.info(f"Terjemahan ulang selesai. {baris_diperbaiki} baris diperbaiki.")
 
         # Simpan CSV otomatis
         save_csv(result_df)
         simpan_cache_ke_file()
         simpan_cache_bahasa()
-
-        # Simpan data ke session untuk digunakan kembali
-        session["preprocessed_data"] = result_df.to_dict(orient="records")
-        session["preprocessed_stats"] = {
-            "total": len(result_df),
-            "diperbaiki": baris_diperbaiki,
-            "kosong": len(result_df[result_df["Hasil"].str.strip() == ""]),
-        }
 
         # Hitung statistik
         total_baris = len(result_df)
@@ -957,6 +988,7 @@ def preproses():
             }
         )
     except Exception as e:
+        logging.error(f"Error dalam preprocessing: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -980,6 +1012,7 @@ def save_csv_manual():
         else:
             return jsonify({"error": "Gagal menyimpan CSV."}), 500
     except Exception as e:
+        logging.error(f"Error save_csv_manual: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1005,7 +1038,7 @@ def debug_prepro():
             return jsonify({"error": "Tidak ada teks yang dikirim."}), 400
 
         teks = data["text"]
-        print(f"[DEBUG] Memproses teks: {teks}")
+        logging.info(f"Debug: Memproses teks: {teks}")
 
         # Lakukan preprocessing dengan debug mode
         hasil = proses_preprocessing_standar(teks, debug=True)
@@ -1022,29 +1055,87 @@ def debug_prepro():
             }
         )
     except Exception as e:
+        logging.error(f"Error debug_prepro: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-@prepro_bp.route("/get_saved_data", methods=["GET"])
-def get_saved_data():
-    """Endpoint untuk mengambil data yang sudah diproses dari session"""
+@prepro_bp.route("/load_data", methods=["GET"])
+def load_data():
+    """Memuat data dari file CSV saat halaman dibuka"""
     try:
-        data = session.get("preprocessed_data", [])
-        stats = session.get("preprocessed_stats", {})
-        return jsonify({"data": data, "stats": stats, "has_data": len(data) > 0})
+        df = load_processed_data()
+        if df is not None and not df.empty:
+            # Hitung statistik
+            total_baris = len(df)
+            baris_kosong = len(df[df["Hasil"].str.strip() == ""])
+            persentase_kosong = (
+                (baris_kosong / total_baris * 100) if total_baris > 0 else 0
+            )
+
+            # Konversi DataFrame ke dictionary
+            data = df.to_dict(orient="records")
+
+            return jsonify(
+                {
+                    "status": "success",
+                    "data": data,
+                    "stats": {
+                        "total": total_baris,
+                        "kosong": baris_kosong,
+                        "persentase_kosong": persentase_kosong,
+                    },
+                }
+            )
+
+        return jsonify(
+            {"status": "empty", "data": [], "message": "Tidak ada data tersimpan"}
+        )
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Error load_data: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
 
-
-@prepro_bp.route("/clear_saved_data", methods=["POST"])
-def clear_saved_data():
-    """Endpoint untuk menghapus data yang disimpan di session"""
+@prepro_bp.route("/delete_csv", methods=["POST"])
+def delete_csv():
+    """Menghapus file CSV yang sudah diproses dari server"""
     try:
-        session.pop("preprocessed_data", None)
-        session.pop("preprocessed_stats", None)
-        return jsonify({"status": "success", "message": "Data berhasil dihapus"})
+        if os.path.exists(PREPRO_CSV_PATH):
+            os.remove(PREPRO_CSV_PATH)
+            logging.info(f"File {PREPRO_CSV_PATH} berhasil dihapus")
+            return jsonify({"status": "success", "message": "File CSV berhasil dihapus dari server"})
+        else:
+            return jsonify({"status": "error", "message": "File CSV tidak ditemukan"}), 404
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Error deleting CSV file: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@prepro_bp.route("/get_csv_data", methods=["GET"])
+def get_csv_data():
+    """Membaca data dari file CSV yang sudah diproses"""
+    try:
+        if not os.path.exists(PREPRO_CSV_PATH):
+            return jsonify({"exists": False, "message": "File CSV tidak ditemukan"})
+
+        # Baca file CSV
+        df = pd.read_csv(PREPRO_CSV_PATH)
+
+        # Konversi kolom string kembali ke list jika diperlukan
+        list_columns = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+        for col in list_columns:
+            if col in df.columns:
+                df[col] = df[col].apply(
+                    lambda x: x.split() if isinstance(x, str) and x != "" else []
+                )
+
+        # Konversi ke dictionary
+        data = df.to_dict(orient="records")
+
+        return jsonify(
+            {"exists": True, "data": data, "message": "Data berhasil dibaca dari CSV"}
+        )
+    except Exception as e:
+        logging.error(f"Error get_csv_data: {e}")
+        return jsonify({"exists": False, "error": str(e)})
 
 
 @prepro_bp.route("/")
