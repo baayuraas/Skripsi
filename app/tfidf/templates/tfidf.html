@@ -72,6 +72,30 @@ $(function () {
         );
     }
 
+    // Fungsi untuk memuat data existing
+    function loadExistingData() {
+        $.ajax({
+            url: "/tfidf/load_existing",
+            type: "GET",
+            success: function(res) {
+                if (res.data) {
+                    processedData = res.data;
+                    renderTable();
+                    $('#review-table-box').show();
+                }
+            },
+            error: function(xhr) {
+                // Silent error - tidak perlu tampilkan alert jika tidak ada data
+                if (xhr.status !== 404) {
+                    alert(xhr.responseJSON?.error || "Gagal memuat data existing");
+                }
+            }
+        });
+    }
+
+    // Memuat data existing saat halaman dimuat
+    loadExistingData();
+
     $("#upload-form").submit(function (e) {
         e.preventDefault();
         const formData = new FormData(this);
@@ -95,12 +119,14 @@ $(function () {
     });
 
     $("#clear-data").click(() => {
-        $.post("/tfidf/clear", res => {
-            alert(res.message);
-            processedData = [];
-            renderTable();
-            $('#review-table-box').hide();
-        }).fail(() => alert("Gagal menghapus data."));
+        if (confirm("Apakah Anda yakin ingin menghapus semua data TF-IDF?")) {
+            $.post("/tfidf/clear", res => {
+                alert(res.message);
+                processedData = [];
+                renderTable();
+                $('#review-table-box').hide();
+            }).fail(() => alert("Gagal menghapus data."));
+        }
     });
 
     $("#save-csv").click(() => triggerDownload("full_csv"));

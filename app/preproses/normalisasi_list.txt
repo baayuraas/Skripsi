@@ -1,4 +1,5 @@
-acc=akun
+acc=account
+acount=account
 afk=meninggalkan
 afking=meninggalkan
 ahir=akhir

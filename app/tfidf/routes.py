@@ -108,10 +108,29 @@ def download_by_type(tipe):
 @tfidf_bp.route("/clear", methods=["POST"])
 def clear_data():
     removed = []
-    for f in [TEMP_OUTPUT, TRAIN_CSV, TEST_CSV, TRAIN_MODEL, TEST_MODEL]:
+    files_to_remove = [TEMP_OUTPUT, TRAIN_CSV, TEST_CSV, TRAIN_MODEL, TEST_MODEL]
+    
+    for f in files_to_remove:
         if os.path.exists(f):
-            os.remove(f)
-            removed.append(f)
+            try:
+                os.remove(f)
+                removed.append(f)
+            except Exception as e:
+                return jsonify({"error": f"Gagal menghapus file {f}: {str(e)}"}), 500
+                
     if removed:
         return jsonify({"message": "Data TF-IDF telah dihapus"}), 200
     return jsonify({"error": "Tidak ada data TF-IDF yang perlu dihapus"}), 400
+
+
+@tfidf_bp.route("/load_existing")
+def load_existing_data():
+    if not os.path.exists(TEMP_OUTPUT):
+        return jsonify({"error": "Tidak ada data tersimpan"}), 404
+    
+    try:
+        df = pd.read_csv(TEMP_OUTPUT)
+        return jsonify({"data": df.to_dict(orient="records")})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Gagal memuat data existing: {str(e)}"}), 500
