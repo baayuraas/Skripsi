@@ -24,10 +24,9 @@
 
 <div id="review-table-box" style="display: none;">
     <div class="mt-3">
-      <button id="clear-data" class="btn btn-danger">Hapus Data & Model</button>
+      <button id="clear-data" class="btn btn-danger">Hapus Data</button>
       <button class="btn btn-outline-primary" onclick="window.location='/evaluasi/download/data_eval.csv'">Download Data Evaluasi</button>
-      <button class="btn btn-outline-primary" onclick="window.location='/evaluasi/download/model_mlp_custom.keras'">Download Model</button>
-      <button class="btn btn-outline-primary" onclick="window.location='/evaluasi/download/label_encoder.pkl'">Download Encoder</button>
+      <button class="btn btn-outline-primary" onclick="window.location='/evaluasi/download/hasil_evaluasi.csv'">Download Hasil Evaluasi</button>
     </div>
 
     <div class="table-responsive mt-4">
@@ -85,6 +84,52 @@ $(function () {
     $("#metrics-wrapper").html(html);
   }
 
+  // Fungsi untuk memeriksa dan memproses data yang sudah ada
+  function checkAndProcessExistingData() {
+    $.get("/evaluasi/check_existing_data", function(response) {
+      if (response.exists) {
+        $("#statusMessage").html("<span style='color:blue'>⏳ Memproses data yang sudah ada...</span>");
+        
+        // Lakukan evaluasi dengan data yang sudah ada
+        $.post("/evaluasi/evaluate_existing", function(res) {
+          $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
+          renderTable(res.data || []);
+          renderConfusionMatrix(res.confusion_matrix, res.labels);
+          renderMetrics(res.metrics);
+          $('#review-table-box').show();
+        }).fail(function(xhr) {
+          const msg = xhr.responseJSON?.error || "❌ Gagal memproses data yang ada.";
+          $("#statusMessage").html(`<span style="color:red;">${msg}</span>`);
+        });
+      } else {
+        // Jika tidak ada data yang tersimpan, coba muat hasil evaluasi sebelumnya
+        loadSavedResults();
+      }
+    }).fail(function() {
+      // Jika gagal memeriksa, coba muat hasil evaluasi sebelumnya
+      loadSavedResults();
+    });
+  }
+
+  // Fungsi untuk memuat hasil evaluasi yang tersimpan
+  function loadSavedResults() {
+    $.get("/evaluasi/get_saved_data", function(response) {
+      if (response.data && response.data.length > 0) {
+        renderTable(response.data);
+        $('#review-table-box').show();
+        $("#statusMessage").html("<span style='color:green'>Data evaluasi tersimpan dimuat</span>");
+      }
+    }).fail(function(xhr) {
+      // Tidak menampilkan error jika tidak ada data tersimpan
+      if (xhr.status !== 404) {
+        console.error("Gagal memuat data tersimpan:", xhr.responseJSON?.error);
+      }
+    });
+  }
+
+  // Panggil fungsi saat halaman dimuat
+  checkAndProcessExistingData();
+
   $("#eval-form").submit(function (e) {
     e.preventDefault();
     $("#statusMessage").empty();
@@ -118,6 +163,8 @@ $(function () {
       $("#statusMessage").text(res.message);
       $("#table-header, #reviews-table-body, #confusion-matrix-wrapper, #metrics-wrapper").empty();
       $('#review-table-box').hide();
+    }).fail(xhr => {
+      $("#statusMessage").html(`<span style="color:red;">${xhr.responseJSON?.error || "Gagal menghapus data"}</span>`);
     });
   });
 });

@@ -15,7 +15,13 @@
 {% block content %}
 <h3>Train Model</h3>
 
-<form id="upload-form" method="post" enctype="multipart/form-data">
+<div id="result-check" style="display: none;" class="alert alert-info">
+    <p>Hasil perhitungan sebelumnya ditemukan. Apa yang ingin Anda lakukan?</p>
+    <button id="use-existing" class="btn btn-success">Gunakan Hasil Sebelumnya</button>
+    <button id="train-new" class="btn btn-primary">Latih Model Baru</button>
+</div>
+
+<form id="upload-form" method="post" enctype="multipart/form-data" style="display: none;">
     <input type="file" name="file" id="file" accept=".csv" required>
     <button type="submit" class="btn btn-primary">Unggah dan Latih Model</button>
 </form>
@@ -28,6 +34,8 @@
         <button id="clear-data" class="btn btn-danger">Hapus Data & Model</button>
         <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/model_mlp_custom.keras'">Download Model</button>
         <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/label_encoder.pkl'">Download Label Encoder</button>
+        <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/hasil_perhitungan.csv'">Download Hasil</button>
+        <button id="load-saved-data" class="btn btn-outline-secondary">Muat Data Tersimpan</button>
     </div>
 
     <div class="table-responsive mt-4">
@@ -62,6 +70,115 @@ $(function () {
         );
     }
 
+    function renderEvaluation(res) {
+        if (res.labels && res.confusion) {
+            const labels = res.labels;
+            const cm = res.confusion;
+            let matrix = `<h5>Confusion Matrix:</h5><table class="table table-bordered"><thead><tr><th></th>${labels.map(l => `<th>${l}</th>`).join("")}</tr></thead><tbody>`;
+            cm.forEach((row, i) => {
+                matrix += `<tr><th>${labels[i]}</th>${row.map(c => `<td>${c}</td>`).join("")}</tr>`;
+            });
+            matrix += "</tbody></table>";
+            let metrics = `
+                <ul>
+                  <li><strong>Akurasi:</strong> ${res.accuracy}%</li>
+                  <li><strong>Presisi:</strong> ${res.precision}%</li>
+                  <li><strong>Recall:</strong> ${res.recall}%</li>
+                  <li><strong>F1-Score:</strong> ${res.f1}%</li>
+                </ul>`;
+            $("#eval-info").html(matrix + metrics);
+        }
+    }
+
+    // Memuat data tersimpan saat halaman dimuat
+    function loadSavedData() {
+        $("#statusMessage").empty();
+        $("#loading").show();
+        
+        $.ajax({
+            url: "/perhitungan/load-result",
+            type: "GET",
+            success: res => {
+                $("#loading").hide();
+                if (res.train) {
+                    renderTable(res.train);
+                    renderEvaluation(res);
+                    $('#review-table-box').show();
+                    $("#statusMessage").html(`<span style="color:green;">Data hasil berhasil dimuat.</span>`);
+                } else if (res.message) {
+                    $("#statusMessage").html(`<span style="color:blue;">${res.message}</span>`);
+                }
+            },
+            error: xhr => {
+                $("#loading").hide();
+                if (xhr.status === 404) {
+                    $("#statusMessage").html(`<span style="color:blue;">${xhr.responseJSON?.error || "Tidak ada data tersimpan."}</span>`);
+                } else {
+                    $("#statusMessage").html(`<span style="color:red;">${xhr.responseJSON?.error || "Gagal memuat data."}</span>`);
+                }
+            }
+        });
+    }
+
+    // Fungsi untuk memeriksa hasil
+    function checkExistingResult() {
+        $.ajax({
+            url: "/perhitungan/check-result",
+            type: "GET",
+            success: res => {
+                if (res.has_result) {
+                    $("#result-check").show();
+                    $("#upload-form").hide();
+                } else {
+                    $("#result-check").hide();
+                    $("#upload-form").show();
+                }
+            },
+            error: () => {
+                $("#result-check").hide();
+                $("#upload-form").show();
+            }
+        });
+    }
+    
+    // Panggil saat halaman dimuat
+    checkExistingResult();
+    
+    // Event handler untuk tombol gunakan hasil sebelumnya
+    $("#use-existing").click(() => {
+        $("#loading").show();
+        $("#statusMessage").empty();
+        
+        $.ajax({
+            url: "/perhitungan/process",
+            type: "POST",
+            data: new FormData(), // Kirim form data kosong
+            processData: false,
+            contentType: false,
+            success: res => {
+                $("#loading").hide();
+                if (res.error) {
+                    $("#statusMessage").html(`<span style="color:red;">${res.error}</span>`);
+                } else {
+                    $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
+                    if (res.train) renderTable(res.train);
+                    renderEvaluation(res);
+                    $('#review-table-box').show();
+                }
+            },
+            error: xhr => {
+                $("#loading").hide();
+                $("#statusMessage").html(`<span style="color:red;">${xhr.responseJSON?.error || "Gagal memuat data."}</span>`);
+            }
+        });
+    });
+    
+    // Event handler untuk tombol latih model baru
+    $("#train-new").click(() => {
+        $("#result-check").hide();
+        $("#upload-form").show();
+    });
+
     $("#upload-form").submit(function (e) {
         e.preventDefault();
         $("#statusMessage").empty();
@@ -78,23 +195,7 @@ $(function () {
                 $("#loading").hide();
                 $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
                 if (res.train) renderTable(res.train);
-                if (res.labels && res.confusion) {
-                    const labels = res.labels;
-                    const cm = res.confusion;
-                    let matrix = `<h5>Confusion Matrix:</h5><table class="table table-bordered"><thead><tr><th></th>${labels.map(l => `<th>${l}</th>`).join("")}</tr></thead><tbody>`;
-                    cm.forEach((row, i) => {
-                        matrix += `<tr><th>${labels[i]}</th>${row.map(c => `<td>${c}</td>`).join("")}</tr>`;
-                    });
-                    matrix += "</tbody></table>";
-                    let metrics = `
-                        <ul>
-                          <li><strong>Akurasi:</strong> ${res.accuracy}%</li>
-                          <li><strong>Presisi:</strong> ${res.precision}%</li>
-                          <li><strong>Recall:</strong> ${res.recall}%</li>
-                          <li><strong>F1-Score:</strong> ${res.f1}%</li>
-                        </ul>`;
-                    $("#eval-info").html(matrix + metrics);
-                }
+                renderEvaluation(res);
                 $('#review-table-box').show();
             },
             error: xhr => {
@@ -105,11 +206,18 @@ $(function () {
     });
 
     $("#clear-data").click(() => {
-        $.post("/perhitungan/clear", res => {
-            $("#statusMessage").text(res.message);
-            $("#table-header, #reviews-table-body, #eval-info").empty();
-            $('#review-table-box').hide();
-        });
+        if (confirm("Apakah Anda yakin ingin menghapus semua data dan model?")) {
+            $.post("/perhitungan/clear", res => {
+                $("#statusMessage").text(res.message);
+                $("#table-header, #reviews-table-body, #eval-info").empty();
+                $('#review-table-box').hide();
+                checkExistingResult();
+            });
+        }
+    });
+
+    $("#load-saved-data").click(() => {
+        loadSavedData();
     });
 });
 </script>
