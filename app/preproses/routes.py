@@ -41,6 +41,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
 TXT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Deteksi environment Flask - untuk menghindari inisialisasi ganda
+IS_MAIN_PROCESS = os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not os.environ.get('WERKZEUG_RUN_MAIN')
+
 # Konfigurasi retry dan jeda
 MAX_RETRIES = 3
 INITIAL_DELAY = 1
@@ -58,49 +61,146 @@ required_txt_files = [
     "kata_ambigu.txt",
 ]
 
-# Validasi file yang diperlukan
-for file_name in required_txt_files:
-    file_path = os.path.join(TXT_DIR, file_name)
-    if not os.path.exists(file_path):
-        logging.warning(f"File {file_name} tidak ditemukan di {TXT_DIR}")
+# Flag untuk menandai apakah inisialisasi sudah dilakukan
+_INITIALIZED = False
+
+# Variabel global yang akan diinisialisasi
+stop_words_id = set()
+stop_words_ing = set()
+normalisasi_dict = {}
+stemming_dict = {}
+game_terms = set()
+kata_tidak_relevan = set()
+kata_id_pasti = set()
+
+# --- Fungsi inisialisasi sekali pakai ---
+def initialize_preprocessing_data():
+    """Fungsi untuk inisialisasi data preprocessing sekali saja"""
+    global _INITIALIZED, stop_words_id, stop_words_ing, normalisasi_dict, stemming_dict
+    global game_terms, kata_tidak_relevan, kata_id_pasti
+    
+    if _INITIALIZED:
+        logging.info("✅ Data preprocessing sudah diinisialisasi sebelumnya")
+        return
+    
+    # Hanya jalankan inisialisasi di proses utama Flask
+    if not IS_MAIN_PROCESS:
+        logging.info("⏸️  Skip inisialisasi: Ini adalah proses reloader Flask")
+        return
+    
+    logging.info("🔄 Memulai inisialisasi data preprocessing...")
+    
+    # Validasi file yang diperlukan
+    for file_name in required_txt_files:
+        file_path = os.path.join(TXT_DIR, file_name)
+        if not os.path.exists(file_path):
+            logging.warning(f"File {file_name} tidak ditemukan di {TXT_DIR}")
+        else:
+            logging.info(f"File {file_name} ditemukan")
+
+    # Inisialisasi stopword factory
+    stopword_factory = StopWordRemoverFactory()
+    
+    # Load stopword dasar Indonesia
+    stop_words_id = set(stopword_factory.get_stop_words()).union(
+        set(stopwords.words("indonesian"))
+    )
+
+    # Load stopword Indonesia dari file
+    id_stopwords = load_stopwords(os.path.join(TXT_DIR, "stopword_list.txt"))
+    stop_words_id.update(id_stopwords)
+
+    # Load stopword Inggris dari file
+    stopword_ing_file = os.path.join(TXT_DIR, "stopword_list_ing.txt")
+    if os.path.exists(stopword_ing_file):
+        stop_words_ing = load_stopwords(stopword_ing_file)
     else:
-        logging.info(f"File {file_name} ditemukan")
+        # Fallback ke stopword Inggris dari NLTK jika file tidak ada
+        stop_words_ing = set(stopwords.words("english"))
+        logging.info("Using NLTK English stopwords as fallback")
 
+    logging.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
+    logging.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
 
-# --- Fungsi untuk menyimpan dan membaca data yang sudah diproses ---
-def save_processed_data(df, file_path=PREPRO_CSV_PATH):
-    """Menyimpan data yang sudah diproses ke file CSV"""
-    try:
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        df.to_csv(file_path, index=False, encoding="utf-8-sig")
-        logging.info(f"Data berhasil disimpan ke {file_path}")
-        return True
-    except Exception as e:
-        logging.error(f"Gagal menyimpan data: {e}")
-        return False
+    # Validasi stopword
+    validate_stopwords()
 
+    # Load normalisasi dictionary
+    normalisasi_dict.clear()
+    normalisasi_file = os.path.join(TXT_DIR, "normalisasi_list.txt")
+    if os.path.exists(normalisasi_file):
+        with open(normalisasi_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    k = k.strip().lower()
+                    v = v.strip().lower()
+                    normalisasi_dict[k] = v
+        logging.info(f"Loaded {len(normalisasi_dict)} entries dari normalisasi_list.txt")
+    else:
+        logging.warning("File normalisasi_list.txt tidak ditemukan")
 
-def load_processed_data(file_path=PREPRO_CSV_PATH):
-    """Membaca data yang sudah diproses dari file CSV"""
-    try:
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            df = pd.read_csv(file_path)
-            logging.info(f"Data berhasil dimuat dari {file_path}")
+    # Load stemming_list.txt
+    stemming_dict.clear()
+    stemming_file = os.path.join(TXT_DIR, "stemming_list.txt")
+    if os.path.exists(stemming_file):
+        with open(stemming_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line:
+                    parts = line.split("=", 1)
+                    k = parts[0].strip().lower()
+                    v = parts[1].strip().lower()
+                    stemming_dict[k] = v
 
-            # Konversi kolom string kembali ke list jika diperlukan
-            list_columns = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
-            for col in list_columns:
-                if col in df.columns:
-                    df[col] = df[col].apply(
-                        lambda x: x.split() if isinstance(x, str) and x != "" else []
-                    )
+                    k_normalized = re.sub(r"(.)\1+", r"\1", k)
+                    if k_normalized != k and k_normalized not in stemming_dict:
+                        stemming_dict[k_normalized] = v
+        logging.info(f"Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
+    else:
+        logging.warning("File stemming_list.txt tidak ditemukan, gunakan default Sastrawi.")
 
-            return df
-        return None
-    except Exception as e:
-        logging.error(f"Gagal memuat data: {e}")
-        return None
+    # Load game terms
+    game_terms.clear()
+    game_terms_file = os.path.join(TXT_DIR, "game_term.txt")
+    if os.path.exists(game_terms_file):
+        with open(game_terms_file, "r", encoding="utf-8") as f:
+            for line in f:
+                term = line.strip().lower()
+                if term:
+                    game_terms.add(term)
+        logging.info(f"Loaded {len(game_terms)} game terms")
+    else:
+        logging.warning("File game_term.txt tidak ditemukan")
 
+    # Load kata tidak relevan
+    kata_tidak_relevan.clear()
+    tidak_relevan_file = os.path.join(TXT_DIR, "kata_tidak_relevan.txt")
+    if os.path.exists(tidak_relevan_file):
+        with open(tidak_relevan_file, "r", encoding="utf-8") as f:
+            for line in f:
+                word = line.strip().lower()
+                if word:
+                    kata_tidak_relevan.add(word)
+        logging.info(f"Loaded {len(kata_tidak_relevan)} kata tidak relevan")
+    else:
+        logging.warning("File kata_tidak_relevan.txt tidak ditemukan")
+
+    # Load kata ambigu (whitelist)
+    kata_id_pasti.clear()
+    whitelist_file = os.path.join(TXT_DIR, "kata_ambigu.txt")
+    if os.path.exists(whitelist_file):
+        try:
+            with open(whitelist_file, "r", encoding="utf-8") as f:
+                kata_id_pasti = {line.strip().lower() for line in f if line.strip()}
+            logging.info(f"Loaded {len(kata_id_pasti)} kata dari kata_ambigu.txt")
+        except Exception as e:
+            logging.error(f"Error baca whitelist: {e}")
+    else:
+        logging.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
+
+    _INITIALIZED = True
+    logging.info("✅ Inisialisasi data preprocessing selesai")
 
 # Fungsi untuk memuat stopword dengan format yang konsisten
 def load_stopwords(filename):
@@ -121,38 +221,10 @@ def load_stopwords(filename):
         logging.error(f"Error load_stopwords {filename}: {e}")
     return stopwords_set
 
-
-# Inisialisasi stopword factory
-stopword_factory = StopWordRemoverFactory()
-stemmer = StemmerFactory().create_stemmer()
-
-# Load stopword dasar Indonesia
-stop_words_id = set(stopword_factory.get_stop_words()).union(
-    set(stopwords.words("indonesian"))
-)
-
-# Load stopword Indonesia dari file
-id_stopwords = load_stopwords(os.path.join(TXT_DIR, "stopword_list.txt"))
-stop_words_id.update(id_stopwords)
-
-# Load stopword Inggris dari file
-stopword_ing_file = os.path.join(TXT_DIR, "stopword_list_ing.txt")
-stop_words_ing = set()
-if os.path.exists(stopword_ing_file):
-    stop_words_ing = load_stopwords(stopword_ing_file)
-else:
-    # Fallback ke stopword Inggris dari NLTK jika file tidak ada
-    stop_words_ing = set(stopwords.words("english"))
-    logging.info("Using NLTK English stopwords as fallback")
-
-logging.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
-logging.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
-
-
 # Fungsi validasi stopword
 def validate_stopwords():
     """Validasi bahwa file stopword berisi kata-kata yang diharapkan"""
-    # Contoh kata stopword yang seharousnya ada
+    # Contoh kata stopword yang seharusnya ada
     expected_id_stopwords = {"yang", "dan", "di", "dari", "ke"}
     expected_ing_stopwords = {"the", "and", "is", "in", "to"}
 
@@ -166,60 +238,11 @@ def validate_stopwords():
     if missing_ing:
         logging.warning(f"Stopword ING yang hilang: {missing_ing}")
 
+# Panggil fungsi inisialisasi
+initialize_preprocessing_data()
 
-# Panggil fungsi validasi
-validate_stopwords()
-
-# Load normalisasi dictionary
-normalisasi_dict = {}
-with open(os.path.join(TXT_DIR, "normalisasi_list.txt"), "r", encoding="utf-8") as f:
-    for line in f:
-        if "=" in line:
-            k, v = line.strip().split("=", 1)
-            # Pastikan format konsisten (huruf kecil)
-            k = k.strip().lower()
-            v = v.strip().lower()
-            normalisasi_dict[k] = v
-
-# --- Load stemming_list.txt dengan handling yang lebih baik ---
-stemming_dict = {}
-stemming_file = os.path.join(TXT_DIR, "stemming_list.txt")
-if os.path.exists(stemming_file):
-    with open(stemming_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if "=" in line:
-                parts = line.split("=", 1)
-                k = parts[0].strip().lower()
-                v = parts[1].strip().lower()
-                stemming_dict[k] = v
-
-                # Tambahkan juga varian dengan normalisasi pengulangan huruf
-                k_normalized = re.sub(r"(.)\1+", r"\1", k)
-                if k_normalized != k and k_normalized not in stemming_dict:
-                    stemming_dict[k_normalized] = v
-
-    logging.info(f"Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
-else:
-    logging.warning("File stemming_list.txt tidak ditemukan, gunakan default Sastrawi.")
-
-# Load game terms
-game_terms = set()
-with open(os.path.join(TXT_DIR, "game_term.txt"), "r", encoding="utf-8") as f:
-    for line in f:
-        term = line.strip().lower()
-        if term:
-            game_terms.add(term)
-logging.info(f"Loaded {len(game_terms)} game terms")
-
-# Load kata tidak relevan
-kata_tidak_relevan = set()
-with open(os.path.join(TXT_DIR, "kata_tidak_relevan.txt"), "r", encoding="utf-8") as f:
-    for line in f:
-        word = line.strip().lower()
-        if word:
-            kata_tidak_relevan.add(word)
-logging.info(f"Loaded {len(kata_tidak_relevan)} kata tidak relevan")
+# Inisialisasi stemmer Sastrawi
+stemmer = StemmerFactory().create_stemmer()
 
 CHUNK_SIZE = 1000
 MAX_FILE_SIZE = 2 * 1024 * 1024
@@ -236,7 +259,6 @@ if os.path.exists(LANGUAGE_CACHE_FILE):
     except Exception:
         language_cache = {}
 
-
 def simpan_cache_bahasa():
     try:
         os.makedirs(os.path.dirname(LANGUAGE_CACHE_FILE), exist_ok=True)
@@ -244,7 +266,6 @@ def simpan_cache_bahasa():
             json.dump(language_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logging.error(f"Error simpan cache bahasa: {e}")
-
 
 # --- Fungsi untuk mendeteksi pesan error ---
 def is_error_message(text):
@@ -283,7 +304,6 @@ def is_error_message(text):
 
     return False
 
-
 def simpan_cache_ke_file():
     try:
         os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
@@ -291,7 +311,6 @@ def simpan_cache_ke_file():
             json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logging.error(f"Error simpan cache: {e}")
-
 
 # --- Cache translate ---
 terjemahan_cache = {}
@@ -328,7 +347,9 @@ emoji_pattern = re.compile(
     flags=re.UNICODE,
 )
 
-special_char_pattern = re.compile(r"[-–—…“»«]")
+# PERBAIKAN: Regex pattern yang benar (tanda kutip di-escape)
+special_char_pattern = re.compile(r"[-–—…\"»«]")
+
 bracket_pattern = re.compile(r"\[.*?\]")
 url_pattern = re.compile(r"http\S+")
 digit_pattern = re.compile(r"\b\d+\b")
@@ -339,19 +360,14 @@ sentence_split_pattern = re.compile(r"(?<=[.!?]) +|\n")
 word_pattern = re.compile(r"\b\w+\b")
 
 # --- Pattern untuk membersihkan token tidak diinginkan ---
-# Pattern untuk angka dengan satuan (10k, 1k, 5v5, dll)
 number_unit_pattern = re.compile(r"^\d+[a-z]*\d*[a-z]*$")
-short_word_pattern = re.compile(r"^\w{1,2}$")  # Pattern untuk kata sangat pendek
-mixed_alnum_pattern = re.compile(
-    r"^[a-z]+\d+|\d+[a-z]+$"
-)  # Pattern untuk kombinasi huruf dan angka
-
+short_word_pattern = re.compile(r"^\w{1,2}$")
+mixed_alnum_pattern = re.compile(r"^[a-z]+\d+|\d+[a-z]+$")
 
 # --- Optimasi: Gunakan LRU cache untuk fungsi yang sering dipanggil ---
 @lru_cache(maxsize=10000)
 def cached_stemmer_stem(word):
     return stemmer.stem(word)
-
 
 @lru_cache(maxsize=10000)
 def cached_detect_language(text):
@@ -371,18 +387,13 @@ def cached_detect_language(text):
         language_cache[text_lower] = "id"
         return "id"
 
-
 # --- Fungsi untuk normalisasi pengulangan huruf ---
 def normalize_repeated_letters(word):
     """Mengurangi pengulangan huruf yang berlebihan menjadi maksimal 1 huruf"""
     if len(word) <= 2:
         return word
-
-    # Gunakan regex untuk mengurangi pengulangan huruf menjadi 1
-    # Contoh: "noooo" -> "no", "funnnnn" -> "fun"
     normalized = re.sub(r"(.)\1+", r"\1", word)
     return normalized
-
 
 # --- Fungsi dengan mekanisme retry untuk terjemahan ---
 def translate_with_retry(text, source="auto", target="id", max_len=5000):
@@ -465,16 +476,13 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
     # Fallback ke teks asli jika semua percobaan gagal
     return text.lower()
 
-
 def translate_long_text(text, source="auto", target="id", max_len=5000):
     """Wrapper untuk fungsi translate_with_retry"""
     return translate_with_retry(text, source, target, max_len)
 
-
 # --- Utility ---
 def register_template_filters(app):
     app.jinja_env.filters["sanitize"] = escape
-
 
 def bersihkan_terjemahan(teks: str) -> str:
     if pd.isna(teks) or not isinstance(teks, str):
@@ -501,10 +509,8 @@ def bersihkan_terjemahan(teks: str) -> str:
         logging.error(f"Error bersihkan_terjemahan: {e}")
         return whitespace_pattern.sub(" ", teks_asli).strip()
 
-
 def hapus_kata_ulang(word):
     return repeated_word_pattern.sub(r"\1", word)
-
 
 def normalisasi_teks(words):
     hasil = []
@@ -516,7 +522,6 @@ def normalisasi_teks(words):
         else:
             hasil.append(wl)
     return hasil
-
 
 # --- Fungsi untuk membersihkan token tidak diinginkan ---
 def bersihkan_token(tokens):
@@ -542,7 +547,6 @@ def bersihkan_token(tokens):
         hasil.append(normalized_token)
 
     return hasil
-
 
 # --- Fungsi Stopword Removal dengan Prioritas yang Diperbarui ---
 def hapus_stopword(words, debug=False):
@@ -589,7 +593,6 @@ def hapus_stopword(words, debug=False):
 
     return result
 
-
 # --- Fungsi Stemming yang Diperbarui ---
 def stemming_teks(words, debug=False):
     hasil = []
@@ -630,27 +633,11 @@ def stemming_teks(words, debug=False):
 
     return hasil
 
-
 def deteksi_bukan_indonesia(text: str) -> bool:
     try:
         return cached_detect_language(text) != "id"
     except Exception:
         return False
-
-
-WHITELIST_FILE = os.path.join(TXT_DIR, "kata_ambigu.txt")
-kata_id_pasti = set()
-
-if os.path.exists(WHITELIST_FILE):
-    try:
-        with open(WHITELIST_FILE, "r", encoding="utf-8") as f:
-            kata_id_pasti = {line.strip().lower() for line in f if line.strip()}
-        logging.info(f"Loaded {len(kata_id_pasti)} kata dari kata_ambigu.txt")
-    except Exception as e:
-        logging.error(f"Error baca whitelist: {e}")
-else:
-    logging.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
-
 
 # --- Fungsi untuk mendeteksi kata asing dalam teks ---
 def contains_foreign_words(text):
@@ -682,7 +669,6 @@ def contains_foreign_words(text):
         logging.error(f"Error deteksi kata asing: {e}")
 
     return False
-
 
 # --- Fungsi preprocessing standar yang digunakan oleh kedua fase ---
 def proses_preprocessing_standar(teks, debug=False):
@@ -727,7 +713,6 @@ def proses_preprocessing_standar(teks, debug=False):
 
     return [clean, folded, token, stop, norm, stem, hasil]
 
-
 # --- Proses baris dengan preprocessing standar ---
 def proses_baris_standar(terjemahan, debug=False):
     try:
@@ -753,7 +738,6 @@ def proses_baris_standar(terjemahan, debug=False):
         hasil = folded if folded else (clean if clean else str(terjemahan))
         return [clean, folded, [], [], [], [], hasil]
 
-
 # --- Proses batch untuk preprocessing standar ---
 def proses_batch_standar(terjemahan_list, debug=False):
     """Proses batch data untuk preprocessing standar"""
@@ -761,7 +745,6 @@ def proses_batch_standar(terjemahan_list, debug=False):
     for terjemahan in terjemahan_list:
         hasil.append(proses_baris_standar(terjemahan, debug))
     return hasil
-
 
 # --- Fungsi untuk terjemahan ulang dengan retry ---
 def proses_terjemahan_ulang(teks_asal, hasil_sebelumnya, data_preprocessing_sebelumnya):
@@ -785,6 +768,38 @@ def proses_terjemahan_ulang(teks_asal, hasil_sebelumnya, data_preprocessing_sebe
         logging.error(f"Error terjemahan ulang setelah {MAX_RETRIES} percobaan: {e}")
         return data_preprocessing_sebelumnya
 
+# --- Fungsi untuk menyimpan dan membaca data yang sudah diproses ---
+def save_processed_data(df, file_path=PREPRO_CSV_PATH):
+    """Menyimpan data yang sudah diproses ke file CSV"""
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        df.to_csv(file_path, index=False, encoding="utf-8-sig")
+        logging.info(f"Data berhasil disimpan ke {file_path}")
+        return True
+    except Exception as e:
+        logging.error(f"Gagal menyimpan data: {e}")
+        return False
+
+def load_processed_data(file_path=PREPRO_CSV_PATH):
+    """Membaca data yang sudah diproses dari file CSV"""
+    try:
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            df = pd.read_csv(file_path)
+            logging.info(f"Data berhasil dimuat dari {file_path}")
+
+            # Konversi kolom string kembali ke list jika diperlukan
+            list_columns = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+            for col in list_columns:
+                if col in df.columns:
+                    df[col] = df[col].apply(
+                        lambda x: x.split() if isinstance(x, str) and x != "" else []
+                    )
+
+            return df
+        return None
+    except Exception as e:
+        logging.error(f"Gagal memuat data: {e}")
+        return None
 
 def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     """Menyimpan DataFrame ke CSV dengan format konsisten."""
@@ -853,7 +868,6 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     except Exception as e:
         logging.error(f"Error save_csv: {e}")
         return False
-
 
 # --- Routes ---
 @prepro_bp.route("/preproses", methods=["POST"])
@@ -991,7 +1005,6 @@ def preproses():
         logging.error(f"Error dalam preprocessing: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @prepro_bp.route("/save_csv", methods=["POST"])
 def save_csv_manual():
     """Menyimpan CSV secara manual dari data JSON yang dikirim frontend."""
@@ -1015,7 +1028,6 @@ def save_csv_manual():
         logging.error(f"Error save_csv_manual: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @prepro_bp.route("/download_csv", methods=["GET"])
 def download_csv():
     """Mengunduh file hasil preprocessing CSV secara manual."""
@@ -1027,7 +1039,6 @@ def download_csv():
             mimetype="text/csv",
         )
     return jsonify({"error": "File hasil preprocessing tidak ditemukan."}), 404
-
 
 @prepro_bp.route("/debug_prepro", methods=["POST"])
 def debug_prepro():
@@ -1057,7 +1068,6 @@ def debug_prepro():
     except Exception as e:
         logging.error(f"Error debug_prepro: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 @prepro_bp.route("/load_data", methods=["GET"])
 def load_data():
@@ -1136,7 +1146,6 @@ def get_csv_data():
     except Exception as e:
         logging.error(f"Error get_csv_data: {e}")
         return jsonify({"exists": False, "error": str(e)})
-
 
 @prepro_bp.route("/")
 def index():
