@@ -1,5 +1,6 @@
 acc=account
 acount=account
+acau=kacau
 afk=meninggalkan
 afking=meninggalkan
 ahir=akhir

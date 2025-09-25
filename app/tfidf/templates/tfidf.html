@@ -15,13 +15,21 @@
 {% block content %}
 <h3>TF-IDF</h3>
 
-<form id="upload-form" enctype="multipart/form-data">
-  <label for="file">Unggah File CSV:</label>
-  <input type="file" name="file" id="file" accept=".csv" required>
-  <button type="submit" class="btn btn-primary">Unggah dan Proses</button>
-</form>
+<div id="upload-form-container">
+  <form id="upload-form" enctype="multipart/form-data">
+    <label for="file">Unggah File CSV:</label>
+    <input type="file" name="file" id="file" accept=".csv" required>
+    <button type="submit" class="btn btn-primary">Unggah dan Proses</button>
+  </form>
+</div>
 
 <div id="loading" style="display: none; margin-top: 10px;">⏳ Memproses data...</div>
+
+<!-- Summary Information Box -->
+<div id="summary-info" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #f8f9fa; border-radius: 5px;">
+    <h4>📊 Summary Informasi</h4>
+    <div id="summary-content"></div>
+</div>
 
 <div id="review-table-box" style="display: none;">
     <div style="margin-top: 1rem;">
@@ -46,6 +54,7 @@
 <script>
 $(function () {
     let processedData = [];
+    let currentSummary = {};
 
     function renderTable() {
         if (!processedData.length) {
@@ -72,20 +81,38 @@ $(function () {
         );
     }
 
+    function displaySummary(summary) {
+        if (!summary) {
+            $("#summary-info").hide();
+            return;
+        }
+        
+        currentSummary = summary;
+        
+        let summaryHTML = `
+            <p><strong>Total Dokumen:</strong> ${summary.total_documents}</p>
+            <p><strong>Total Term:</strong> ${summary.total_terms}</p>
+        `;
+        
+        $("#summary-content").html(summaryHTML);
+        $("#summary-info").show();
+    }
+
     // Fungsi untuk memuat data existing
     function loadExistingData() {
         $.ajax({
-            url: "/tfidf/load_existing",
+            url: "/tfidf/process",  // Menggunakan endpoint /process dengan method GET
             type: "GET",
             success: function(res) {
                 if (res.data) {
                     processedData = res.data;
                     renderTable();
+                    displaySummary(res.summary);
                     $('#review-table-box').show();
+                    $('#upload-form-container').hide();
                 }
             },
             error: function(xhr) {
-                // Silent error - tidak perlu tampilkan alert jika tidak ada data
                 if (xhr.status !== 404) {
                     alert(xhr.responseJSON?.error || "Gagal memuat data existing");
                 }
@@ -109,7 +136,9 @@ $(function () {
             success: res => {
                 processedData = res.data;
                 renderTable();
+                displaySummary(res.summary);
                 $('#review-table-box').show();
+                $('#upload-form-container').hide();
             },
             error: xhr => {
                 alert(xhr.responseJSON?.error || "❌ Gagal memproses.");
@@ -123,8 +152,11 @@ $(function () {
             $.post("/tfidf/clear", res => {
                 alert(res.message);
                 processedData = [];
+                currentSummary = {};
                 renderTable();
                 $('#review-table-box').hide();
+                $("#summary-info").hide();
+                $('#upload-form-container').show();
             }).fail(() => alert("Gagal menghapus data."));
         }
     });
