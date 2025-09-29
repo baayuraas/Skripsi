@@ -33,6 +33,7 @@ LABEL_ENCODER_PATH = os.path.join(
     BASE_DIR, "uploads", "perhitungan", "label_encoder.pkl"
 )
 RESULTS_PATH = os.path.join(UPLOAD_FOLDER, "hasil_evaluasi.csv")
+SAMPLED_DATA_PATH = os.path.join(UPLOAD_FOLDER, "data_sampled.csv")
 
 
 @evaluasi_bp.route("/")
@@ -55,6 +56,97 @@ def check_existing_data():
         return jsonify({"exists": True, "row_count": len(df)})
     except Exception:
         return jsonify({"exists": False})
+
+
+@evaluasi_bp.route("/sample_data", methods=["POST"])
+def sample_data():
+    """Mengambil sampel data berdasarkan input user"""
+    try:
+        data = request.get_json()
+        total_samples = data.get("total_samples", 0)
+        positive_samples = data.get("positive_samples", 0)
+        negative_samples = data.get("negative_samples", 0)
+
+        if not os.path.exists(EVAL_PATH):
+            return jsonify({"error": "Tidak ada data evaluasi yang tersimpan"}), 400
+
+        df = pd.read_csv(EVAL_PATH)
+
+        # Validasi input
+        if total_samples <= 0 or positive_samples < 0 or negative_samples < 0:
+            return jsonify({"error": "Jumlah sampel harus positif"}), 400
+
+        if positive_samples + negative_samples != total_samples:
+            return jsonify(
+                {"error": "Jumlah positif + negatif harus sama dengan total sampel"}
+            ), 400
+
+        # Cari kolom label (asumsi kolom terakhir adalah label)
+        label_column = df.columns[-1]
+
+        # Identifikasi nilai positif dan negatif
+        unique_labels = df[label_column].unique()
+        if len(unique_labels) != 2:
+            return jsonify(
+                {"error": "Data harus memiliki tepat 2 kelas (positif dan negatif)"}
+            ), 400
+
+        # Asumsikan label pertama adalah positif, kedua negatif
+        positive_label = unique_labels[0]
+        negative_label = unique_labels[1]
+
+        # Pisahkan data berdasarkan label
+        positive_data = df[df[label_column] == positive_label]
+        negative_data = df[df[label_column] == negative_label]
+
+        # Validasi jumlah data yang tersedia
+        if len(positive_data) < positive_samples:
+            return jsonify(
+                {
+                    "error": f"Data positif hanya {len(positive_data)}, tidak cukup untuk {positive_samples} sampel"
+                }
+            ), 400
+
+        if len(negative_data) < negative_samples:
+            return jsonify(
+                {
+                    "error": f"Data negatif hanya {len(negative_data)}, tidak cukup untuk {negative_samples} sampel"
+                }
+            ), 400
+
+        # Ambil sampel secara acak
+        sampled_positive = positive_data.sample(n=positive_samples, random_state=42)
+        sampled_negative = negative_data.sample(n=negative_samples, random_state=42)
+
+        # Gabungkan sampel
+        sampled_df = pd.concat([sampled_positive, sampled_negative], ignore_index=True)
+
+        # Acak urutan data
+        sampled_df = sampled_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+        # Simpan data sampel
+        sampled_df.to_csv(SAMPLED_DATA_PATH, index=False)
+
+        return jsonify(
+            {
+                "message": f"Berhasil mengambil {total_samples} sampel ({positive_samples} positif, {negative_samples} negatif)",
+                "sampled_data": sampled_df.to_dict(orient="records"),
+                "total_sampled": len(sampled_df),
+            }
+        )
+
+    except Exception as e:
+        print(f"Error in sample_data: {str(e)}")
+        return jsonify({"error": f"Gagal mengambil sampel: {str(e)}"}), 500
+
+
+@evaluasi_bp.route("/evaluate_sampled", methods=["POST"])
+def evaluate_sampled():
+    """Melakukan evaluasi menggunakan data sampel"""
+    if not os.path.exists(SAMPLED_DATA_PATH):
+        return jsonify({"error": "Tidak ada data sampel yang tersimpan"}), 400
+
+    return evaluate_data(SAMPLED_DATA_PATH)
 
 
 @evaluasi_bp.route("/evaluate_existing", methods=["POST"])
@@ -163,6 +255,41 @@ def evaluate():
         ), 500
 
 
+@evaluasi_bp.route("/get_sampled_data", methods=["GET"])
+def get_sampled_data():
+    """Mengambil data sampel yang tersimpan"""
+    if not os.path.exists(SAMPLED_DATA_PATH):
+        return jsonify({"error": "Tidak ada data sampel tersimpan"}), 404
+
+    try:
+        df = pd.read_csv(SAMPLED_DATA_PATH)
+        return jsonify({"data": df.to_dict(orient="records")})
+    except Exception as e:
+        return jsonify({"error": f"Gagal memuat data sampel: {str(e)}"}), 500
+
+
+@evaluasi_bp.route("/get_data_info", methods=["GET"])
+def get_data_info():
+    """Mendapatkan informasi tentang data yang tersimpan"""
+    if not os.path.exists(EVAL_PATH):
+        return jsonify({"error": "Tidak ada data tersimpan"}), 404
+
+    try:
+        df = pd.read_csv(EVAL_PATH)
+        label_column = df.columns[-1]
+        label_counts = df[label_column].value_counts().to_dict()
+
+        return jsonify(
+            {
+                "total_data": len(df),
+                "label_counts": label_counts,
+                "labels": list(label_counts.keys()),
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": f"Gagal memuat informasi data: {str(e)}"}), 500
+
+
 @evaluasi_bp.route("/get_saved_data", methods=["GET"])
 def get_saved_data():
     """Mengambil data evaluasi yang tersimpan"""
@@ -179,7 +306,7 @@ def get_saved_data():
 @evaluasi_bp.route("/clear", methods=["POST"])
 def clear_data():
     try:
-        for path in [EVAL_PATH, RESULTS_PATH]:
+        for path in [EVAL_PATH, RESULTS_PATH, SAMPLED_DATA_PATH]:
             if os.path.exists(path):
                 os.remove(path)
         return jsonify({"message": "🧹 Data berhasil dihapus."})
@@ -192,6 +319,7 @@ def download_file(filename):
     safe_files = {
         "data_eval.csv": EVAL_PATH,
         "hasil_evaluasi.csv": RESULTS_PATH,
+        "data_sampled.csv": SAMPLED_DATA_PATH,
         "model_mlp_custom.keras": MODEL_PATH,
         "label_encoder.pkl": LABEL_ENCODER_PATH,
     }

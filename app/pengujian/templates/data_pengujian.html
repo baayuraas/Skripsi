@@ -15,9 +15,11 @@
 {% block content %}
 <h3>Analisis Sentimen Ulasan Steam</h3>
 <form id="sentimentForm">
-    <div class="form-group">
-        <label for="ulasan">Tulis Ulasan:</label>
-        <textarea id="ulasan" name="ulasan" rows="5" class="form-control" required></textarea>
+    <div class="control-group">
+       <label for="ulasan" class="control-label">Tulis Ulasan :</label>
+       <div class="controls">
+          <textarea class="input-block-level" id="ulasan" name="ulasan" rows="5" required ></textarea>
+       </div>
     </div>
 
     <div class="form-group">

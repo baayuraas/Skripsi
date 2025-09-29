@@ -13,20 +13,44 @@
 {% endblock %}
 
 {% block content %}
+<!-- Form Upload Data -->
 <form id="eval-form" enctype="multipart/form-data">
   <label for="file">Upload File CSV (Data Uji):</label>
   <input type="file" id="file" name="file" accept=".csv" required>
-  <button type="submit" class="btn btn-primary">Evaluasi</button>
+  <button type="submit" class="btn btn-primary">Upload & Evaluasi</button>
 </form>
+
+<!-- Form Sampling Data -->
+<div id="sampling-section" style="display: none;" class="mt-4">
+  <h4>Ambil Sampel Data</h4>
+  <form id="sampling-form" class="form-inline">
+    <div class="form-group mr-2">
+      <label for="total_samples" class="mr-2">Total Sampel:</label>
+      <input type="number" id="total_samples" name="total_samples" min="1" class="form-control" required>
+    </div>
+    <div class="form-group mr-2">
+      <label for="positive_samples" class="mr-2">Positif:</label>
+      <input type="number" id="positive_samples" name="positive_samples" min="0" class="form-control" required>
+    </div>
+    <div class="form-group mr-2">
+      <label for="negative_samples" class="mr-2">Negatif:</label>
+      <input type="number" id="negative_samples" name="negative_samples" min="0" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-success mr-2">Ambil Sampel</button>
+    <button type="button" id="evaluate-sampled" class="btn btn-warning">Evaluasi Sampel</button>
+  </form>
+  <div id="data-info" class="mt-2"></div>
+</div>
 
 <div id="loading" style="display:none" class="mt-2">⏳ Memproses evaluasi...</div>
 <div id="statusMessage" class="mt-2"></div>
 
 <div id="review-table-box" style="display: none;">
     <div class="mt-3">
-      <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+      <button id="clear-data" class="btn btn-danger">Hapus Semua Data</button>
       <button class="btn btn-outline-primary" onclick="window.location='/evaluasi/download/data_eval.csv'">Download Data Evaluasi</button>
       <button class="btn btn-outline-primary" onclick="window.location='/evaluasi/download/hasil_evaluasi.csv'">Download Hasil Evaluasi</button>
+      <button class="btn btn-outline-success" onclick="window.location='/evaluasi/download/data_sampled.csv'">Download Data Sampel</button>
     </div>
 
     <div class="table-responsive mt-4">
@@ -84,30 +108,42 @@ $(function () {
     $("#metrics-wrapper").html(html);
   }
 
+  function updateDataInfo() {
+    $.get("/evaluasi/get_data_info", function(response) {
+      if (response.error) {
+        $("#data-info").html(`<span style="color:red;">${response.error}</span>`);
+        return;
+      }
+      
+      let infoHtml = `<strong>Data Tersedia:</strong> ${response.total_data} total`;
+      Object.entries(response.label_counts).forEach(([label, count]) => {
+        infoHtml += ` | ${label}: ${count}`;
+      });
+      $("#data-info").html(infoHtml);
+      
+      // Tampilkan section sampling
+      $("#sampling-section").show();
+      
+    }).fail(function(xhr) {
+      $("#data-info").html(`<span style="color:red;">Gagal memuat informasi data</span>`);
+    });
+  }
+
   // Fungsi untuk memeriksa dan memproses data yang sudah ada
   function checkAndProcessExistingData() {
     $.get("/evaluasi/check_existing_data", function(response) {
       if (response.exists) {
-        $("#statusMessage").html("<span style='color:blue'>⏳ Memproses data yang sudah ada...</span>");
+        $("#statusMessage").html("<span style='color:blue'>⏳ Memuat data yang sudah ada...</span>");
+        updateDataInfo();
         
-        // Lakukan evaluasi dengan data yang sudah ada
-        $.post("/evaluasi/evaluate_existing", function(res) {
-          $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
-          renderTable(res.data || []);
-          renderConfusionMatrix(res.confusion_matrix, res.labels);
-          renderMetrics(res.metrics);
-          $('#review-table-box').show();
-        }).fail(function(xhr) {
-          const msg = xhr.responseJSON?.error || "❌ Gagal memproses data yang ada.";
-          $("#statusMessage").html(`<span style="color:red;">${msg}</span>`);
-        });
-      } else {
-        // Jika tidak ada data yang tersimpan, coba muat hasil evaluasi sebelumnya
+        // Coba muat hasil evaluasi sebelumnya
         loadSavedResults();
+      } else {
+        // Jika tidak ada data yang tersimpan, sembunyikan section sampling
+        $("#sampling-section").hide();
       }
     }).fail(function() {
-      // Jika gagal memeriksa, coba muat hasil evaluasi sebelumnya
-      loadSavedResults();
+      $("#sampling-section").hide();
     });
   }
 
@@ -130,6 +166,7 @@ $(function () {
   // Panggil fungsi saat halaman dimuat
   checkAndProcessExistingData();
 
+  // Form upload data
   $("#eval-form").submit(function (e) {
     e.preventDefault();
     $("#statusMessage").empty();
@@ -149,6 +186,7 @@ $(function () {
         renderConfusionMatrix(res.confusion_matrix, res.labels);
         renderMetrics(res.metrics);
         $('#review-table-box').show();
+        updateDataInfo();
       },
       error: xhr => {
         $("#loading").hide();
@@ -158,14 +196,84 @@ $(function () {
     });
   });
 
+  // Form sampling data
+  $("#sampling-form").submit(function (e) {
+    e.preventDefault();
+    const total = parseInt($("#total_samples").val());
+    const positif = parseInt($("#positive_samples").val());
+    const negatif = parseInt($("#negative_samples").val());
+
+    if (positif + negatif !== total) {
+      $("#statusMessage").html(`<span style="color:red;">Jumlah positif + negatif harus sama dengan total sampel</span>`);
+      return;
+    }
+
+    $("#statusMessage").empty();
+    $("#loading").show();
+
+    $.ajax({
+      url: "/evaluasi/sample_data",
+      type: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({
+        total_samples: total,
+        positive_samples: positif,
+        negative_samples: negatif
+      }),
+      success: res => {
+        $("#loading").hide();
+        $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
+        renderTable(res.sampled_data || []);
+        $('#review-table-box').show();
+      },
+      error: xhr => {
+        $("#loading").hide();
+        const msg = xhr.responseJSON?.error || "❌ Gagal mengambil sampel.";
+        $("#statusMessage").html(`<span style="color:red;">${msg}</span>`);
+      }
+    });
+  });
+
+  // Evaluasi data sampel
+  $("#evaluate-sampled").click(function () {
+    $("#statusMessage").empty();
+    $("#loading").show();
+
+    $.post("/evaluasi/evaluate_sampled", function(res) {
+      $("#loading").hide();
+      $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
+      renderTable(res.data || []);
+      renderConfusionMatrix(res.confusion_matrix, res.labels);
+      renderMetrics(res.metrics);
+      $('#review-table-box').show();
+    }).fail(function(xhr) {
+      $("#loading").hide();
+      const msg = xhr.responseJSON?.error || "❌ Gagal evaluasi data sampel.";
+      $("#statusMessage").html(`<span style="color:red;">${msg}</span>`);
+    });
+  });
+
   $("#clear-data").click(() => {
     $.post("/evaluasi/clear", res => {
       $("#statusMessage").text(res.message);
       $("#table-header, #reviews-table-body, #confusion-matrix-wrapper, #metrics-wrapper").empty();
       $('#review-table-box').hide();
+      $('#sampling-section').hide();
+      $("#data-info").empty();
     }).fail(xhr => {
       $("#statusMessage").html(`<span style="color:red;">${xhr.responseJSON?.error || "Gagal menghapus data"}</span>`);
     });
+  });
+
+  // Auto-calculate negative samples when total and positive are entered
+  $("#total_samples, #positive_samples").on("input", function() {
+    const total = parseInt($("#total_samples").val()) || 0;
+    const positif = parseInt($("#positive_samples").val()) || 0;
+    const negatif = total - positif;
+    
+    if (negatif >= 0) {
+      $("#negative_samples").val(negatif);
+    }
   });
 });
 </script>
