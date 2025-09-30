@@ -257,4 +257,4 @@ xp=exp
 y=ya
 yes=ya
 yg=yang
-yolo=yolo
+yolo=kamu hanya hidup sekali

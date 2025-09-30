@@ -42,7 +42,9 @@ PREPRO_CSV_PATH = os.path.join(UPLOAD_FOLDER, "processed_data.csv")
 TXT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Deteksi environment Flask - untuk menghindari inisialisasi ganda
-IS_MAIN_PROCESS = os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not os.environ.get('WERKZEUG_RUN_MAIN')
+IS_MAIN_PROCESS = os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not os.environ.get(
+    "WERKZEUG_RUN_MAIN"
+)
 
 # Konfigurasi retry dan jeda
 MAX_RETRIES = 3
@@ -59,6 +61,7 @@ required_txt_files = [
     "game_term.txt",
     "kata_tidak_relevan.txt",
     "kata_ambigu.txt",
+    "normalisasi_stopword_list.txt",
 ]
 
 # Flag untuk menandai apakah inisialisasi sudah dilakukan
@@ -72,24 +75,25 @@ stemming_dict = {}
 game_terms = set()
 kata_tidak_relevan = set()
 kata_id_pasti = set()
+normalisasi_stopword_set = set()
+
 
 # --- Fungsi inisialisasi sekali pakai ---
 def initialize_preprocessing_data():
     """Fungsi untuk inisialisasi data preprocessing sekali saja"""
     global _INITIALIZED, stop_words_id, stop_words_ing, normalisasi_dict, stemming_dict
-    global game_terms, kata_tidak_relevan, kata_id_pasti
-    
+    global game_terms, kata_tidak_relevan, kata_id_pasti, normalisasi_stopword_set
+
     if _INITIALIZED:
         logging.info("✅ Data preprocessing sudah diinisialisasi sebelumnya")
         return
-    
-    # Hanya jalankan inisialisasi di proses utama Flask
+
     if not IS_MAIN_PROCESS:
         logging.info("⏸️  Skip inisialisasi: Ini adalah proses reloader Flask")
         return
-    
+
     logging.info("🔄 Memulai inisialisasi data preprocessing...")
-    
+
     # Validasi file yang diperlukan
     for file_name in required_txt_files:
         file_path = os.path.join(TXT_DIR, file_name)
@@ -100,30 +104,62 @@ def initialize_preprocessing_data():
 
     # Inisialisasi stopword factory
     stopword_factory = StopWordRemoverFactory()
-    
+
     # Load stopword dasar Indonesia
     stop_words_id = set(stopword_factory.get_stop_words()).union(
         set(stopwords.words("indonesian"))
     )
 
-    # Load stopword Indonesia dari file
+    # Load stopword Indonesia dari file dengan validasi
     id_stopwords = load_stopwords(os.path.join(TXT_DIR, "stopword_list.txt"))
     stop_words_id.update(id_stopwords)
+
+    # Validasi stopword Indonesia
+    expected_id_stopwords = {
+        "yang",
+        "dan",
+        "di",
+        "dari",
+        "ke",
+        "pada",
+        "ini",
+        "itu",
+        "dengan",
+        "untuk",
+    }
+    missing_id = expected_id_stopwords - stop_words_id
+    if missing_id:
+        logging.warning(f"Stopword ID yang hilang: {missing_id}")
+        stop_words_id.update(missing_id)
 
     # Load stopword Inggris dari file
     stopword_ing_file = os.path.join(TXT_DIR, "stopword_list_ing.txt")
     if os.path.exists(stopword_ing_file):
         stop_words_ing = load_stopwords(stopword_ing_file)
     else:
-        # Fallback ke stopword Inggris dari NLTK jika file tidak ada
         stop_words_ing = set(stopwords.words("english"))
         logging.info("Using NLTK English stopwords as fallback")
 
+    # Validasi stopword Inggris
+    expected_ing_stopwords = {
+        "the",
+        "and",
+        "is",
+        "in",
+        "to",
+        "of",
+        "a",
+        "for",
+        "on",
+        "with",
+    }
+    missing_ing = expected_ing_stopwords - stop_words_ing
+    if missing_ing:
+        logging.warning(f"Stopword ING yang hilang: {missing_ing}")
+        stop_words_ing.update(missing_ing)
+
     logging.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
     logging.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
-
-    # Validasi stopword
-    validate_stopwords()
 
     # Load normalisasi dictionary
     normalisasi_dict.clear()
@@ -136,7 +172,9 @@ def initialize_preprocessing_data():
                     k = k.strip().lower()
                     v = v.strip().lower()
                     normalisasi_dict[k] = v
-        logging.info(f"Loaded {len(normalisasi_dict)} entries dari normalisasi_list.txt")
+        logging.info(
+            f"Loaded {len(normalisasi_dict)} entries dari normalisasi_list.txt"
+        )
     else:
         logging.warning("File normalisasi_list.txt tidak ditemukan")
 
@@ -158,7 +196,9 @@ def initialize_preprocessing_data():
                         stemming_dict[k_normalized] = v
         logging.info(f"Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
     else:
-        logging.warning("File stemming_list.txt tidak ditemukan, gunakan default Sastrawi.")
+        logging.warning(
+            "File stemming_list.txt tidak ditemukan, gunakan default Sastrawi."
+        )
 
     # Load game terms
     game_terms.clear()
@@ -199,10 +239,28 @@ def initialize_preprocessing_data():
     else:
         logging.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
 
+    # Load kata dari normalisasi_stopword_list.txt
+    normalisasi_stopword_set.clear()
+    normalisasi_stopword_file = os.path.join(TXT_DIR, "normalisasi_stopword_list.txt")
+    if os.path.exists(normalisasi_stopword_file):
+        try:
+            with open(normalisasi_stopword_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    word = line.strip().lower()
+                    if word:
+                        normalisasi_stopword_set.add(word)
+            logging.info(
+                f"Loaded {len(normalisasi_stopword_set)} kata dari normalisasi_stopword_list.txt"
+            )
+        except Exception as e:
+            logging.error(f"Error baca normalisasi_stopword_list.txt: {e}")
+    else:
+        logging.warning("File normalisasi_stopword_list.txt tidak ditemukan")
+
     _INITIALIZED = True
     logging.info("✅ Inisialisasi data preprocessing selesai")
 
-# Fungsi untuk memuat stopword dengan format yang konsisten
+
 def load_stopwords(filename):
     """Memuat stopword dari file dan memastikan format konsisten"""
     stopwords_set = set()
@@ -210,33 +268,14 @@ def load_stopwords(filename):
         with open(filename, "r", encoding="utf-8") as f:
             for line in f:
                 word = line.strip().lower()
-                # Hapus karakter tidak diinginkan dan pastikan hanya huruf
                 word = re.sub(r"[^a-z]", "", word)
-                if (
-                    word and len(word) > 1
-                ):  # Hanya tambahkan jika tidak kosong dan panjang > 1
+                if word and len(word) > 1:
                     stopwords_set.add(word)
         logging.info(f"Loaded {len(stopwords_set)} kata dari {filename}")
     except Exception as e:
         logging.error(f"Error load_stopwords {filename}: {e}")
     return stopwords_set
 
-# Fungsi validasi stopword
-def validate_stopwords():
-    """Validasi bahwa file stopword berisi kata-kata yang diharapkan"""
-    # Contoh kata stopword yang seharusnya ada
-    expected_id_stopwords = {"yang", "dan", "di", "dari", "ke"}
-    expected_ing_stopwords = {"the", "and", "is", "in", "to"}
-
-    # Periksa stopword Indonesia
-    missing_id = expected_id_stopwords - stop_words_id
-    if missing_id:
-        logging.warning(f"Stopword ID yang hilang: {missing_id}")
-
-    # Periksa stopword Inggris
-    missing_ing = expected_ing_stopwords - stop_words_ing
-    if missing_ing:
-        logging.warning(f"Stopword ING yang hilang: {missing_ing}")
 
 # Panggil fungsi inisialisasi
 initialize_preprocessing_data()
@@ -259,6 +298,7 @@ if os.path.exists(LANGUAGE_CACHE_FILE):
     except Exception:
         language_cache = {}
 
+
 def simpan_cache_bahasa():
     try:
         os.makedirs(os.path.dirname(LANGUAGE_CACHE_FILE), exist_ok=True)
@@ -267,7 +307,7 @@ def simpan_cache_bahasa():
     except Exception as e:
         logging.error(f"Error simpan cache bahasa: {e}")
 
-# --- Fungsi untuk mendeteksi pesan error ---
+
 def is_error_message(text):
     """Mendeteksi apakah teks mengandung pesan error"""
     if not text or not isinstance(text, str):
@@ -301,8 +341,8 @@ def is_error_message(text):
     for pattern in error_patterns:
         if re.search(pattern, text_lower):
             return True
-
     return False
+
 
 def simpan_cache_ke_file():
     try:
@@ -311,6 +351,7 @@ def simpan_cache_ke_file():
             json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logging.error(f"Error simpan cache: {e}")
+
 
 # --- Cache translate ---
 terjemahan_cache = {}
@@ -330,7 +371,6 @@ if os.path.exists(CACHE_FILE):
         if keys_to_remove:
             logging.info(f"Menghapus {len(keys_to_remove)} entri error dari cache")
             simpan_cache_ke_file()
-
     except Exception:
         terjemahan_cache = {}
 
@@ -347,9 +387,7 @@ emoji_pattern = re.compile(
     flags=re.UNICODE,
 )
 
-# PERBAIKAN: Regex pattern yang benar (tanda kutip di-escape)
 special_char_pattern = re.compile(r"[-–—…\"»«]")
-
 bracket_pattern = re.compile(r"\[.*?\]")
 url_pattern = re.compile(r"http\S+")
 digit_pattern = re.compile(r"\b\d+\b")
@@ -364,10 +402,12 @@ number_unit_pattern = re.compile(r"^\d+[a-z]*\d*[a-z]*$")
 short_word_pattern = re.compile(r"^\w{1,2}$")
 mixed_alnum_pattern = re.compile(r"^[a-z]+\d+|\d+[a-z]+$")
 
+
 # --- Optimasi: Gunakan LRU cache untuk fungsi yang sering dipanggil ---
 @lru_cache(maxsize=10000)
 def cached_stemmer_stem(word):
     return stemmer.stem(word)
+
 
 @lru_cache(maxsize=10000)
 def cached_detect_language(text):
@@ -387,7 +427,7 @@ def cached_detect_language(text):
         language_cache[text_lower] = "id"
         return "id"
 
-# --- Fungsi untuk normalisasi pengulangan huruf ---
+
 def normalize_repeated_letters(word):
     """Mengurangi pengulangan huruf yang berlebihan menjadi maksimal 1 huruf"""
     if len(word) <= 2:
@@ -395,13 +435,32 @@ def normalize_repeated_letters(word):
     normalized = re.sub(r"(.)\1+", r"\1", word)
     return normalized
 
-# --- Fungsi dengan mekanisme retry untuk terjemahan ---
+
+def hapus_kata_normalisasi_stopword(words, debug=False):
+    """Menghapus kata yang sama seperti yang ada dalam normalisasi_stopword_list.txt"""
+    if not words:
+        return []
+
+    if debug:
+        logging.debug(f"Kata sebelum hapus normalisasi_stopword: {words}")
+
+    # Filter kata yang tidak ada dalam normalisasi_stopword_set
+    result = [word for word in words if word not in normalisasi_stopword_set]
+
+    if debug:
+        removed = set(words) - set(result)
+        if removed:
+            logging.debug(f"Menghapus kata dari normalisasi_stopword_list: {removed}")
+        logging.debug(f"Kata setelah hapus normalisasi_stopword: {result}")
+
+    return result
+
+
 def translate_with_retry(text, source="auto", target="id", max_len=5000):
     """Fungsi terjemahan dengan mekanisme retry untuk menangani connection lost"""
     if is_error_message(text):
         return text.lower()
 
-    # Jeda acak antara permintaan untuk mengurangi beban server
     time.sleep(REQUEST_DELAY + random.uniform(0, 0.5))
 
     delay = INITIAL_DELAY
@@ -449,7 +508,6 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
                 f"Attempt {attempt + 1}/{MAX_RETRIES} Error dalam terjemahan: {e}"
             )
 
-            # Deteksi apakah error terkait koneksi
             is_connection_error = any(
                 term in error_msg
                 for term in [
@@ -463,33 +521,25 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
             )
 
             if not is_connection_error or attempt == MAX_RETRIES - 1:
-                # Jika bukan error koneksi atau sudah mencapai batas retry
                 raise e
 
-            # Jika error koneksi, tunggu sebentar dan coba lagi
             logging.info(f"Menunggu {delay} detik sebelum mencoba lagi...")
             time.sleep(delay)
-
-            # Exponential backoff dengan jitter
             delay = min(MAX_DELAY, delay * 2 + random.uniform(0, 1))
 
-    # Fallback ke teks asli jika semua percobaan gagal
     return text.lower()
 
-def translate_long_text(text, source="auto", target="id", max_len=5000):
-    """Wrapper untuk fungsi translate_with_retry"""
-    return translate_with_retry(text, source, target, max_len)
 
 # --- Utility ---
 def register_template_filters(app):
     app.jinja_env.filters["sanitize"] = escape
+
 
 def bersihkan_terjemahan(teks: str) -> str:
     if pd.isna(teks) or not isinstance(teks, str):
         return ""
 
     teks_asli = teks
-
     try:
         teks = emoji_pattern.sub(" ", teks)
         teks = special_char_pattern.sub(" ", teks)
@@ -509,8 +559,10 @@ def bersihkan_terjemahan(teks: str) -> str:
         logging.error(f"Error bersihkan_terjemahan: {e}")
         return whitespace_pattern.sub(" ", teks_asli).strip()
 
+
 def hapus_kata_ulang(word):
     return repeated_word_pattern.sub(r"\1", word)
+
 
 def normalisasi_teks(words):
     hasil = []
@@ -523,15 +575,13 @@ def normalisasi_teks(words):
             hasil.append(wl)
     return hasil
 
-# --- Fungsi untuk membersihkan token tidak diinginkan ---
+
 def bersihkan_token(tokens):
-    """Membersihkan token-token yang tidak diinginkan seperti angka dengan satuan, kata sangat pendek, dll."""
+    """Membersihkan token-token yang tidak diinginkan"""
     hasil = []
     for token in tokens:
-        # Normalisasi pengulangan huruf terlebih dahulu
         normalized_token = normalize_repeated_letters(token)
 
-        # Skip token yang sesuai dengan pola tidak diinginkan
         if (
             number_unit_pattern.match(normalized_token)
             or short_word_pattern.match(normalized_token)
@@ -539,71 +589,85 @@ def bersihkan_token(tokens):
         ):
             continue
 
-        # Skip token yang hanya terdiri dari angka
         if normalized_token.isdigit():
             continue
 
-        # Gunakan token yang sudah dinormalisasi
         hasil.append(normalized_token)
-
     return hasil
 
-# --- Fungsi Stopword Removal dengan Prioritas yang Diperbarui ---
+
 def hapus_stopword(words, debug=False):
-    # Bersihkan token tidak diinginkan terlebih dahulu
+    """Fungsi stopword removal yang diperbaiki"""
+    if not words:
+        return []
+
     words = bersihkan_token(words)
 
     if debug:
-        logging.debug(f"Kata sebelum filter: {words}")
+        logging.debug(f"Kata sebelum filter stopword: {words}")
 
     result = []
+    stopword_removed = []
+
     for w in words:
-        # Pengecualian: Jika kata adalah game term, selalu pertahankan
-        if w in game_terms:
+        w_lower = w.lower()
+
+        # Pengecualian 1: Game terms
+        if w_lower in game_terms:
             if debug:
                 logging.debug(f"Menyimpan game term: '{w}'")
             result.append(w)
             continue
 
-        # Prioritas 1: Cek kata tidak relevan terlebih dahulu (jika bukan stopword Indonesia)
-        if w not in stop_words_id and w in kata_tidak_relevan:
+        # Pengecualian 2: Whitelist
+        if w_lower in kata_id_pasti:
+            if debug:
+                logging.debug(f"Menyimpan kata whitelist: '{w}'")
+            result.append(w)
+            continue
+
+        # Prioritas 1: Kata tidak relevan
+        if w_lower in kata_tidak_relevan:
             if debug:
                 logging.debug(f"Menghapus kata tidak relevan: '{w}'")
+            stopword_removed.append(w)
             continue
 
-        # Prioritas 2: Cek stopword Inggris
-        if w in stop_words_ing:
-            if debug:
-                logging.debug(f"Menghapus stopword Inggris: '{w}'")
-            continue
-
-        # Prioritas 3: Cek stopword Indonesia
-        if w in stop_words_id:
+        # Prioritas 2: Stopword Indonesia
+        if w_lower in stop_words_id:
             if debug:
                 logging.debug(f"Menghapus stopword Indonesia: '{w}'")
+            stopword_removed.append(w)
             continue
 
-        # Jika bukan stopword atau kata tidak relevan, simpan
+        # Prioritas 3: Stopword Inggris
+        if w_lower in stop_words_ing:
+            if debug:
+                logging.debug(f"Menghapus stopword Inggris: '{w}'")
+            stopword_removed.append(w)
+            continue
+
+        # Jika lolos semua filter, simpan kata
         if debug:
             logging.debug(f"Menyimpan kata: '{w}'")
         result.append(w)
 
     if debug:
-        logging.debug(f"Kata setelah filter: {result}")
+        logging.debug(f"Kata yang dihapus: {stopword_removed}")
+        logging.debug(f"Kata setelah filter stopword: {result}")
 
     return result
 
-# --- Fungsi Stemming yang Diperbarui ---
+
 def stemming_teks(words, debug=False):
     hasil = []
-    stem_methods = []  # Untuk melacak metode yang digunakan (opsional, untuk debugging)
+    stem_methods = []
 
     for w in words:
         wl = w.lower()
         wl_normalized = normalize_repeated_letters(wl)
-        method_used = "original"  # Default
+        method_used = "original"
 
-        # 1. PRIORITAS PERTAMA: Cek kamus custom (stemming_list.txt)
         if wl in stemming_dict:
             mapped = stemming_dict[wl]
             hasil.extend(mapped.split())
@@ -613,25 +677,22 @@ def stemming_teks(words, debug=False):
             hasil.extend(mapped.split())
             method_used = "custom_dict_normalized"
         else:
-            # 2. PRIORITAS KEDUA: Gunakan Sastrawi
             stemmed_sastrawi = cached_stemmer_stem(wl_normalized)
-
             if stemmed_sastrawi != wl_normalized:
                 hasil.append(stemmed_sastrawi)
                 method_used = "sastrawi"
             else:
-                # Jika semua metode gagal, gunakan kata asli yang sudah dinormalisasi
                 hasil.append(wl_normalized)
                 method_used = "normalized"
 
         stem_methods.append(method_used)
 
-    # Log metode yang digunakan (opsional, untuk debugging)
     if debug and stem_methods:
         method_counts = Counter(stem_methods)
         logging.debug(f"Stemming methods digunakan: {dict(method_counts)}")
 
     return hasil
+
 
 def deteksi_bukan_indonesia(text: str) -> bool:
     try:
@@ -639,7 +700,7 @@ def deteksi_bukan_indonesia(text: str) -> bool:
     except Exception:
         return False
 
-# --- Fungsi untuk mendeteksi kata asing dalam teks ---
+
 def contains_foreign_words(text):
     """Mendeteksi apakah teks mengandung kata asing yang tidak ada di whitelist"""
     if not text or not isinstance(text, str):
@@ -670,11 +731,12 @@ def contains_foreign_words(text):
 
     return False
 
-# --- Fungsi preprocessing standar yang digunakan oleh kedua fase ---
+
+# --- Fungsi preprocessing standar TANPA Token_Filtered di output ---
 def proses_preprocessing_standar(teks, debug=False):
-    """Fungsi preprocessing standar yang digunakan oleh kedua fase dengan stopword gabungan"""
+    """Fungsi preprocessing standar - Token_Filtered hanya di backend"""
     if pd.isna(teks) or not isinstance(teks, str) or not teks.strip():
-        return ["", "", [], [], [], [], ""]
+        return ["", "", [], [], [], [], ""]  # 7 elemen tanpa Token_Filtered
 
     # Bersihkan teks
     clean = bersihkan_terjemahan(teks)
@@ -686,24 +748,33 @@ def proses_preprocessing_standar(teks, debug=False):
     except Exception:
         token = word_pattern.findall(folded)
 
-    # Bersihkan token tidak diinginkan
-    token = bersihkan_token(token)
-
     if debug:
         logging.debug(f"Setelah tokenisasi: {token}")
 
-    # Proses NLP dengan stopword gabungan
-    stop = hapus_stopword(token, debug) if token else []
+    # Bersihkan token tidak diinginkan
+    token_cleaned = bersihkan_token(token)
 
     if debug:
-        logging.debug(f"Setelah stopword removal: {stop}")
+        logging.debug(f"Setelah bersihkan_token: {token_cleaned}")
 
-    norm = normalisasi_teks(stop) if stop else []
+    # **STEP TERSEMBUNYI: Hapus kata dari normalisasi_stopword_list.txt**
+    # Step ini tetap dilakukan di backend tapi tidak ditampilkan di output
+    token_filtered = hapus_kata_normalisasi_stopword(token_cleaned, debug)
+
+    # Normalisasi teks - menggunakan token_filtered (hasil step tersembunyi)
+    norm = normalisasi_teks(token_filtered) if token_filtered else []
 
     if debug:
         logging.debug(f"Setelah normalisasi: {norm}")
 
-    stem = stemming_teks(norm, debug) if norm else []
+    # Stopword removal
+    stop = hapus_stopword(norm, debug) if norm else []
+
+    if debug:
+        logging.debug(f"Setelah stopword removal: {stop}")
+
+    # Stemming
+    stem = stemming_teks(stop, debug) if stop else []
 
     if debug:
         logging.debug(f"Setelah stemming: {stem}")
@@ -711,9 +782,10 @@ def proses_preprocessing_standar(teks, debug=False):
     # Gabungkan hasil
     hasil = " ".join(stem) if stem else folded
 
+    # **Kembalikan 7 elemen TANPA Token_Filtered**
     return [clean, folded, token, stop, norm, stem, hasil]
 
-# --- Proses baris dengan preprocessing standar ---
+
 def proses_baris_standar(terjemahan, debug=False):
     try:
         if (
@@ -738,7 +810,7 @@ def proses_baris_standar(terjemahan, debug=False):
         hasil = folded if folded else (clean if clean else str(terjemahan))
         return [clean, folded, [], [], [], [], hasil]
 
-# --- Proses batch untuk preprocessing standar ---
+
 def proses_batch_standar(terjemahan_list, debug=False):
     """Proses batch data untuk preprocessing standar"""
     hasil = []
@@ -746,16 +818,13 @@ def proses_batch_standar(terjemahan_list, debug=False):
         hasil.append(proses_baris_standar(terjemahan, debug))
     return hasil
 
-# --- Fungsi untuk terjemahan ulang dengan retry ---
-def proses_terjemahan_ulang(teks_asal, hasil_sebelumnya, data_preprocessing_sebelumnya):
-    """Melakukan terjemahan ulang hanya jika diperlukan"""
-    # Periksa apakah teks mengandung kata asing
-    if not contains_foreign_words(hasil_sebelumnya):
-        return data_preprocessing_sebelumnya
 
+# --- PERUBAHAN PENTING: Fungsi terjemahan ulang yang menerjemahkan hasil Fase 1 ---
+def proses_terjemahan_ulang(teks_hasil_fase1, data_preprocessing_sebelumnya):
+    """Melakukan terjemahan ulang pada hasil Fase 1 yang masih mengandung kata asing"""
     try:
-        # Terjemahkan ulang teks asal dengan mekanisme retry
-        terjemahan_baru = translate_with_retry(teks_asal)
+        # **TERJEMAHKAN ULANG: teks_hasil_fase1 (bukan teks asli)**
+        terjemahan_baru = translate_with_retry(teks_hasil_fase1)
 
         # Jika terjemahan baru error atau kosong, kembalikan hasil sebelumnya
         if not terjemahan_baru or is_error_message(terjemahan_baru):
@@ -768,7 +837,7 @@ def proses_terjemahan_ulang(teks_asal, hasil_sebelumnya, data_preprocessing_sebe
         logging.error(f"Error terjemahan ulang setelah {MAX_RETRIES} percobaan: {e}")
         return data_preprocessing_sebelumnya
 
-# --- Fungsi untuk menyimpan dan membaca data yang sudah diproses ---
+
 def save_processed_data(df, file_path=PREPRO_CSV_PATH):
     """Menyimpan data yang sudah diproses ke file CSV"""
     try:
@@ -779,6 +848,7 @@ def save_processed_data(df, file_path=PREPRO_CSV_PATH):
     except Exception as e:
         logging.error(f"Gagal menyimpan data: {e}")
         return False
+
 
 def load_processed_data(file_path=PREPRO_CSV_PATH):
     """Membaca data yang sudah diproses dari file CSV"""
@@ -801,6 +871,7 @@ def load_processed_data(file_path=PREPRO_CSV_PATH):
         logging.error(f"Gagal memuat data: {e}")
         return None
 
+
 def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     """Menyimpan DataFrame ke CSV dengan format konsisten."""
     try:
@@ -809,7 +880,12 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
         df_for_file = df.copy(deep=True)
 
         # Konversi kolom list menjadi string yang aman untuk CSV
-        list_cols = ["Tokenisasi", "Stopword", "Normalisasi", "Stemming"]
+        list_cols = [
+            "Tokenisasi",
+            "Stopword",
+            "Normalisasi",
+            "Stemming",
+        ]  # Token_Filtered dihapus
         for col in list_cols:
             if col in df_for_file.columns:
                 df_for_file[col] = df_for_file[col].apply(
@@ -827,13 +903,13 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
             errors="ignore",
         )
 
-        # Atur ulang kolom sesuai urutan yang diinginkan
+        # Atur ulang kolom sesuai urutan yang diinginkan (tanpa Token_Filtered)
         kolom_urutan = [
             "SteamID",
             "Clean Data",
             "Case Folding",
             "Tokenisasi",
-            "Stopword",
+            "Stopword",  # Langsung dari Tokenisasi ke Stopword
             "Normalisasi",
             "Stemming",
             "Hasil",
@@ -856,7 +932,6 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
                     if pd.isna(value):
                         row_data.append('""')
                     elif isinstance(value, str):
-                        # Escape kutipan dan format untuk CSV
                         escaped_value = value.replace('"', '""')
                         row_data.append('"' + escaped_value + '"')
                     else:
@@ -868,6 +943,7 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     except Exception as e:
         logging.error(f"Error save_csv: {e}")
         return False
+
 
 # --- Routes ---
 @prepro_bp.route("/preproses", methods=["POST"])
@@ -909,6 +985,7 @@ def preproses():
             for i, future in enumerate(as_completed(futures)):
                 logging.info(f"Chunk {i + 1}: Memproses {len(chunks[i])} baris...")
                 hasil_list = future.result()
+                # **Hanya 7 kolom tanpa Token_Filtered**
                 hasil_df = pd.DataFrame(
                     hasil_list,
                     columns=[
@@ -933,14 +1010,20 @@ def preproses():
         # Fase 2: Terjemahan ulang untuk baris yang membutuhkan
         logging.info("Fase 2: Terjemahan ulang...")
         baris_diperbaiki = 0
+
         for idx in range(len(result_df)):
             if idx % 100 == 0:
                 logging.info(f"Memeriksa baris {idx + 1} dari {len(result_df)}")
 
-            teks_asal = result_df.at[idx, "Terjemahan"]
+            # Ambil hasil dari Fase 1
             hasil_sebelumnya = result_df.at[idx, "Hasil"]
 
-            # Siapkan data preprocessing sebelumnya untuk fallback
+            # Deteksi apakah hasil_sebelumnya masih mengandung kata asing
+            if not contains_foreign_words(hasil_sebelumnya):
+                # Jika tidak ada kata asing, pertahankan hasil Fase 1
+                continue
+
+            # Jika masih ada kata asing, siapkan data preprocessing sebelumnya untuk fallback
             data_preprocessing_sebelumnya = [
                 result_df.at[idx, "Clean Data"],
                 result_df.at[idx, "Case Folding"],
@@ -951,13 +1034,13 @@ def preproses():
                 hasil_sebelumnya,
             ]
 
-            # Terjemahkan ulang jika diperlukan
+            # **PERUBAHAN PENTING: Terjemahkan ulang hasil_sebelumnya (hasil Fase 1)**
             hasil_baru = proses_terjemahan_ulang(
-                teks_asal, hasil_sebelumnya, data_preprocessing_sebelumnya
+                hasil_sebelumnya, data_preprocessing_sebelumnya
             )
 
             # Jika hasil baru berbeda dari sebelumnya, update semua kolom
-            if hasil_baru[6] != hasil_sebelumnya:
+            if hasil_baru[6] != hasil_sebelumnya:  # Index 6 adalah "Hasil"
                 # Update semua kolom dengan hasil baru
                 result_df.at[idx, "Clean Data"] = hasil_baru[0]
                 result_df.at[idx, "Case Folding"] = hasil_baru[1]
@@ -967,15 +1050,6 @@ def preproses():
                 result_df.at[idx, "Stemming"] = hasil_baru[5]
                 result_df.at[idx, "Hasil"] = hasil_baru[6]
                 baris_diperbaiki += 1
-            # Jika tidak ada perubahan, pastikan semua kolom terisi dengan data sebelumnya
-            else:
-                result_df.at[idx, "Clean Data"] = data_preprocessing_sebelumnya[0]
-                result_df.at[idx, "Case Folding"] = data_preprocessing_sebelumnya[1]
-                result_df.at[idx, "Tokenisasi"] = data_preprocessing_sebelumnya[2]
-                result_df.at[idx, "Stopword"] = data_preprocessing_sebelumnya[3]
-                result_df.at[idx, "Normalisasi"] = data_preprocessing_sebelumnya[4]
-                result_df.at[idx, "Stemming"] = data_preprocessing_sebelumnya[5]
-                result_df.at[idx, "Hasil"] = data_preprocessing_sebelumnya[6]
 
         logging.info(f"Terjemahan ulang selesai. {baris_diperbaiki} baris diperbaiki.")
 
@@ -1005,6 +1079,7 @@ def preproses():
         logging.error(f"Error dalam preprocessing: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @prepro_bp.route("/save_csv", methods=["POST"])
 def save_csv_manual():
     """Menyimpan CSV secara manual dari data JSON yang dikirim frontend."""
@@ -1028,6 +1103,7 @@ def save_csv_manual():
         logging.error(f"Error save_csv_manual: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @prepro_bp.route("/download_csv", methods=["GET"])
 def download_csv():
     """Mengunduh file hasil preprocessing CSV secara manual."""
@@ -1039,6 +1115,7 @@ def download_csv():
             mimetype="text/csv",
         )
     return jsonify({"error": "File hasil preprocessing tidak ditemukan."}), 404
+
 
 @prepro_bp.route("/debug_prepro", methods=["POST"])
 def debug_prepro():
@@ -1068,6 +1145,7 @@ def debug_prepro():
     except Exception as e:
         logging.error(f"Error debug_prepro: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @prepro_bp.route("/load_data", methods=["GET"])
 def load_data():
@@ -1105,6 +1183,7 @@ def load_data():
         logging.error(f"Error load_data: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
+
 @prepro_bp.route("/delete_csv", methods=["POST"])
 def delete_csv():
     """Menghapus file CSV yang sudah diproses dari server"""
@@ -1112,12 +1191,20 @@ def delete_csv():
         if os.path.exists(PREPRO_CSV_PATH):
             os.remove(PREPRO_CSV_PATH)
             logging.info(f"File {PREPRO_CSV_PATH} berhasil dihapus")
-            return jsonify({"status": "success", "message": "File CSV berhasil dihapus dari server"})
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "File CSV berhasil dihapus dari server",
+                }
+            )
         else:
-            return jsonify({"status": "error", "message": "File CSV tidak ditemukan"}), 404
+            return jsonify(
+                {"status": "error", "message": "File CSV tidak ditemukan"}
+            ), 404
     except Exception as e:
         logging.error(f"Error deleting CSV file: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @prepro_bp.route("/get_csv_data", methods=["GET"])
 def get_csv_data():
@@ -1146,6 +1233,33 @@ def get_csv_data():
     except Exception as e:
         logging.error(f"Error get_csv_data: {e}")
         return jsonify({"exists": False, "error": str(e)})
+
+
+@prepro_bp.route("/debug_stopword", methods=["GET"])
+def debug_stopword():
+    """Endpoint untuk debugging stopword"""
+    try:
+        # Test dengan contoh teks
+        test_text = "yang dan di dari ke pada ini itu dengan untuk"
+        hasil = proses_preprocessing_standar(test_text, debug=True)
+
+        return jsonify(
+            {
+                "status": "success",
+                "test_text": test_text,
+                "result": hasil[6],  # Hasil akhir
+                "stopwords_loaded": {
+                    "indonesia_count": len(stop_words_id),
+                    "english_count": len(stop_words_ing),
+                    "sample_id": list(stop_words_id)[:10],
+                    "sample_ing": list(stop_words_ing)[:10],
+                },
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error debug_stopword: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @prepro_bp.route("/")
 def index():
