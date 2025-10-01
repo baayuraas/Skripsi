@@ -61,7 +61,6 @@ required_txt_files = [
     "game_term.txt",
     "kata_tidak_relevan.txt",
     "kata_ambigu.txt",
-    "normalisasi_stopword_list.txt",
 ]
 
 # Flag untuk menandai apakah inisialisasi sudah dilakukan
@@ -75,14 +74,13 @@ stemming_dict = {}
 game_terms = set()
 kata_tidak_relevan = set()
 kata_id_pasti = set()
-normalisasi_stopword_set = set()
 
 
 # --- Fungsi inisialisasi sekali pakai ---
 def initialize_preprocessing_data():
     """Fungsi untuk inisialisasi data preprocessing sekali saja"""
     global _INITIALIZED, stop_words_id, stop_words_ing, normalisasi_dict, stemming_dict
-    global game_terms, kata_tidak_relevan, kata_id_pasti, normalisasi_stopword_set
+    global game_terms, kata_tidak_relevan, kata_id_pasti
 
     if _INITIALIZED:
         logging.info("✅ Data preprocessing sudah diinisialisasi sebelumnya")
@@ -238,24 +236,6 @@ def initialize_preprocessing_data():
             logging.error(f"Error baca whitelist: {e}")
     else:
         logging.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
-
-    # Load kata dari normalisasi_stopword_list.txt
-    normalisasi_stopword_set.clear()
-    normalisasi_stopword_file = os.path.join(TXT_DIR, "normalisasi_stopword_list.txt")
-    if os.path.exists(normalisasi_stopword_file):
-        try:
-            with open(normalisasi_stopword_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    word = line.strip().lower()
-                    if word:
-                        normalisasi_stopword_set.add(word)
-            logging.info(
-                f"Loaded {len(normalisasi_stopword_set)} kata dari normalisasi_stopword_list.txt"
-            )
-        except Exception as e:
-            logging.error(f"Error baca normalisasi_stopword_list.txt: {e}")
-    else:
-        logging.warning("File normalisasi_stopword_list.txt tidak ditemukan")
 
     _INITIALIZED = True
     logging.info("✅ Inisialisasi data preprocessing selesai")
@@ -434,26 +414,6 @@ def normalize_repeated_letters(word):
         return word
     normalized = re.sub(r"(.)\1+", r"\1", word)
     return normalized
-
-
-def hapus_kata_normalisasi_stopword(words, debug=False):
-    """Menghapus kata yang sama seperti yang ada dalam normalisasi_stopword_list.txt"""
-    if not words:
-        return []
-
-    if debug:
-        logging.debug(f"Kata sebelum hapus normalisasi_stopword: {words}")
-
-    # Filter kata yang tidak ada dalam normalisasi_stopword_set
-    result = [word for word in words if word not in normalisasi_stopword_set]
-
-    if debug:
-        removed = set(words) - set(result)
-        if removed:
-            logging.debug(f"Menghapus kata dari normalisasi_stopword_list: {removed}")
-        logging.debug(f"Kata setelah hapus normalisasi_stopword: {result}")
-
-    return result
 
 
 def translate_with_retry(text, source="auto", target="id", max_len=5000):
@@ -710,19 +670,21 @@ def contains_foreign_words(text):
         tokens = word_tokenize(text.lower())
 
         for token in tokens:
+            # KECUALIKAN: kata pendek, game terms, whitelist, dan kata yang sudah dinormalisasi/distem
             if (
-                len(token) <= 2
-                or token in game_terms
-                or token in kata_id_pasti
-                or token in normalisasi_dict
-                or token in stemming_dict
+                len(token) <= 2  # Kata pendek diabaikan (accuracy rendah)
+                or token in game_terms  # Game terms dipertahankan
+                or token in kata_id_pasti  # Kata whitelist dipertahankan
+                or token in normalisasi_dict  # Kata yang sudah dinormalisasi
+                or token in stemming_dict  # Kata yang sudah distem
             ):
-                continue
+                continue  # Skip deteksi bahasa untuk token ini
 
+            # Hanya token yang TIDAK termasuk kategori di atas yang dicek bahasa
             try:
                 lang = cached_detect_language(token)
                 if lang != "id":
-                    return True
+                    return True  # Ketemu kata asing non-whitelist
             except Exception:
                 continue
 
@@ -732,11 +694,11 @@ def contains_foreign_words(text):
     return False
 
 
-# --- Fungsi preprocessing standar TANPA Token_Filtered di output ---
+# --- Fungsi preprocessing standar TANPA step tersembunyi ---
 def proses_preprocessing_standar(teks, debug=False):
-    """Fungsi preprocessing standar - Token_Filtered hanya di backend"""
+    """Fungsi preprocessing standar - tanpa step tersembunyi"""
     if pd.isna(teks) or not isinstance(teks, str) or not teks.strip():
-        return ["", "", [], [], [], [], ""]  # 7 elemen tanpa Token_Filtered
+        return ["", "", [], [], [], [], ""]  # 7 elemen
 
     # Bersihkan teks
     clean = bersihkan_terjemahan(teks)
@@ -757,12 +719,8 @@ def proses_preprocessing_standar(teks, debug=False):
     if debug:
         logging.debug(f"Setelah bersihkan_token: {token_cleaned}")
 
-    # **STEP TERSEMBUNYI: Hapus kata dari normalisasi_stopword_list.txt**
-    # Step ini tetap dilakukan di backend tapi tidak ditampilkan di output
-    token_filtered = hapus_kata_normalisasi_stopword(token_cleaned, debug)
-
-    # Normalisasi teks - menggunakan token_filtered (hasil step tersembunyi)
-    norm = normalisasi_teks(token_filtered) if token_filtered else []
+    # Normalisasi teks - langsung dari token_cleaned (tanpa step tersembunyi)
+    norm = normalisasi_teks(token_cleaned) if token_cleaned else []
 
     if debug:
         logging.debug(f"Setelah normalisasi: {norm}")
@@ -782,7 +740,6 @@ def proses_preprocessing_standar(teks, debug=False):
     # Gabungkan hasil
     hasil = " ".join(stem) if stem else folded
 
-    # **Kembalikan 7 elemen TANPA Token_Filtered**
     return [clean, folded, token, stop, norm, stem, hasil]
 
 
@@ -819,11 +776,11 @@ def proses_batch_standar(terjemahan_list, debug=False):
     return hasil
 
 
-# --- PERUBAHAN PENTING: Fungsi terjemahan ulang yang menerjemahkan hasil Fase 1 ---
+# --- Fungsi terjemahan ulang yang menerjemahkan hasil Fase 1 ---
 def proses_terjemahan_ulang(teks_hasil_fase1, data_preprocessing_sebelumnya):
     """Melakukan terjemahan ulang pada hasil Fase 1 yang masih mengandung kata asing"""
     try:
-        # **TERJEMAHKAN ULANG: teks_hasil_fase1 (bukan teks asli)**
+        # TERJEMAHKAN ULANG: teks_hasil_fase1 (bukan teks asli)
         terjemahan_baru = translate_with_retry(teks_hasil_fase1)
 
         # Jika terjemahan baru error atau kosong, kembalikan hasil sebelumnya
@@ -885,7 +842,7 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
             "Stopword",
             "Normalisasi",
             "Stemming",
-        ]  # Token_Filtered dihapus
+        ]
         for col in list_cols:
             if col in df_for_file.columns:
                 df_for_file[col] = df_for_file[col].apply(
@@ -903,13 +860,13 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
             errors="ignore",
         )
 
-        # Atur ulang kolom sesuai urutan yang diinginkan (tanpa Token_Filtered)
+        # Atur ulang kolom sesuai urutan yang diinginkan
         kolom_urutan = [
             "SteamID",
             "Clean Data",
             "Case Folding",
             "Tokenisasi",
-            "Stopword",  # Langsung dari Tokenisasi ke Stopword
+            "Stopword",
             "Normalisasi",
             "Stemming",
             "Hasil",
@@ -985,7 +942,7 @@ def preproses():
             for i, future in enumerate(as_completed(futures)):
                 logging.info(f"Chunk {i + 1}: Memproses {len(chunks[i])} baris...")
                 hasil_list = future.result()
-                # **Hanya 7 kolom tanpa Token_Filtered**
+                # 7 kolom tanpa step tersembunyi
                 hasil_df = pd.DataFrame(
                     hasil_list,
                     columns=[
@@ -1034,7 +991,7 @@ def preproses():
                 hasil_sebelumnya,
             ]
 
-            # **PERUBAHAN PENTING: Terjemahkan ulang hasil_sebelumnya (hasil Fase 1)**
+            # Terjemahkan ulang hasil_sebelumnya (hasil Fase 1)
             hasil_baru = proses_terjemahan_ulang(
                 hasil_sebelumnya, data_preprocessing_sebelumnya
             )

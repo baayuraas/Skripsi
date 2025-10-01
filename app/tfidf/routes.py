@@ -47,14 +47,14 @@ def get_optimal_parameters(n_docs):
     """Parameter optimal berdasarkan ukuran dataset"""
     if n_docs < 300:
         # Small dataset
-        return {"min_df": 2, "max_df": 0.85, "max_features": 800}
+        return {"min_df": 1, "max_df": 0.85, "max_features": 800}
     elif n_docs <= 1000:
         # Medium dataset - optimal untuk 500-1000 dokumen
-        return {"min_df": 2, "max_df": 0.8, "max_features": 1200}
+        return {"min_df": 1, "max_df": 0.8, "max_features": 1200}
     else:
         # Large dataset
         return {
-            "min_df": max(2, int(0.001 * n_docs)),
+            "min_df": max(1, int(0.001 * n_docs)),  # Minimal 1
             "max_df": 0.75,
             "max_features": 2000,
         }
@@ -71,19 +71,16 @@ def process_file():
     if request.method == "GET":
         if not os.path.exists(TEMP_OUTPUT):
             return jsonify({"error": "Tidak ada data tersimpan"}), 404
-        
+
         try:
             df = pd.read_csv(TEMP_OUTPUT)
             numeric_columns = [col for col in df.columns if col != "Status"]
-            summary = {
-                "total_documents": len(df), 
-                "total_terms": len(numeric_columns)
-            }
+            summary = {"total_documents": len(df), "total_terms": len(numeric_columns)}
             return jsonify({"data": df.to_dict(orient="records"), "summary": summary})
         except Exception as e:
             traceback.print_exc()
             return jsonify({"error": f"Gagal memuat data existing: {str(e)}"}), 500
-    
+
     # Handle POST request - Process new file
     file = request.files.get("file")
     if not file or not file.filename or not file.filename.lower().endswith(".csv"):
@@ -114,9 +111,9 @@ def process_file():
         n_docs = len(df)
         params = get_optimal_parameters(n_docs)
 
-        # Train vectorizer dengan parameter optimal
+        # Train vectorizer dengan parameter optimal (min_df=1)
         tfidf_vectorizer = TfidfVectorizer(
-            min_df=params["min_df"],
+            min_df=params["min_df"],  # Sekarang 1 untuk semua ukuran dataset
             max_df=params["max_df"],
             max_features=params["max_features"],
             smooth_idf=True,
