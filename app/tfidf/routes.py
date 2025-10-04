@@ -47,15 +47,15 @@ def get_optimal_parameters(n_docs):
     """Parameter optimal berdasarkan ukuran dataset"""
     if n_docs < 300:
         # Small dataset
-        return {"min_df": 1, "max_df": 0.85, "max_features": 800}
+        return {"min_df": 1, "max_df": 1.0, "max_features": 800}
     elif n_docs <= 1000:
         # Medium dataset - optimal untuk 500-1000 dokumen
-        return {"min_df": 1, "max_df": 0.8, "max_features": 1200}
+        return {"min_df": 1, "max_df": 1.0, "max_features": 1200}
     else:
         # Large dataset
         return {
             "min_df": max(1, int(0.001 * n_docs)),  # Minimal 1
-            "max_df": 0.75,
+            "max_df": 1.0,
             "max_features": 2000,
         }
 

@@ -2,67 +2,152 @@
 
 {% block page_title %}
 <div class="page-title">
-    <div><h1><i class="icon-shield"></i>Terjemahan Data Steam</h1></div>
+    <div><h1><i class="fa fa-language"></i> Terjemahan Data Steam</h1></div>
 </div>
 {% endblock %}
 
 {% block breadcrumbs %}
 <div id="breadcrumbs">
-    <ul class="breadcrumb"><li class="active"><i class="icon-home"></i> Home</li></ul>
+    <ul class="breadcrumb">
+        <li><i class="fa fa-home"></i> Home</li>
+        <li class="active">Terjemahan</li>
+    </ul>
 </div>
 {% endblock %}
 
 {% block content %}
-<h3>Terjemahan</h3>
+<div class="row">
+    <div class="col-md-12">
+        <div class="box">
+            <div class="box-header">
+                <h3 class="box-title">Terjemahan Ulasan Steam</h3>
+            </div>
+            <div class="box-body">
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i>
+                    <strong>Informasi:</strong> Sistem akan menerjemahkan ulasan dari bahasa asli ke Bahasa Indonesia. 
+                    Data yang sudah diterjemahkan akan disimpan dalam cache untuk mempercepat proses berikutnya.
+                </div>
 
-<form id="upload-form" enctype="multipart/form-data">
-    <div class="form-group">
-        <label for="file">Unggah File CSV:</label>
-        <input type="file" name="file" id="file" accept=".csv" required>
-    </div>
-    <button type="submit" class="btn btn-primary">Unggah dan Terjemahkan</button>
-</form>
+                <form id="upload-form" enctype="multipart/form-data" class="form-horizontal">
+                    <div class="form-group">
+                        <label for="file" class="col-sm-3 control-label">Unggah File CSV:</label>
+                        <div class="col-sm-9">
+                            <input type="file" name="file" id="file" accept=".csv" required class="form-control">
+                            <span class="help-block">
+                                File harus berformat CSV dengan kolom: <code>SteamID, Ulasan, Status</code>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="col-sm-offset-3 col-sm-9">
+                            <button type="submit" class="btn btn-primary" id="submit-btn">
+                                <i class="fa fa-upload"></i> Unggah dan Terjemahkan
+                            </button>
+                        </div>
+                    </div>
+                </form>
 
-<div id="loading-spinner" style="display: none; margin-top: 10px;">
-    <span>⏳ Sedang menerjemahkan...</span>
-</div>
+                <!-- Loading Spinner -->
+                <div id="loading-spinner" style="display: none; margin-top: 20px;">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <h4 class="mt-3">⏳ Sedang menerjemahkan...</h4>
+                        <p>Proses ini mungkin memakan waktu beberapa menit tergantung jumlah data.</p>
+                        
+                        <div class="progress" style="height: 25px; margin: 20px 0;">
+                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                 role="progressbar" style="width: 0%; font-weight: bold;">0%</div>
+                        </div>
+                        
+                        <div id="progress-stats" class="text-muted">
+                            <small>Memproses: <span id="processed-count">0</span> / <span id="total-count">0</span> baris</small>
+                        </div>
+                    </div>
+                </div>
 
-<div id="message" class="alert" style="display: none;"></div>
+                <!-- Message Alert -->
+                <div id="message" class="alert" style="display: none; margin-top: 15px;"></div>
 
-<div id="review-table-box" class="mt-4"class="mt-4" style="display: none;">
-    <div class="d-flex justify-content-between mb-3">
-        <button id="clear-data" class="btn btn-danger">Hapus Data</button>
-        <button id="download-btn" class="btn btn-success">Download Hasil (CSV)</button>
-    </div>
+                <!-- Results Section -->
+                <div id="review-table-box" class="mt-4" style="display: none;">
+                    <div class="box">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">Hasil Terjemahan</h3>
+                            <div class="box-tools pull-right">
+                                <span id="data-stats" class="badge bg-blue"></span>
+                            </div>
+                        </div>
+                        <div class="box-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <button id="clear-data" class="btn btn-danger">
+                                        <i class="fa fa-trash"></i> Hapus Semua Data
+                                    </button>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <button id="download-btn" class="btn btn-success">
+                                        <i class="fa fa-download"></i> Download Hasil (CSV)
+                                    </button>
+                                </div>
+                            </div>
 
-    <div class="form-inline" style="margin-bottom: 15px;">
-        <label for="rowsPerPageSelect">Baris per halaman:</label>
-        <select id="rowsPerPageSelect" class="form-control">
-            <option value="10" selected>10</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-        </select>
-    </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-inline">
+                                        <label for="rowsPerPageSelect" class="mr-2">Baris per halaman:</label>
+                                        <select id="rowsPerPageSelect" class="form-control">
+                                            <option value="10">10</option>
+                                            <option value="25" selected>25</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <div id="data-count" class="text-muted"></div>
+                                </div>
+                            </div>
 
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>SteamID</th>
-                    <th>Ulasan</th>
-                    <th>Terjemahan</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="reviews-table-body"></tbody>
-        </table>
-    </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped table-hover">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th width="5%">#</th>
+                                            <th width="15%">SteamID</th>
+                                            <th width="35%">Ulasan (Original)</th>
+                                            <th width="35%">Terjemahan (Indonesia)</th>
+                                            <th width="10%">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reviews-table-body"></tbody>
+                                </table>
+                            </div>
 
-    <div id="pagination" class="text-center">
-        <button id="prev-page" class="btn btn-primary">Sebelumnya</button>
-        <span>Halaman <span id="current-page">1</span> dari <span id="total-pages">1</span></span>
-        <button id="next-page" class="btn btn-primary">Berikutnya</button>
+                            <div id="pagination" class="text-center mt-3">
+                                <nav>
+                                    <ul class="pagination justify-content-center">
+                                        <li class="page-item" id="prev-page">
+                                            <a class="page-link" href="javascript:void(0)">Sebelumnya</a>
+                                        </li>
+                                        <li class="page-item disabled">
+                                            <span class="page-text mx-3">
+                                                Halaman <span id="current-page">1</span> dari <span id="total-pages">1</span>
+                                            </span>
+                                        </li>
+                                        <li class="page-item" id="next-page">
+                                            <a class="page-link" href="javascript:void(0)">Berikutnya</a>
+                                        </li>
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -70,19 +155,42 @@
 {% block extra_script %}
 <script>
 $(function () {
-    let translatedData = [], currentPage = 1, rowsPerPage = 10;
+    let translatedData = [], currentPage = 1, rowsPerPage = 25;
 
     // Fungsi untuk menampilkan pesan
     function showMessage(message, type) {
         const messageDiv = $('#message');
-        messageDiv.removeClass('alert-success alert-danger alert-info')
+        const icon = type === 'success' ? 'fa-check' : 
+                    type === 'danger' ? 'fa-exclamation-triangle' : 
+                    type === 'warning' ? 'fa-warning' : 'fa-info';
+        
+        messageDiv.removeClass('alert-success alert-danger alert-info alert-warning')
                  .addClass('alert-' + type)
-                 .text(message)
+                 .html(`<i class="fa ${icon}"></i> ${message}`)
                  .show();
         
-        setTimeout(() => {
-            messageDiv.fadeOut();
-        }, 5000);
+        if (type === 'success' || type === 'info') {
+            setTimeout(() => {
+                messageDiv.fadeOut();
+            }, 8000);
+        }
+    }
+
+    // Fungsi untuk update progress bar
+    function updateProgress(percent, processed = 0, total = 0) {
+        const progressBar = $('#progress-bar');
+        progressBar.css('width', percent + '%').text(percent + '%');
+        
+        if (processed > 0 && total > 0) {
+            $('#processed-count').text(processed);
+            $('#total-count').text(total);
+            const remaining = total - processed;
+            if (remaining > 0) {
+                $('#progress-stats').html(`<small>Memproses: ${processed} / ${total} baris (${remaining} tersisa)</small>`);
+            } else {
+                $('#progress-stats').html(`<small>Menyelesaikan proses...</small>`);
+            }
+        }
     }
 
     // Fungsi untuk merender tabel dengan pagination
@@ -90,35 +198,45 @@ $(function () {
         const tableBody = $('#reviews-table-body').empty();
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
-        const totalPages = Math.ceil(data.length / rowsPerPage);
+        const totalPages = Math.max(1, Math.ceil(data.length / rowsPerPage));
         
         $('#total-pages').text(totalPages);
+        $('#data-count').text(`Menampilkan ${Math.min(rowsPerPage, data.length)} dari ${data.length} baris`);
+        $('#data-stats').text(`${data.length} baris`);
         
         if (!data.length) {
-            tableBody.append(`<tr><td colspan="5" class="text-center">Tidak ada data</td></tr>`);
-            $('#prev-page, #next-page').prop('disabled', true);
+            tableBody.append(`<tr><td colspan="5" class="text-center text-muted">Tidak ada data terjemahan</td></tr>`);
+            $('#prev-page, #next-page').addClass('disabled');
             return;
         }
         
         // Update status tombol pagination
-        $('#prev-page').prop('disabled', currentPage === 1);
-        $('#next-page').prop('disabled', currentPage === totalPages);
+        $('#prev-page').toggleClass('disabled', currentPage === 1);
+        $('#next-page').toggleClass('disabled', currentPage === totalPages);
         
+        // Render rows
         data.slice(start, end).forEach((row, i) => {
+            const rowNumber = start + i + 1;
+            const statusClass = row.Status === 'Positive' ? 'label-success' : 
+                              row.Status === 'Negative' ? 'label-danger' : 'label-warning';
+            const statusText = row.Status || 'Unknown';
+            const translationText = row.Terjemahan ? escapeHtml(row.Terjemahan) : 
+                                  '<span class="text-muted"><i>Gagal diterjemahkan</i></span>';
+            
             tableBody.append(`
                 <tr>
-                    <td>${start + i + 1}</td>
-                    <td>${escapeHtml(row.SteamID || '')}</td>
-                    <td>${escapeHtml(row.Ulasan || '')}</td>
-                    <td>${escapeHtml(row.Terjemahan || '')}</td>
-                    <td>${escapeHtml(row.Status || '')}</td>
+                    <td class="text-center">${rowNumber}</td>
+                    <td><code>${escapeHtml(row.SteamID || '')}</code></td>
+                    <td style="word-wrap: break-word; max-width: 300px;">${escapeHtml(row.Ulasan || '')}</td>
+                    <td style="word-wrap: break-word; max-width: 300px;">${translationText}</td>
+                    <td class="text-center"><span class="label ${statusClass}">${escapeHtml(statusText)}</span></td>
                 </tr>
             `);
         });
         $('#current-page').text(currentPage);
     }
 
-    // Fungsi untuk escape HTML (mencegah XSS)
+    // Fungsi untuk escape HTML
     function escapeHtml(text) {
         if (!text) return '';
         const map = {
@@ -142,7 +260,7 @@ $(function () {
                     currentPage = 1;
                     renderTable(translatedData);
                     $('#review-table-box').show();
-                    showMessage('Data terjemahan dimuat dari penyimpanan server', 'info');
+                    showMessage(`Data terjemahan berhasil dimuat (${translatedData.length} baris)`, 'info');
                 }
             })
             .fail(function(xhr, status, error) {
@@ -164,7 +282,12 @@ $(function () {
     $('#upload-form').submit(function (e) {
         e.preventDefault();
         const formData = new FormData(this);
+        const submitBtn = $('#submit-btn');
+        
+        // Disable submit button and show loading
+        submitBtn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
         $('#loading-spinner').show();
+        updateProgress(10, 0, 0);
         
         $.ajax({
             url: '/terjemahan/translate',
@@ -172,19 +295,48 @@ $(function () {
             data: formData,
             processData: false,
             contentType: false,
+            xhr: function() {
+                const xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        updateProgress(percent, 0, 0);
+                    }
+                });
+                return xhr;
+            },
             success: res => {
-                $('#loading-spinner').hide();
-                showMessage(res.message, 'success');
-                
-                if (res.data) {
-                    translatedData = res.data;
-                    currentPage = 1;
-                    renderTable(translatedData);
-                    $('#review-table-box').show();
-                }
+                // Simulate progress updates during processing
+                let progress = 30;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    if (progress < 90) {
+                        updateProgress(progress, Math.round(progress * (res.stats?.total_rows || 100) / 100), res.stats?.total_rows || 100);
+                    } else {
+                        clearInterval(progressInterval);
+                        updateProgress(100, res.stats?.total_rows || 100, res.stats?.total_rows || 100);
+                        
+                        setTimeout(() => {
+                            $('#loading-spinner').hide();
+                            submitBtn.prop('disabled', false).html('<i class="fa fa-upload"></i> Unggah dan Terjemahkan');
+                            
+                            const stats = res.stats || {};
+                            const timeMsg = stats.total_time ? `Waktu: ${stats.total_time} detik` : '';
+                            showMessage(`${res.message} ${timeMsg}`, 'success');
+                            
+                            if (res.data) {
+                                translatedData = res.data;
+                                currentPage = 1;
+                                renderTable(translatedData);
+                                $('#review-table-box').show();
+                            }
+                        }, 1000);
+                    }
+                }, 500);
             },
             error: xhr => {
                 $('#loading-spinner').hide();
+                submitBtn.prop('disabled', false).html('<i class="fa fa-upload"></i> Unggah dan Terjemahkan');
                 const errorMsg = xhr.responseJSON?.error || '❌ Terjadi kesalahan saat menerjemahkan.';
                 showMessage(errorMsg, 'danger');
             }
@@ -193,22 +345,27 @@ $(function () {
 
     // Event handler untuk tombol hapus data
     $('#clear-data').click(function () {
-        if (confirm('Apakah Anda yakin ingin menghapus semua data?')) {
-            $.post('/terjemahan/cleardata', function (res) {
-                showMessage(res.message, 'success');
-                translatedData = [];
-                currentPage = 1;
-                $('#review-table-box').hide();
-                renderTable([]);
-            }).fail(function(xhr) {
-                showMessage('Gagal menghapus data', 'danger');
-            });
+        if (confirm('Apakah Anda yakin ingin menghapus semua data terjemahan dan cache? Tindakan ini tidak dapat dibatalkan.')) {
+            $.post('/terjemahan/cleardata')
+                .done(function (res) {
+                    showMessage(res.message, 'success');
+                    translatedData = [];
+                    currentPage = 1;
+                    $('#review-table-box').hide();
+                    renderTable([]);
+                })
+                .fail(function(xhr) {
+                    showMessage('Gagal menghapus data', 'danger');
+                });
         }
     });
 
     // Event handler untuk tombol download
     $('#download-btn').click(function() {
-        // Menggunakan endpoint /terjemahan/savedata untuk download manual
+        if (!translatedData || translatedData.length === 0) {
+            showMessage('Tidak ada data untuk diunduh', 'warning');
+            return;
+        }
         window.location.href = '/terjemahan/savedata';
     });
 
@@ -228,4 +385,29 @@ $(function () {
     });
 });
 </script>
+
+<style>
+.progress {
+    border-radius: 10px;
+}
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+.table td {
+    vertical-align: middle;
+}
+.label {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+.label-success { background-color: #00a65a; }
+.label-danger { background-color: #dd4b39; }
+.label-warning { background-color: #f39c12; }
+.page-item.disabled .page-link {
+    background-color: #f4f4f4;
+    color: #999;
+}
+</style>
 {% endblock %}

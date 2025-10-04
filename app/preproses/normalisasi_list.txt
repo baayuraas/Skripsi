@@ -1,5 +1,9 @@
+abstraksi=abstrak
+acbuyer=account buyer
 acc=account
+actleast=atleast
 acount=account
+acounts=account
 acau=kacau
 afk=meninggalkan
 afking=meninggalkan

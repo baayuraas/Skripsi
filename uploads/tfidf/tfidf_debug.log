@@ -1,0 +1,20 @@
+{
+  "total_documents": 1000,
+  "total_zero_rows": 1,
+  "zero_row_indices": [
+    741
+  ],
+  "zero_rows_analysis": [
+    {
+      "row_index": 741,
+      "original_text": "kumunitas sigir",
+      "preprocessed_text": "kumunitas sigir",
+      "tokens": [
+        "kumunitas",
+        "sigir"
+      ],
+      "token_count": 2,
+      "status": "buruk"
+    }
+  ]
+}

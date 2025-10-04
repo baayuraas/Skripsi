@@ -1,0 +1,288 @@
+2025-10-02 04:03:54,764 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:03:54,779 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:03:54,846 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:03:54,908 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:03:54,960 - INFO - File game_term.txt ditemukan
+2025-10-02 04:03:55,018 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:03:55,076 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:03:55,355 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:03:55,688 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:03:55,726 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:03:55,879 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:03:55,933 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:03:55,974 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:03:56,004 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:03:56,039 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:03:56,047 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:03:56,223 - INFO - File game_term.txt ditemukan
+2025-10-02 04:03:56,312 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:03:56,312 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:03:56,342 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:03:56,419 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:03:56,423 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:03:56,457 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:03:56,475 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:03:56,478 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:03:56,479 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:03:56,489 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:03:56,490 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:03:56,496 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:03:56,498 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:03:56,544 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:03:56,544 - INFO - File game_term.txt ditemukan
+2025-10-02 04:03:56,550 - INFO - Loaded 427 game terms
+2025-10-02 04:03:56,559 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:03:56,562 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:03:56,573 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:03:56,576 - INFO - Loaded 427 game terms
+2025-10-02 04:03:56,652 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:03:56,674 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:03:56,677 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:03:56,690 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:03:56,693 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:03:56,696 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:03:56,697 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:03:56,709 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:03:56,746 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:03:56,756 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:03:56,756 - INFO - Loaded 427 game terms
+2025-10-02 04:03:56,757 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:03:56,768 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:03:56,772 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:05:11,789 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:05:11,797 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:05:11,806 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:05:11,812 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:05:11,813 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:05:11,814 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:05:11,824 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:05:11,825 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:05:11,825 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:05:11,827 - INFO - File game_term.txt ditemukan
+2025-10-02 04:05:11,832 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:05:11,832 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:05:11,834 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:05:11,899 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:05:11,899 - INFO - File game_term.txt ditemukan
+2025-10-02 04:05:11,908 - INFO - File game_term.txt ditemukan
+2025-10-02 04:05:11,927 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:05:11,927 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:05:12,001 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:05:12,001 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:05:12,002 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:05:12,093 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:05:12,164 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:05:12,164 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:05:12,169 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:05:12,174 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:05:12,181 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:05:12,192 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:05:12,198 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:05:12,199 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:05:12,200 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:05:12,202 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:05:12,202 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:05:12,206 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:05:12,210 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:05:12,226 - INFO - Loaded 427 game terms
+2025-10-02 04:05:12,223 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:05:12,236 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:05:12,261 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:05:12,262 - INFO - Loaded 427 game terms
+2025-10-02 04:05:12,265 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:05:12,267 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:05:12,281 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:05:12,284 - INFO - Loaded 427 game terms
+2025-10-02 04:05:12,302 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:05:12,318 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:05:12,365 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:05:13,062 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-02 04:05:13,062 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-02 04:05:13,067 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-02 04:05:13,067 - INFO - [33mPress CTRL+C to quit[0m
+2025-10-02 04:05:13,068 - INFO - [33mPress CTRL+C to quit[0m
+2025-10-02 04:05:13,076 - INFO - [33mPress CTRL+C to quit[0m
+2025-10-02 04:05:13,162 - INFO -  * Restarting with stat
+2025-10-02 04:05:13,162 - INFO -  * Restarting with stat
+2025-10-02 04:05:34,763 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:05:34,766 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:05:34,770 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:05:34,774 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:05:34,777 - INFO - File game_term.txt ditemukan
+2025-10-02 04:05:34,780 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:05:34,794 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:05:34,812 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:05:34,831 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:05:34,832 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:05:34,835 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:05:34,836 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:05:34,841 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:05:34,846 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:05:34,849 - INFO - Loaded 427 game terms
+2025-10-02 04:05:34,855 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:05:34,859 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:05:35,147 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:05:35,188 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:05:35,203 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:05:35,215 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:05:35,232 - INFO - File game_term.txt ditemukan
+2025-10-02 04:05:35,249 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:05:35,268 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:05:35,304 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:05:35,336 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:05:35,351 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:05:35,387 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:05:35,395 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:05:35,402 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:05:35,415 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:05:35,426 - INFO - Loaded 427 game terms
+2025-10-02 04:05:35,443 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:05:35,452 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:05:38,044 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:05:38,087 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:05:38,127 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:05:38,134 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:05:38,150 - INFO - File game_term.txt ditemukan
+2025-10-02 04:05:38,155 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:05:38,212 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:05:38,274 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:05:38,344 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:05:38,351 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:05:38,353 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:05:38,367 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:05:38,377 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:05:38,416 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:05:38,461 - INFO - Loaded 427 game terms
+2025-10-02 04:05:38,476 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:05:38,492 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:06:09,759 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:06:09,773 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:06:09,797 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:06:09,810 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:06:09,835 - INFO - File game_term.txt ditemukan
+2025-10-02 04:06:09,856 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:06:09,871 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:06:09,969 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:06:10,020 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:06:10,045 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:06:10,071 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:06:10,080 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:06:10,087 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:06:10,090 - INFO - Loaded 427 game terms
+2025-10-02 04:06:10,113 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:06:10,120 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:06:10,547 - WARNING -  * Debugger is active!
+2025-10-02 04:06:10,634 - INFO -  * Debugger PIN: 119-303-276
+2025-10-02 04:06:11,856 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:06:11,931 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:06:11,985 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:06:12,004 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:06:12,020 - INFO - File game_term.txt ditemukan
+2025-10-02 04:06:12,071 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:06:12,129 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:06:12,246 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:06:12,285 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:06:12,301 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:06:12,310 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:06:12,317 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:06:12,333 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:06:12,367 - INFO - Loaded 427 game terms
+2025-10-02 04:06:12,404 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:06:12,445 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:06:12,738 - WARNING -  * Debugger is active!
+2025-10-02 04:06:12,785 - INFO -  * Debugger PIN: 119-303-276
+2025-10-02 04:06:13,849 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:06:13,889 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:06:13,936 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:06:13,956 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:06:13,988 - INFO - File game_term.txt ditemukan
+2025-10-02 04:06:14,020 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:06:14,030 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:06:14,129 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:06:14,163 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:06:14,173 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:06:14,182 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:06:14,186 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:06:14,192 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:06:14,199 - INFO - Loaded 427 game terms
+2025-10-02 04:06:14,212 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:06:14,216 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:06:14,382 - WARNING -  * Debugger is active!
+2025-10-02 04:06:14,418 - INFO -  * Debugger PIN: 119-303-276
+2025-10-02 04:23:26,058 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:23:26,065 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:23:26,068 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:23:26,071 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:23:26,074 - INFO - File game_term.txt ditemukan
+2025-10-02 04:23:26,078 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:23:26,085 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:23:26,119 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:23:26,157 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:23:26,159 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:23:26,162 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:23:26,167 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:23:26,172 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:23:26,175 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:23:26,177 - INFO - Loaded 427 game terms
+2025-10-02 04:23:26,188 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:23:26,191 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:23:43,580 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:23:43,582 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:23:43,582 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:23:43,583 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:23:43,585 - INFO - File game_term.txt ditemukan
+2025-10-02 04:23:43,585 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:23:43,589 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:23:43,658 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:23:43,672 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:23:43,673 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:23:43,674 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:23:43,677 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:23:43,681 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:23:43,685 - INFO - Loaded 427 game terms
+2025-10-02 04:23:43,693 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:23:43,695 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:23:43,884 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-02 04:23:43,886 - INFO - [33mPress CTRL+C to quit[0m
+2025-10-02 04:23:43,891 - INFO -  * Restarting with stat
+2025-10-02 04:23:55,635 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:23:55,639 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:23:55,641 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:23:55,642 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:23:55,643 - INFO - File game_term.txt ditemukan
+2025-10-02 04:23:55,646 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:23:55,657 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:23:55,676 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:23:55,694 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:23:55,705 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-02 04:23:55,706 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:23:55,708 - INFO - Total stopwords Inggris: 1551
+2025-10-02 04:23:55,711 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:23:55,718 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:23:55,724 - INFO - Loaded 427 game terms
+2025-10-02 04:23:55,729 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:23:55,730 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:24:19,638 - INFO - File stopword_list.txt ditemukan
+2025-10-02 04:24:19,640 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-02 04:24:19,640 - INFO - File normalisasi_list.txt ditemukan
+2025-10-02 04:24:19,642 - INFO - File stemming_list.txt ditemukan
+2025-10-02 04:24:19,643 - INFO - File game_term.txt ditemukan
+2025-10-02 04:24:19,645 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-02 04:24:19,647 - INFO - File kata_ambigu.txt ditemukan
+2025-10-02 04:24:19,711 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-02 04:24:19,724 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-02 04:24:19,724 - INFO - Total stopwords Indonesia: 796
+2025-10-02 04:24:19,727 - INFO - Total stopwords Inggris: 1550
+2025-10-02 04:24:19,730 - INFO - Loaded 248 entries dari normalisasi_list.txt
+2025-10-02 04:24:19,734 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-02 04:24:19,736 - INFO - Loaded 427 game terms
+2025-10-02 04:24:19,742 - INFO - Loaded 1544 kata tidak relevan
+2025-10-02 04:24:19,746 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-02 04:24:19,913 - WARNING -  * Debugger is active!
+2025-10-02 04:24:19,926 - INFO -  * Debugger PIN: 119-303-276
+2025-10-02 04:25:51,599 - INFO -  * Detected change in 'c:\\xampp\\htdocs\\Skripsi\\app\\terjemahan\\routes.py', reloading
+2025-10-02 04:25:54,859 - INFO -  * Restarting with stat

@@ -98,7 +98,7 @@
           <thead class="thead-dark">
               <tr>
                   <th>#</th><th>SteamID</th><th>Clean Data</th><th>Case Folding</th>
-                  <th>Tokenisasi</th><th>Stopword</th><th>Normalisasi</th><th>Stemming</th>
+                  <th>Tokenisasi</th><th>Normalisasi</th><th>Stopword</th><th>Stemming</th>
                   <th>Hasil</th><th>Status</th>
               </tr>
           </thead>
@@ -187,8 +187,8 @@ $(function () {
                     <td>${row["Clean Data"] || "-"}</td>
                     <td>${row["Case Folding"] || "-"}</td>
                     <td>${Array.isArray(row.Tokenisasi) ? row.Tokenisasi.join(' ') : (row.Tokenisasi || '-')}</td>
-                    <td>${Array.isArray(row.Stopword) ? row.Stopword.join(' ') : (row.Stopword || '-')}</td>
                     <td>${Array.isArray(row.Normalisasi) ? row.Normalisasi.join(' ') : (row.Normalisasi || '-')}</td>
+                    <td>${Array.isArray(row.Stopword) ? row.Stopword.join(' ') : (row.Stopword || '-')}</td>
                     <td>${Array.isArray(row.Stemming) ? row.Stemming.join(' ') : (row.Stemming || '-')}</td>
                     <td>${row["Hasil"] || "-"}</td>
                     <td>${row["Status"] || "-"}</td>
