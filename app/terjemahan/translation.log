@@ -1,0 +1,124 @@
+2025-10-04 12:46:03,525 - INFO - File stopword_list.txt ditemukan
+2025-10-04 12:46:03,527 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-04 12:46:03,527 - INFO - File normalisasi_list.txt ditemukan
+2025-10-04 12:46:03,538 - INFO - File stemming_list.txt ditemukan
+2025-10-04 12:46:03,538 - INFO - File game_term.txt ditemukan
+2025-10-04 12:46:03,538 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-04 12:46:03,548 - INFO - File kata_ambigu.txt ditemukan
+2025-10-04 12:46:03,576 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-04 12:46:03,597 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-04 12:46:03,609 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-04 12:46:03,609 - INFO - Total stopwords Indonesia: 796
+2025-10-04 12:46:03,609 - INFO - Total stopwords Inggris: 1551
+2025-10-04 12:46:03,617 - INFO - Loaded 252 entries dari normalisasi_list.txt
+2025-10-04 12:46:03,619 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-04 12:46:03,627 - INFO - Loaded 427 game terms
+2025-10-04 12:46:03,632 - INFO - Loaded 1544 kata tidak relevan
+2025-10-04 12:46:03,637 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-04 12:46:24,625 - INFO - File stopword_list.txt ditemukan
+2025-10-04 12:46:24,635 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-04 12:46:24,635 - INFO - File normalisasi_list.txt ditemukan
+2025-10-04 12:46:24,635 - INFO - File stemming_list.txt ditemukan
+2025-10-04 12:46:24,643 - INFO - File game_term.txt ditemukan
+2025-10-04 12:46:24,645 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-04 12:46:24,647 - INFO - File kata_ambigu.txt ditemukan
+2025-10-04 12:46:24,720 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-04 12:46:24,734 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-04 12:46:24,737 - INFO - Total stopwords Indonesia: 796
+2025-10-04 12:46:24,737 - INFO - Total stopwords Inggris: 1550
+2025-10-04 12:46:24,742 - INFO - Loaded 252 entries dari normalisasi_list.txt
+2025-10-04 12:46:24,747 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-04 12:46:24,749 - INFO - Loaded 427 game terms
+2025-10-04 12:46:24,755 - INFO - Loaded 1544 kata tidak relevan
+2025-10-04 12:46:24,763 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-04 12:46:25,167 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-04 12:46:25,171 - INFO - [33mPress CTRL+C to quit[0m
+2025-10-04 12:46:25,176 - INFO -  * Restarting with stat
+2025-10-04 12:46:47,085 - INFO - File stopword_list.txt ditemukan
+2025-10-04 12:46:47,117 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-04 12:46:47,144 - INFO - File normalisasi_list.txt ditemukan
+2025-10-04 12:46:47,177 - INFO - File stemming_list.txt ditemukan
+2025-10-04 12:46:47,211 - INFO - File game_term.txt ditemukan
+2025-10-04 12:46:47,250 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-04 12:46:47,265 - INFO - File kata_ambigu.txt ditemukan
+2025-10-04 12:46:47,312 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-04 12:46:47,350 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-04 12:46:47,363 - WARNING - Stopword ING yang hilang: {'a'}
+2025-10-04 12:46:47,368 - INFO - Total stopwords Indonesia: 796
+2025-10-04 12:46:47,398 - INFO - Total stopwords Inggris: 1551
+2025-10-04 12:46:47,417 - INFO - Loaded 252 entries dari normalisasi_list.txt
+2025-10-04 12:46:47,450 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-04 12:46:47,461 - INFO - Loaded 427 game terms
+2025-10-04 12:46:47,485 - INFO - Loaded 1544 kata tidak relevan
+2025-10-04 12:46:47,496 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-04 12:47:16,682 - INFO - File stopword_list.txt ditemukan
+2025-10-04 12:47:16,684 - INFO - File stopword_list_ing.txt ditemukan
+2025-10-04 12:47:16,685 - INFO - File normalisasi_list.txt ditemukan
+2025-10-04 12:47:16,686 - INFO - File stemming_list.txt ditemukan
+2025-10-04 12:47:16,689 - INFO - File game_term.txt ditemukan
+2025-10-04 12:47:16,690 - INFO - File kata_tidak_relevan.txt ditemukan
+2025-10-04 12:47:16,692 - INFO - File kata_ambigu.txt ditemukan
+2025-10-04 12:47:16,781 - INFO - Loaded 757 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list.txt
+2025-10-04 12:47:16,798 - INFO - Loaded 1550 kata dari c:\xampp\htdocs\Skripsi\app\preproses\stopword_list_ing.txt
+2025-10-04 12:47:16,799 - INFO - Total stopwords Indonesia: 796
+2025-10-04 12:47:16,800 - INFO - Total stopwords Inggris: 1550
+2025-10-04 12:47:16,802 - INFO - Loaded 252 entries dari normalisasi_list.txt
+2025-10-04 12:47:16,809 - INFO - Loaded 93 pasangan dari stemming_list.txt
+2025-10-04 12:47:16,813 - INFO - Loaded 427 game terms
+2025-10-04 12:47:16,818 - INFO - Loaded 1544 kata tidak relevan
+2025-10-04 12:47:16,826 - INFO - Loaded 31 kata dari kata_ambigu.txt
+2025-10-04 12:47:16,994 - WARNING -  * Debugger is active!
+2025-10-04 12:47:17,008 - INFO -  * Debugger PIN: 119-303-276
+2025-10-04 12:47:19,065 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:19] "GET / HTTP/1.1" 200 -
+2025-10-04 12:47:20,298 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:20] "[36mGET /static/assets/bootstrap/bootstrap.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:47:20,437 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:20] "[36mGET /static/assets/font-awesome/css/font-awesome.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:47:20,937 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:20] "[36mGET /static/assets/bootstrap/bootstrap-responsive.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:47:21,156 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:21] "[36mGET /static/assets/normalize/normalize.css HTTP/1.1[0m" 304 -
+2025-10-04 12:47:21,225 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:21] "[36mGET /static/css/flaty.css HTTP/1.1[0m" 304 -
+2025-10-04 12:47:21,531 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:21] "[36mGET /static/css/flaty-responsive.css HTTP/1.1[0m" 304 -
+2025-10-04 12:47:21,644 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:21] "[36mGET /static/assets/modernizr/modernizr-2.6.2.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:21,844 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:21] "[36mGET /static/assets/bootstrap/bootstrap.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,025 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/nicescroll/jquery.nicescroll.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,089 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/flot/jquery.flot.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,217 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/flot/jquery.flot.resize.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,466 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/flot/jquery.flot.pie.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,615 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/flot/jquery.flot.stack.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,728 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/flot/jquery.flot.crosshair.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:22,981 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:22] "[36mGET /static/assets/flot/jquery.flot.tooltip.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:23,006 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:23] "[36mGET /static/assets/sparkline/jquery.sparkline.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:23,108 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:23] "[36mGET /static/js/flaty.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:23,136 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:23] "[36mGET /static/assets/jquery/jquery-1.10.1.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:47:25,006 - INFO - 127.0.0.1 - - [04/Oct/2025 12:47:25] "[36mGET /static/assets/font-awesome/font/fontawesome-webfont.woff@v=3.2.1 HTTP/1.1[0m" 304 -
+2025-10-04 12:48:26,653 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:26] "[36mGET /static/img/favicon.html HTTP/1.1[0m" 304 -
+2025-10-04 12:48:29,482 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:29] "GET /terjemahan/ HTTP/1.1" 200 -
+2025-10-04 12:48:29,572 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:29] "[36mGET /static/assets/bootstrap/bootstrap.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:29,697 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:29] "[36mGET /static/assets/bootstrap/bootstrap-responsive.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:29,821 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:29] "[36mGET /static/assets/font-awesome/css/font-awesome.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:29,907 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:29] "[36mGET /static/assets/normalize/normalize.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:30,311 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:30] "[36mGET /static/css/flaty.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:31,258 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:31] "[36mGET /static/css/flaty-responsive.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:31,486 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:31] "[36mGET /static/assets/modernizr/modernizr-2.6.2.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:32,215 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:32] "[36mGET /static/assets/nicescroll/jquery.nicescroll.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:32,328 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:32] "[36mGET /static/assets/bootstrap/bootstrap.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:32,474 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:32] "[36mGET /static/assets/flot/jquery.flot.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:32,691 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:32] "[36mGET /static/assets/flot/jquery.flot.resize.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:32,790 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:32] "[36mGET /static/assets/flot/jquery.flot.pie.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:32,912 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:32] "[36mGET /static/assets/flot/jquery.flot.stack.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:33,177 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:33] "[36mGET /static/assets/flot/jquery.flot.crosshair.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:33,344 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:33] "[36mGET /static/assets/flot/jquery.flot.tooltip.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:33,454 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:33] "[36mGET /static/assets/sparkline/jquery.sparkline.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:33,876 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:33] "[36mGET /static/js/flaty.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:33,894 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:33] "[36mGET /static/assets/jquery/jquery-1.10.1.min.js HTTP/1.1[0m" 304 -
+2025-10-04 12:48:34,398 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:34] "[36mGET /static/assets/font-awesome/font/fontawesome-webfont.woff@v=3.2.1 HTTP/1.1[0m" 304 -
+2025-10-04 12:48:38,121 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:38] "[33mGET /terjemahan/get_saved_data HTTP/1.1[0m" 404 -
+2025-10-04 12:48:38,741 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:38] "[36mGET /static/img/favicon.html HTTP/1.1[0m" 304 -
+2025-10-04 12:48:45,353 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:45] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-10-04 12:48:45,620 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:45] "[36mGET /static/assets/bootstrap/bootstrap.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:45,940 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:45] "[36mGET /static/assets/bootstrap/bootstrap-responsive.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:46,117 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:46] "[36mGET /static/assets/font-awesome/css/font-awesome.min.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:46,240 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:46] "[36mGET /static/assets/normalize/normalize.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:46,371 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:46] "[36mGET /static/css/flaty.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:46,516 - INFO - 127.0.0.1 - - [04/Oct/2025 12:48:46] "[36mGET /static/css/flaty-responsive.css HTTP/1.1[0m" 304 -
+2025-10-04 12:48:56,149 - INFO - Loaded 97 ignored words.
+2025-10-04 12:48:56,402 - INFO - Memulai terjemahan 1000 baris dengan 2 workers

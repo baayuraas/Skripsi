@@ -6,7 +6,7 @@ import json
 import logging
 from flask import Blueprint, request, jsonify, render_template, send_file
 from deep_translator import GoogleTranslator
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 terjemahan_bp = Blueprint(
@@ -18,12 +18,7 @@ terjemahan_bp = Blueprint(
 )
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(os.path.join(os.path.dirname(__file__), "translation.log")),
-        logging.StreamHandler(),
-    ],
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -36,18 +31,6 @@ translated_data = []
 ignored_words = set()
 translation_cache = {}
 cache_lock = Lock()
-
-# =====================
-# Configuration - OPTIMIZED FOR SPEED
-# =====================
-TRANSLATION_CONFIG = {
-    "max_workers": 2,  # Balanced between speed and rate limiting
-    "request_delay": 0.3,  # Delay between requests
-    "chunk_size": 4500,  # Google's limit is 5000
-    "batch_size": 15,  # Process in batches
-    "max_retries": 2,  # Reduced retries for speed
-    "retry_delay": 1.0,
-}
 
 
 # =====================
@@ -76,7 +59,7 @@ def save_cache():
 
 
 # =====================
-# Utilities - OPTIMIZED
+# Utilities
 # =====================
 def load_ignored_words():
     global ignored_words
@@ -88,176 +71,105 @@ def load_ignored_words():
     logging.info(f"Loaded {len(ignored_words)} ignored words.")
 
 
-def split_text_into_chunks(text, max_chars=4500):
-    """Efficient chunking with sentence boundaries"""
-    if len(text) <= max_chars:
-        return [text]
-
-    # Split by sentences when possible
+def split_text_into_chunks(text, max_chars=5000):
     sentences = re.split(r"(?<=[.!?])\s+", text)
-    chunks = []
-    current_chunk = ""
-
+    chunks, current_chunk = [], ""
     for sentence in sentences:
-        if len(current_chunk) + len(sentence) + 1 <= max_chars:
-            current_chunk += " " + sentence if current_chunk else sentence
+        if len(current_chunk) + len(sentence) + 1 > max_chars:
+            chunks.append(current_chunk)
+            current_chunk = sentence
         else:
-            if current_chunk:
-                chunks.append(current_chunk)
-            # If single sentence is too long, split by length
-            if len(sentence) > max_chars:
-                for i in range(0, len(sentence), max_chars):
-                    chunks.append(sentence[i : i + max_chars])
-                current_chunk = ""
-            else:
-                current_chunk = sentence
-
+            current_chunk += " " + sentence
     if current_chunk:
         chunks.append(current_chunk)
-
     return chunks
 
 
+def fix_hyphen_and_detect_reduplication(text):
+    def is_kata_ulang(a, b):
+        a, b = a.lower(), b.lower()
+        if a == b:
+            return True
+        if len(a) == len(b):
+            beda = sum(1 for x, y in zip(a, b) if x != y)
+            if beda <= 2:
+                return True
+        if a.startswith(b) or b.startswith(a):
+            return True
+        if a.endswith(b) or b.endswith(a):
+            return True
+        return False
+
+    def koreksi(match):
+        k1, k2 = match.group(1), match.group(2)
+        if is_kata_ulang(k1, k2):
+            return f"{k1} - {k2}"
+        return f"{k1} {k2}"
+
+    return re.sub(r"\b(\w+)\s*-\s*(\w+)\b", koreksi, text)
+
+
 def clean_text(text: str) -> str:
-    """Fast text cleaning"""
     if not text or not isinstance(text, str):
         return ""
-
-    # Quick cleanup
-    text = re.sub(r"\[/?[^\]]+\]", "", text)  # Remove Steam tags
-    text = re.sub(r"\s+", " ", text)  # Normalize whitespace
+    text = re.sub(r"\[/?[a-zA-Z0-9]+\]", "", text)
     text = text.strip()
-
-    if not text or re.fullmatch(r"[\W_]+", text):
+    if re.fullmatch(r"[\W_]+", text):
         return ""
     return text
 
 
-def translate_chunk(chunk, target_language="id"):
-    """Fast translation with minimal overhead - FIXED VERSION"""
+def translate_chunk(chunk, target_language="id", retries=3, delay=1.0) -> str:
+    original_chunk = chunk
     chunk = clean_text(chunk)
     if not chunk:
-        return ""
+        logging.warning(f"Chunk kosong setelah clean_text: '{original_chunk[:80]}...'")
+        return "[Gagal diterjemahkan]"
 
-    for attempt in range(TRANSLATION_CONFIG["max_retries"]):
+    for attempt in range(1, retries + 1):
         try:
             translated = GoogleTranslator(
                 source="auto", target=target_language
             ).translate(chunk)
-
-            if not translated or not translated.strip():
+            if not translated or translated.strip() == "":
+                logging.warning(f"Terjemahan kosong untuk chunk: '{chunk[:80]}...'")
                 continue
 
-            # Quick error check
+            # 🔴 Tambahan filter: jangan terima hasil error server
             if any(
                 err in translated
-                for err in ["Error 500", "Server Error", "Please try again"]
+                for err in ["Error 500", "Server Error", "Please try again later"]
             ):
-                continue
+                logging.error(
+                    f"Server error diterima sebagai teks: '{translated[:80]}...'"
+                )
+                if attempt < retries:
+                    time.sleep(delay * attempt)
+                    continue
+                return "[Gagal diterjemahkan]"
 
-            return translated
+            return fix_hyphen_and_detect_reduplication(translated)
 
-        except Exception as e:  # FIXED: & changed to as
+        except Exception as e:
             logging.warning(
-                f"Attempt {attempt + 1} failed for chunk (length: {len(chunk)}): {e}"
+                f"Percobaan {attempt} gagal terjemahkan chunk (potongan: {chunk[:80]}...): {e}"
             )
-            if (
-                attempt < TRANSLATION_CONFIG["max_retries"] - 1
-            ):  # FIXED: -4 changed to -1
-                time.sleep(TRANSLATION_CONFIG["retry_delay"] * (attempt + 1))
-            continue
+            if attempt < retries:
+                time.sleep(delay * attempt)
 
-    return ""
+    return "[Gagal diterjemahkan]"
 
 
-def translate_text(text, target_language="id"):
-    """Main translation function with cache support"""
+def translate_large_text(text, target_language="id") -> str:
     if not text or not isinstance(text, str) or text.strip() == "":
         return ""
-
-    # Check cache first
-    cache_key = text.strip()
-    with cache_lock:
-        if cache_key in translation_cache:
-            return translation_cache[cache_key]
-
-    chunks = split_text_into_chunks(text, TRANSLATION_CONFIG["chunk_size"])
-
-    # Single chunk - direct translation
-    if len(chunks) == 1:
-        translated = translate_chunk(chunks[0], target_language)
-        with cache_lock:
-            translation_cache[cache_key] = translated
-        return translated
-
-    # Multiple chunks
-    translated_chunks = []
-    for chunk in chunks:
-        translated = translate_chunk(chunk, target_language)
-        if translated:
-            translated_chunks.append(translated)
-        time.sleep(TRANSLATION_CONFIG["request_delay"])
-
-    result = " ".join(translated_chunks).strip()
-    with cache_lock:
-        translation_cache[cache_key] = result
-
-    return result
-
-
-def process_batch(batch_rows, batch_num, total_batches, progress_data):
-    """Process a batch of rows with progress tracking"""
-    batch_results = []
-
-    for row in batch_rows:
-        steamid = row.get("SteamID", "")
-        ulasan = row.get("Ulasan") or ""
-        status = row.get("Status", "")
-
-        if not isinstance(ulasan, str):
-            ulasan = ""
-
-        terjemahan = ""
-        if ulasan.strip():
-            # Check cache first
-            with cache_lock:
-                if ulasan in translation_cache:
-                    terjemahan = translation_cache[ulasan]
-                    progress_data["cached_count"] += 1
-                else:
-                    terjemahan = translate_text(ulasan, "id")
-                    translation_cache[ulasan] = terjemahan
-                    if terjemahan:
-                        progress_data["translated_count"] += 1
-                    else:
-                        progress_data["failed_count"] += 1
-
-        batch_results.append(
-            {
-                "SteamID": steamid,
-                "Ulasan": ulasan,
-                "Terjemahan": terjemahan,
-                "Status": status,
-            }
-        )
-
-        progress_data["processed_count"] += 1
-
-        # Progress logging every 10 rows
-        if progress_data["processed_count"] % 10 == 0:
-            logging.info(
-                f"Batch {batch_num}/{total_batches}: "
-                f"Processed {progress_data['processed_count']}/"
-                f"{progress_data['total_rows']} "
-                f"({progress_data['processed_count'] / progress_data['total_rows'] * 100:.1f}%)"
-            )
-
-    return batch_results
+    chunks = split_text_into_chunks(text, 5000)
+    translated_chunks = [translate_chunk(c, target_language) for c in chunks]
+    return " ".join(translated_chunks).strip()
 
 
 @terjemahan_bp.route("/translate", methods=["POST"])
 def translate_file():
-    start_time = time.time()
     try:
         global translated_data
         file = request.files.get("file")
@@ -277,59 +189,59 @@ def translate_file():
 
         load_ignored_words()
         load_cache()
-
-        rows = list(reader)
-        total_rows = len(rows)
         translated_data = []
+        rows = list(reader)
 
-        # Progress tracking
-        progress_data = {
-            "processed_count": 0,
-            "translated_count": 0,
-            "cached_count": 0,
-            "failed_count": 0,
-            "total_rows": total_rows,
-        }
+        # Counter untuk tracking progres
+        processed_count = 0
+        failed_count = 0
+        progress_lock = Lock()
 
-        logging.info(
-            f"Memulai terjemahan {total_rows} baris dengan {TRANSLATION_CONFIG['max_workers']} workers"
-        )
+        def translate_row(row):
+            nonlocal processed_count, failed_count
+            steamid = row.get("SteamID", "")
+            ulasan = row.get("Ulasan") or ""
+            status = row.get("Status", "")
+            if not isinstance(ulasan, str):
+                ulasan = ""
 
-        # Split into batches
-        batch_size = TRANSLATION_CONFIG["batch_size"]
-        batches = [rows[i : i + batch_size] for i in range(0, total_rows, batch_size)]
-        total_batches = len(batches)
+            terjemahan = ""
+            if ulasan.strip() != "":
+                with cache_lock:
+                    if ulasan in translation_cache:
+                        terjemahan = translation_cache[ulasan]
+                    else:
+                        terjemahan = translate_large_text(ulasan, "id")
+                        translation_cache[ulasan] = terjemahan
 
-        # Process batches in parallel
-        with ThreadPoolExecutor(
-            max_workers=TRANSLATION_CONFIG["max_workers"]
-        ) as executor:
-            # Submit all batches
-            future_to_batch = {
-                executor.submit(
-                    process_batch, batch, i + 1, total_batches, progress_data
-                ): i
-                for i, batch in enumerate(batches)
+                # Cek jika terjemahan gagal
+                if terjemahan == "[Gagal diterjemahkan]":
+                    with progress_lock:
+                        failed_count += 1
+                        logging.error(f"Gagal menerjemahkan SteamID {steamid}")
+
+            # Update counter dan log setiap 100 baris
+            with progress_lock:
+                processed_count += 1
+                if processed_count % 100 == 0:
+                    logging.info(f"Berhasil memproses {processed_count} baris")
+
+            return {
+                "SteamID": steamid,
+                "Ulasan": ulasan,
+                "Terjemahan": terjemahan,
+                "Status": status,
             }
 
-            # Collect results as they complete
-            for future in as_completed(future_to_batch):
-                try:
-                    batch_results = future.result()
-                    translated_data.extend(batch_results)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            translated_data = list(executor.map(translate_row, rows))
 
-                    # Save cache every 5 batches to prevent data loss
-                    if len(translated_data) % (batch_size * 5) == 0:
-                        save_cache()
+        # Log hasil akhir
+        logging.info(f"Total baris diproses: {processed_count}")
+        logging.info(f"Total gagal diterjemahkan: {failed_count}")
 
-                except Exception as e:
-                    logging.error(f"Error processing batch: {e}")
-                    continue
-
-        # Final save
         save_cache()
 
-        # Save to CSV file
         os.makedirs(os.path.dirname(TRANSLATED_PATH), exist_ok=True)
         with open(TRANSLATED_PATH, "w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
@@ -346,34 +258,10 @@ def translate_file():
                     ]
                 )
 
-        # Calculate statistics
-        success_count = (
-            progress_data["translated_count"] + progress_data["cached_count"]
-        )
-        total_time = time.time() - start_time
-
-        logging.info(
-            f"Terjemahan selesai dalam {total_time:.1f} detik: "
-            f"{success_count} berhasil, {progress_data['failed_count']} gagal, "
-            f"{progress_data['cached_count']} dari cache"
-        )
-
         return jsonify(
             {
-                "message": f"Berhasil diterjemahkan! "
-                f"Waktu: {total_time:.1f} detik, "
-                f"Total: {progress_data['processed_count']}, "
-                f"Berhasil: {success_count}, "
-                f"Gagal: {progress_data['failed_count']}, "
-                f"Cache: {progress_data['cached_count']}",
+                "message": f"Berhasil diterjemahkan! Diproses: {processed_count}, Gagal: {failed_count}",
                 "data": translated_data,
-                "stats": {
-                    "total_time": round(total_time, 1),
-                    "total_rows": progress_data["processed_count"],
-                    "success_count": success_count,
-                    "failed_count": progress_data["failed_count"],
-                    "cached_count": progress_data["cached_count"],
-                },
             }
         ), 200
 
@@ -384,7 +272,6 @@ def translate_file():
         return jsonify({"error": f"Kesalahan server: {str(e)}"}), 500
 
 
-# ... (other routes remain the same as previous version)
 @terjemahan_bp.route("/get_saved_data", methods=["GET"])
 def get_saved_data():
     if not os.path.exists(TRANSLATED_PATH):
@@ -412,25 +299,19 @@ def get_saved_data():
 
 @terjemahan_bp.route("/cleardata", methods=["POST"])
 def clear_data():
-    global translated_data, translation_cache
+    global translated_data
     translated_data = []
-    translation_cache = {}
-
-    # Clear cache file
-    if os.path.exists(CACHE_FILE):
-        os.remove(CACHE_FILE)
-
-    # Clear translated file
+    # Hapus file terjemahan yang disimpan
     if os.path.exists(TRANSLATED_PATH):
         os.remove(TRANSLATED_PATH)
-
-    return jsonify({"message": "Data dan cache berhasil dihapus"})
+    return jsonify({"message": "Data cleared successfully"})
 
 
 @terjemahan_bp.route("/savedata", methods=["GET"])
 def savedata():
     global translated_data
     if not translated_data and os.path.exists(TRANSLATED_PATH):
+        # Jika tidak ada data di memori, tapi file ada, baca dari file
         try:
             with open(TRANSLATED_PATH, "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
@@ -482,11 +363,7 @@ def savedata():
 @terjemahan_bp.route("/download")
 def download_latest():
     if os.path.exists(TRANSLATED_PATH):
-        return send_file(
-            TRANSLATED_PATH,
-            as_attachment=True,
-            download_name="terjemahan_steam_reviews.csv",
-        )
+        return send_file(TRANSLATED_PATH, as_attachment=True)
     return jsonify({"error": "File hasil terjemahan tidak ditemukan."}), 404
 
 

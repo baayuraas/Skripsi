@@ -85,6 +85,7 @@ bajak
 bajing
 bakar
 balik
+bam
 banding
 bangkrut
 bangsal
@@ -287,11 +288,15 @@ diri
 disi
 disk
 ditingalkan
+dityabot
+dityaingi
 divine
+diwal
 dll
 dogshit
 dokter
 dolar
+dolbaubov
 dominance
 dopamin
 dorong
@@ -347,6 +352,7 @@ fortnite
 fps
 fre
 friend
+fritzl
 frozen
 frustrasi
 ftw
@@ -884,6 +890,7 @@ musim
 mustahil
 mutlak
 mvp
+myu
 nabi
 nama
 napas
@@ -907,7 +914,9 @@ nonaktif
 noob
 normal
 nostalgia
+nouhidev
 np
+nrow
 nsfw
 nuklir
 nvm
@@ -920,6 +929,7 @@ obat
 obrol
 obsesi
 oflane
+ohing
 oke
 olah
 olahraga
@@ -1162,12 +1172,14 @@ sambut
 sampah
 samping
 sandera
+sangama
 santa
 santai
 sapi
 sapu
 saraf
 saran
+sashers
 sat
 satu
 saudara
@@ -1256,6 +1268,7 @@ sila
 simpan
 simpul
 simulator
+sina
 sinar
 sindrom
 sinergi
@@ -1272,6 +1285,7 @@ skor
 slog
 slogfest
 slot
+smashy
 smh
 smite
 smurf
@@ -1281,7 +1295,9 @@ solid
 solo
 solusi
 sopan
+sororyan
 sosial
+sosos
 spam
 spanyol
 spektakuler
@@ -1289,6 +1305,7 @@ spiritual
 sports
 stabil
 stabilitas
+staler
 standar
 started
 stat
@@ -1304,6 +1321,8 @@ studio
 stupid
 suara
 suasana
+subpivasis
+subripta
 sudut
 suka
 sukses
@@ -1322,6 +1341,7 @@ survival
 susun
 sven
 syarat
+syiot
 tabrak
 tagalog
 tagih
@@ -1355,6 +1375,8 @@ tarik
 taruh
 tarung
 tas
+taung
+tavers
 tawar
 tbh
 tbt
@@ -1393,6 +1415,7 @@ terang
 terap
 terapi
 terarium
+terbosus
 teriak
 terima
 terkadang
@@ -1400,6 +1423,7 @@ terkordinasi
 terorblade
 teroris
 terorisme
+terpont
 tertawa
 tertingal
 terus
@@ -1415,10 +1439,12 @@ tiga
 tiket
 tikus
 tim
+tima
 timbang
 time
 timur
 tindak
+tinermaners
 ting
 tingal
 tinggal
@@ -1447,6 +1473,7 @@ tradisionals
 transaksi
 trashtalk
 trauma
+traumaslopi
 trik
 trol
 ttyl
@@ -1483,6 +1510,7 @@ ukraina
 ukur
 ulang
 ulas
+umanicre
 umat
 umpan
 umur
@@ -1492,11 +1520,14 @@ ungkap
 uni
 unik
 unit
+unjung
+unrafan
 untuk
 untuku
 untun
 untung
 upaya
+uras
 urus
 urut
 usah
@@ -1504,6 +1535,7 @@ usaha
 usia
 utama
 utara
+uterter
 valve
 variabel
 variasi
@@ -1515,7 +1547,9 @@ video
 visi
 visual
 volvo
+vpk
 vs
+vsa
 wajah
 wajib
 wakil
@@ -1525,17 +1559,21 @@ warcraft
 warlock
 warna
 was
+wci
 we
+wickers
 wifi
 wilayah
 win
 winrate
+witern
 wtf
 wth
 wujud
 xd
 yah
 yakin
+yorsa
 youtube
 yw
 zaman

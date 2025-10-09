@@ -75,6 +75,188 @@ game_terms = set()
 kata_tidak_relevan = set()
 kata_id_pasti = set()
 
+# Path cache files
+CACHE_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
+CACHE_FILE = os.path.join(CACHE_FOLDER, "cache_translate.json")
+LANGUAGE_CACHE_FILE = os.path.join(CACHE_FOLDER, "cache_language.json")
+TRANSLATION_CACHE_FILE = os.path.join(
+    BASE_DIR, "uploads", "terjemahan", "translation_cache.json"
+)
+
+
+# --- Fungsi helper untuk cache ---
+def is_error_message(text):
+    """Mendeteksi apakah teks mengandung pesan error"""
+    if not text or not isinstance(text, str):
+        return False
+
+    if len(text.strip()) < 10:
+        return False
+
+    error_patterns = [
+        r"error\s*\d+",
+        r"server\s*error",
+        r"try\s*later",
+        r"internal\s*error",
+        r"bad\s*request",
+        r"gateway",
+        r"timeout",
+        r"service\s*unavailable",
+        r"connection\s*refused",
+        r"too\s*many\s*requests",
+        r"quota\s*exceeded",
+        r"api\s*key",
+        r"limit\s*exceeded",
+        r"connection\s*lost",
+        r"network\s*error",
+        r"socket",
+        r"connection\s*reset",
+        r"failed\s*to\s*connect",
+    ]
+
+    text_lower = text.lower()
+    for pattern in error_patterns:
+        if re.search(pattern, text_lower):
+            return True
+    return False
+
+
+def simpan_cache_bahasa():
+    try:
+        os.makedirs(os.path.dirname(LANGUAGE_CACHE_FILE), exist_ok=True)
+        with open(LANGUAGE_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(language_cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.error(f"Error simpan cache bahasa: {e}")
+
+
+def simpan_cache_ke_file():
+    try:
+        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.error(f"Error simpan cache: {e}")
+
+
+# --- Cache untuk deteksi bahasa ---
+language_cache = {}
+if os.path.exists(LANGUAGE_CACHE_FILE):
+    try:
+        with open(LANGUAGE_CACHE_FILE, "r", encoding="utf-8") as f:
+            language_cache = json.load(f)
+    except Exception:
+        language_cache = {}
+
+# --- Cache translate ---
+terjemahan_cache = {}
+if os.path.exists(CACHE_FILE):
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            terjemahan_cache = json.load(f)
+
+        keys_to_remove = []
+        for key, value in terjemahan_cache.items():
+            if is_error_message(value) or is_error_message(key):
+                keys_to_remove.append(key)
+
+        for key in keys_to_remove:
+            del terjemahan_cache[key]
+
+        if keys_to_remove:
+            logging.info(f"Menghapus {len(keys_to_remove)} entri error dari cache")
+            simpan_cache_ke_file()
+    except Exception:
+        terjemahan_cache = {}
+
+# --- Optimasi: Pre-compile regex patterns ---
+emoji_pattern = re.compile(
+    "["
+    "\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map symbols
+    "\U0001f1e0-\U0001f1ff"  # flags (iOS)
+    "\U00002702-\U000027b0"
+    "\U000024c2-\U0001f251"
+    "]+",
+    flags=re.UNICODE,
+)
+
+special_char_pattern = re.compile(r"[-–—…\"»«]")
+bracket_pattern = re.compile(r"\[.*?\]")
+url_pattern = re.compile(r"http\S+")
+digit_pattern = re.compile(r"\b\d+\b")
+non_word_pattern = re.compile(r"[^\w\s@#]")
+whitespace_pattern = re.compile(r"\s+")
+repeated_word_pattern = re.compile(r"\b(\w{3,}?)(?:\1)\b")
+sentence_split_pattern = re.compile(r"(?<=[.!?]) +|\n")
+word_pattern = re.compile(r"\b\w+\b")
+
+# --- Pattern untuk membersihkan token tidak diinginkan ---
+number_unit_pattern = re.compile(r"^\d+[a-z]*\d*[a-z]*$")
+short_word_pattern = re.compile(r"^\w{1,2}$")
+mixed_alnum_pattern = re.compile(r"^[a-z]+\d+|\d+[a-z]+$")
+
+
+# --- Fungsi untuk memuat cache terjemahan yang sudah ada ---
+def load_translation_cache():
+    """Memuat cache terjemahan dari folder terjemahan yang sudah ada"""
+    translation_cache = {}
+    try:
+        if os.path.exists(TRANSLATION_CACHE_FILE):
+            with open(TRANSLATION_CACHE_FILE, "r", encoding="utf-8") as f:
+                translation_cache = json.load(f)
+            logging.info(
+                f"✅ Loaded {len(translation_cache)} entries dari translation_cache.json"
+            )
+
+            # Validasi dan bersihkan cache
+            keys_to_remove = []
+            for key, value in translation_cache.items():
+                if is_error_message(value) or is_error_message(key):
+                    keys_to_remove.append(key)
+
+            for key in keys_to_remove:
+                del translation_cache[key]
+
+            if keys_to_remove:
+                logging.info(
+                    f"Menghapus {len(keys_to_remove)} entri error dari translation cache"
+                )
+        else:
+            logging.warning(
+                "File translation_cache.json tidak ditemukan di folder terjemahan"
+            )
+    except Exception as e:
+        logging.error(f"Error load_translation_cache: {e}")
+
+    return translation_cache
+
+
+# --- Fungsi untuk sinkronisasi cache antara preprocessing dan terjemahan ---
+def sync_translation_caches():
+    """Menyinkronkan cache antara preprocessing dan terjemahan"""
+    try:
+        # Load cache dari terjemahan
+        translation_cache = load_translation_cache()
+
+        # Gabungkan cache (prioritaskan cache terjemahan yang sudah ada)
+        updated_count = 0
+        for key, value in translation_cache.items():
+            if key not in terjemahan_cache:
+                terjemahan_cache[key] = value
+                updated_count += 1
+
+        if updated_count > 0:
+            logging.info(
+                f"✅ Sinkronisasi cache: {updated_count} entries baru dari terjemahan"
+            )
+            # Simpan cache gabungan
+            simpan_cache_ke_file()
+
+    except Exception as e:
+        logging.error(f"Error sync_translation_caches: {e}")
+
 
 # --- Fungsi inisialisasi sekali pakai ---
 def initialize_preprocessing_data():
@@ -159,20 +341,37 @@ def initialize_preprocessing_data():
     logging.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
     logging.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
 
-    # Load normalisasi dictionary
+    # Load normalisasi dictionary - DIPERBAIKI
     normalisasi_dict.clear()
     normalisasi_file = os.path.join(TXT_DIR, "normalisasi_list.txt")
     if os.path.exists(normalisasi_file):
+        loaded_count = 0
         with open(normalisasi_file, "r", encoding="utf-8") as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line or line.startswith("#"):  # Skip komentar dan baris kosong
+                    continue
                 if "=" in line:
-                    k, v = line.strip().split("=", 1)
+                    k, v = line.split("=", 1)
                     k = k.strip().lower()
                     v = v.strip().lower()
-                    normalisasi_dict[k] = v
+                    if k and v:  # Pastikan kedua bagian tidak kosong
+                        normalisasi_dict[k] = v
+                        loaded_count += 1
+                    else:
+                        logging.warning(
+                            f"Format tidak valid di baris {line_num}: {line}"
+                        )
+                else:
+                    logging.warning(f"Format tidak valid di baris {line_num}: {line}")
+
         logging.info(
-            f"Loaded {len(normalisasi_dict)} entries dari normalisasi_list.txt"
+            f"✅ Loaded {loaded_count} valid entries dari normalisasi_list.txt"
         )
+
+        # Debug: tampilkan beberapa contoh
+        sample_items = list(normalisasi_dict.items())[:5]
+        logging.info(f"Contoh normalisasi: {sample_items}")
     else:
         logging.warning("File normalisasi_list.txt tidak ditemukan")
 
@@ -265,122 +464,6 @@ stemmer = StemmerFactory().create_stemmer()
 
 CHUNK_SIZE = 1000
 MAX_FILE_SIZE = 2 * 1024 * 1024
-CACHE_FOLDER = os.path.join(BASE_DIR, "uploads", "preproses")
-CACHE_FILE = os.path.join(CACHE_FOLDER, "cache_translate.json")
-LANGUAGE_CACHE_FILE = os.path.join(CACHE_FOLDER, "cache_language.json")
-
-# --- Cache untuk deteksi bahasa ---
-language_cache = {}
-if os.path.exists(LANGUAGE_CACHE_FILE):
-    try:
-        with open(LANGUAGE_CACHE_FILE, "r", encoding="utf-8") as f:
-            language_cache = json.load(f)
-    except Exception:
-        language_cache = {}
-
-
-def simpan_cache_bahasa():
-    try:
-        os.makedirs(os.path.dirname(LANGUAGE_CACHE_FILE), exist_ok=True)
-        with open(LANGUAGE_CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(language_cache, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logging.error(f"Error simpan cache bahasa: {e}")
-
-
-def is_error_message(text):
-    """Mendeteksi apakah teks mengandung pesan error"""
-    if not text or not isinstance(text, str):
-        return False
-
-    if len(text.strip()) < 10:
-        return False
-
-    error_patterns = [
-        r"error\s*\d+",
-        r"server\s*error",
-        r"try\s*later",
-        r"internal\s*error",
-        r"bad\s*request",
-        r"gateway",
-        r"timeout",
-        r"service\s*unavailable",
-        r"connection\s*refused",
-        r"too\s*many\s*requests",
-        r"quota\s*exceeded",
-        r"api\s*key",
-        r"limit\s*exceeded",
-        r"connection\s*lost",
-        r"network\s*error",
-        r"socket",
-        r"connection\s*reset",
-        r"failed\s*to\s*connect",
-    ]
-
-    text_lower = text.lower()
-    for pattern in error_patterns:
-        if re.search(pattern, text_lower):
-            return True
-    return False
-
-
-def simpan_cache_ke_file():
-    try:
-        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(terjemahan_cache, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logging.error(f"Error simpan cache: {e}")
-
-
-# --- Cache translate ---
-terjemahan_cache = {}
-if os.path.exists(CACHE_FILE):
-    try:
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
-            terjemahan_cache = json.load(f)
-
-        keys_to_remove = []
-        for key, value in terjemahan_cache.items():
-            if is_error_message(value) or is_error_message(key):
-                keys_to_remove.append(key)
-
-        for key in keys_to_remove:
-            del terjemahan_cache[key]
-
-        if keys_to_remove:
-            logging.info(f"Menghapus {len(keys_to_remove)} entri error dari cache")
-            simpan_cache_ke_file()
-    except Exception:
-        terjemahan_cache = {}
-
-# --- Optimasi: Pre-compile regex patterns ---
-emoji_pattern = re.compile(
-    "["
-    "\U0001f600-\U0001f64f"  # emoticons
-    "\U0001f300-\U0001f5ff"  # symbols & pictographs
-    "\U0001f680-\U0001f6ff"  # transport & map symbols
-    "\U0001f1e0-\U0001f1ff"  # flags (iOS)
-    "\U00002702-\U000027b0"
-    "\U000024c2-\U0001f251"
-    "]+",
-    flags=re.UNICODE,
-)
-
-special_char_pattern = re.compile(r"[-–—…\"»«]")
-bracket_pattern = re.compile(r"\[.*?\]")
-url_pattern = re.compile(r"http\S+")
-digit_pattern = re.compile(r"\b\d+\b")
-non_word_pattern = re.compile(r"[^\w\s@#]")
-whitespace_pattern = re.compile(r"\s+")
-repeated_word_pattern = re.compile(r"\b(\w{3,}?)(?:\1)\b")
-sentence_split_pattern = re.compile(r"(?<=[.!?]) +|\n")
-word_pattern = re.compile(r"\b\w+\b")
-
-# --- Pattern untuk membersihkan token tidak diinginkan ---
-number_unit_pattern = re.compile(r"^\d+[a-z]*\d*[a-z]*$")
-short_word_pattern = re.compile(r"^\w{1,2}$")
-mixed_alnum_pattern = re.compile(r"^[a-z]+\d+|\d+[a-z]+$")
 
 
 # --- Optimasi: Gunakan LRU cache untuk fungsi yang sering dipanggil ---
@@ -417,7 +500,23 @@ def normalize_repeated_letters(word):
 
 
 def translate_with_retry(text, source="auto", target="id", max_len=5000):
-    """Fungsi terjemahan dengan mekanisme retry untuk menangani connection lost"""
+    """Fungsi terjemahan dengan mekanisme retry dan multiple cache sources"""
+
+    # 1. Cek di cache preprocessing terlebih dahulu
+    if text in terjemahan_cache:
+        logging.debug(f"✅ Menggunakan cache preprocessing untuk: {text[:50]}...")
+        return terjemahan_cache[text]
+
+    # 2. Cek di cache terjemahan yang sudah ada
+    translation_existing_cache = load_translation_cache()
+    if text in translation_existing_cache:
+        logging.debug(f"✅ Menggunakan cache terjemahan existing untuk: {text[:50]}...")
+        # Simpan juga ke cache preprocessing untuk akses future
+        terjemahan_cache[text] = translation_existing_cache[text]
+        simpan_cache_ke_file()
+        return translation_existing_cache[text]
+
+    # 3. Jika tidak ada di cache, lakukan terjemahan
     if is_error_message(text):
         return text.lower()
 
@@ -460,7 +559,13 @@ def translate_with_retry(text, source="auto", target="id", max_len=5000):
                     logging.error(f"Error translate chunk: {e}")
                     hasil.append(buffer.strip())
 
-            return " ".join(hasil)
+            hasil_terjemahan = " ".join(hasil)
+
+            # Simpan ke cache preprocessing
+            terjemahan_cache[text] = hasil_terjemahan
+            simpan_cache_ke_file()
+
+            return hasil_terjemahan
 
         except Exception as e:
             error_msg = str(e).lower()
@@ -524,35 +629,81 @@ def hapus_kata_ulang(word):
     return repeated_word_pattern.sub(r"\1", word)
 
 
-def normalisasi_teks(words):
+# --- FUNGSI NORMALISASI YANG DIPERBAIKI ---
+def normalisasi_teks(words, debug=False):
+    """Fungsi normalisasi yang diperbaiki - dengan logging detail"""
     hasil = []
+    normalisasi_count = 0
+
     for w in words:
         wl = w.lower()
+        # Cek apakah kata ada di dictionary normalisasi
         if wl in normalisasi_dict:
             mapped = normalisasi_dict[wl]
+            if debug:
+                logging.debug(f"🔧 Normalisasi: '{wl}' -> '{mapped}'")
             hasil.extend(mapped.split())
+            normalisasi_count += 1
         else:
+            # Jika tidak ada di dictionary, pertahankan kata asli
             hasil.append(wl)
+
+    if debug and normalisasi_count > 0:
+        logging.info(f"✅ Dilakukan {normalisasi_count} normalisasi")
+
     return hasil
 
 
-def bersihkan_token(tokens):
-    """Membersihkan token-token yang tidak diinginkan"""
+# --- FUNGSI BERSIHKAN TOKEN YANG DIPERBAIKI ---
+def bersihkan_token(tokens, debug=False):
+    """Membersihkan token-token yang tidak diinginkan - versi diperbaiki"""
     hasil = []
+    skipped_count = 0
+
     for token in tokens:
         normalized_token = normalize_repeated_letters(token)
 
+        # PRIORITAS: JANGAN hapus token yang ada di normalisasi_dict
+        if normalized_token in normalisasi_dict:
+            if debug:
+                logging.debug(
+                    f"🔧 Pertahankan token untuk normalisasi: '{normalized_token}'"
+                )
+            hasil.append(normalized_token)
+            continue
+
+        # JANGAN hapus token yang merupakan hasil normalisasi
+        is_normalized_result = any(
+            normalized_token in value.split() for value in normalisasi_dict.values()
+        )
+        if is_normalized_result:
+            if debug:
+                logging.debug(f"🔧 Pertahankan hasil normalisasi: '{normalized_token}'")
+            hasil.append(normalized_token)
+            continue
+
+        # Filter token yang tidak diinginkan
         if (
             number_unit_pattern.match(normalized_token)
             or short_word_pattern.match(normalized_token)
             or mixed_alnum_pattern.match(normalized_token)
         ):
+            if debug:
+                logging.debug(f"🗑️ Hapus token tidak diinginkan: '{normalized_token}'")
+            skipped_count += 1
             continue
 
         if normalized_token.isdigit():
+            if debug:
+                logging.debug(f"🗑️ Hapus token angka: '{normalized_token}'")
+            skipped_count += 1
             continue
 
         hasil.append(normalized_token)
+
+    if debug and skipped_count > 0:
+        logging.info(f"🗑️ Dihapus {skipped_count} token tidak diinginkan")
+
     return hasil
 
 
@@ -560,8 +711,6 @@ def hapus_stopword(words, debug=False):
     """Fungsi stopword removal yang diperbaiki"""
     if not words:
         return []
-
-    words = bersihkan_token(words)
 
     if debug:
         logging.debug(f"Kata sebelum filter stopword: {words}")
@@ -575,41 +724,41 @@ def hapus_stopword(words, debug=False):
         # Pengecualian 1: Game terms
         if w_lower in game_terms:
             if debug:
-                logging.debug(f"Menyimpan game term: '{w}'")
+                logging.debug(f"🎮 Menyimpan game term: '{w}'")
             result.append(w)
             continue
 
         # Pengecualian 2: Whitelist
         if w_lower in kata_id_pasti:
             if debug:
-                logging.debug(f"Menyimpan kata whitelist: '{w}'")
+                logging.debug(f"📝 Menyimpan kata whitelist: '{w}'")
             result.append(w)
             continue
 
         # Prioritas 1: Kata tidak relevan
         if w_lower in kata_tidak_relevan:
             if debug:
-                logging.debug(f"Menghapus kata tidak relevan: '{w}'")
+                logging.debug(f"🗑️ Menghapus kata tidak relevan: '{w}'")
             stopword_removed.append(w)
             continue
 
         # Prioritas 2: Stopword Indonesia
         if w_lower in stop_words_id:
             if debug:
-                logging.debug(f"Menghapus stopword Indonesia: '{w}'")
+                logging.debug(f"🗑️ Menghapus stopword Indonesia: '{w}'")
             stopword_removed.append(w)
             continue
 
         # Prioritas 3: Stopword Inggris
         if w_lower in stop_words_ing:
             if debug:
-                logging.debug(f"Menghapus stopword Inggris: '{w}'")
+                logging.debug(f"🗑️ Menghapus stopword Inggris: '{w}'")
             stopword_removed.append(w)
             continue
 
         # Jika lolos semua filter, simpan kata
         if debug:
-            logging.debug(f"Menyimpan kata: '{w}'")
+            logging.debug(f"💾 Menyimpan kata: '{w}'")
         result.append(w)
 
     if debug:
@@ -661,13 +810,15 @@ def deteksi_bukan_indonesia(text: str) -> bool:
         return False
 
 
+# --- FUNGSI DETEKSI BAHASA ASING YANG DIPERBAIKI ---
 def contains_foreign_words(text):
-    """Mendeteksi apakah teks mengandung kata asing yang tidak ada di whitelist"""
+    """Mendeteksi apakah teks mengandung kata asing yang tidak ada di whitelist - VERSI DIPERBAIKI"""
     if not text or not isinstance(text, str):
         return False
 
     try:
         tokens = word_tokenize(text.lower())
+        foreign_words_found = []
 
         for token in tokens:
             # KECUALIKAN: kata pendek, game terms, whitelist, dan kata yang sudah dinormalisasi/distem
@@ -684,9 +835,14 @@ def contains_foreign_words(text):
             try:
                 lang = cached_detect_language(token)
                 if lang != "id":
-                    return True  # Ketemu kata asing non-whitelist
+                    foreign_words_found.append((token, lang))
             except Exception:
                 continue
+
+        # Jika ditemukan kata asing, log dan return True
+        if foreign_words_found:
+            logging.debug(f"🌍 Kata asing terdeteksi: {foreign_words_found}")
+            return True
 
     except Exception as e:
         logging.error(f"Error deteksi kata asing: {e}")
@@ -694,15 +850,20 @@ def contains_foreign_words(text):
     return False
 
 
-# --- Fungsi preprocessing standar TANPA step tersembunyi ---
+# --- FUNGSI PREPROCESSING STANDAR DENGAN PERBAIKAN URUTAN ---
 def proses_preprocessing_standar(teks, debug=False):
-    """Fungsi preprocessing standar - tanpa step tersembunyi"""
+    """Fungsi preprocessing standar - dengan urutan yang diperbaiki dan logging"""
     if pd.isna(teks) or not isinstance(teks, str) or not teks.strip():
         return ["", "", [], [], [], [], ""]  # 7 elemen
 
     # Bersihkan teks
     clean = bersihkan_terjemahan(teks)
     folded = clean.lower()
+
+    if debug:
+        logging.info(f"📥 Input: '{teks}'")
+        logging.info(f"🧹 Clean: '{clean}'")
+        logging.info(f"🔠 Case Folding: '{folded}'")
 
     # Tokenisasi
     try:
@@ -711,34 +872,37 @@ def proses_preprocessing_standar(teks, debug=False):
         token = word_pattern.findall(folded)
 
     if debug:
-        logging.debug(f"Setelah tokenisasi: {token}")
+        logging.info(f"🔪 Tokenisasi: {token}")
 
-    # Bersihkan token tidak diinginkan
-    token_cleaned = bersihkan_token(token)
-
-    if debug:
-        logging.debug(f"Setelah bersihkan_token: {token_cleaned}")
-
-    # Normalisasi teks - langsung dari token_cleaned (tanpa step tersembunyi)
-    norm = normalisasi_teks(token_cleaned) if token_cleaned else []
+    # PERBAIKAN URUTAN: Normalisasi dilakukan SEBELUM pembersihan token
+    norm = normalisasi_teks(token, debug) if token else []
 
     if debug:
-        logging.debug(f"Setelah normalisasi: {norm}")
+        logging.info(f"🔧 Setelah normalisasi: {norm}")
+
+    # Bersihkan token tidak diinginkan (setelah normalisasi)
+    token_cleaned = bersihkan_token(norm, debug) if norm else []
+
+    if debug:
+        logging.info(f"🧽 Setelah bersihkan_token: {token_cleaned}")
 
     # Stopword removal
-    stop = hapus_stopword(norm, debug) if norm else []
+    stop = hapus_stopword(token_cleaned, debug) if token_cleaned else []
 
     if debug:
-        logging.debug(f"Setelah stopword removal: {stop}")
+        logging.info(f"🚫 Setelah stopword removal: {stop}")
 
     # Stemming
     stem = stemming_teks(stop, debug) if stop else []
 
     if debug:
-        logging.debug(f"Setelah stemming: {stem}")
+        logging.info(f"✂️ Setelah stemming: {stem}")
 
     # Gabungkan hasil
     hasil = " ".join(stem) if stem else folded
+
+    if debug:
+        logging.info(f"🎯 Hasil akhir: '{hasil}'")
 
     return [clean, folded, token, stop, norm, stem, hasil]
 
@@ -787,8 +951,8 @@ def proses_terjemahan_ulang(teks_hasil_fase1, data_preprocessing_sebelumnya):
         if not terjemahan_baru or is_error_message(terjemahan_baru):
             return data_preprocessing_sebelumnya
 
-        # Gunakan fungsi preprocessing standar yang sama untuk hasil terjemahan baru
-        return proses_preprocessing_standar(terjemahan_baru)
+        # PERBAIKAN: Tambahkan debug=False saat memanggil proses_preprocessing_standar
+        return proses_preprocessing_standar(terjemahan_baru, debug=False)
 
     except Exception as e:
         logging.error(f"Error terjemahan ulang setelah {MAX_RETRIES} percobaan: {e}")
@@ -902,7 +1066,7 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
         return False
 
 
-# --- Routes ---
+# --- Routes yang diperbaiki ---
 @prepro_bp.route("/preproses", methods=["POST"])
 def preproses():
     try:
@@ -927,22 +1091,27 @@ def preproses():
 
         df["Terjemahan"] = df["Terjemahan"].fillna("")
 
-        # Fase 1: Preprocessing standar
-        logging.info("Fase 1: Preprocessing standar...")
+        # Sinkronisasi cache sebelum memulai preprocessing
+        sync_translation_caches()
+
+        # Fase 1: Preprocessing standar dengan urutan yang diperbaiki
+        logging.info("Fase 1: Preprocessing standar (dengan urutan diperbaiki)...")
         with ProcessPoolExecutor(max_workers=4) as executor:
             chunks = [df[i : i + CHUNK_SIZE] for i in range(0, total_rows, CHUNK_SIZE)]
             futures = []
 
             for i, chunk in enumerate(chunks):
                 futures.append(
-                    executor.submit(proses_batch_standar, chunk["Terjemahan"].tolist())
+                    executor.submit(
+                        proses_batch_standar, chunk["Terjemahan"].tolist(), False
+                    )
                 )
 
             processed_chunks = []
             for i, future in enumerate(as_completed(futures)):
                 logging.info(f"Chunk {i + 1}: Memproses {len(chunks[i])} baris...")
                 hasil_list = future.result()
-                # 7 kolom tanpa step tersembunyi
+                # 7 kolom dengan urutan yang diperbaiki
                 hasil_df = pd.DataFrame(
                     hasil_list,
                     columns=[
@@ -1104,6 +1273,85 @@ def debug_prepro():
         return jsonify({"error": str(e)}), 500
 
 
+@prepro_bp.route("/debug_normalization", methods=["POST"])
+def debug_normalization():
+    """Endpoint khusus untuk debugging normalisasi"""
+    try:
+        data = request.get_json()
+        if not data or "text" not in data:
+            return jsonify({"error": "Tidak ada teks yang dikirim."}), 400
+
+        teks = data["text"]
+        logging.info(f"Debug Normalization: Memproses teks: {teks}")
+
+        # Tokenisasi saja dulu
+        folded = teks.lower()
+        tokens = word_tokenize(folded)
+
+        # Cek normalisasi untuk setiap token
+        normalization_results = []
+        for token in tokens:
+            token_lower = token.lower()
+            is_in_dict = token_lower in normalisasi_dict
+            normalized_value = normalisasi_dict.get(token_lower, "TIDAK_ADA")
+            normalization_results.append(
+                {
+                    "token": token,
+                    "lowercase": token_lower,
+                    "in_normalization_dict": is_in_dict,
+                    "normalized_to": normalized_value,
+                }
+            )
+
+        # Proses lengkap untuk perbandingan
+        hasil_lengkap = proses_preprocessing_standar(teks, debug=True)
+
+        return jsonify(
+            {
+                "input_text": teks,
+                "tokens": tokens,
+                "normalization_check": normalization_results,
+                "full_processing": {
+                    "clean": hasil_lengkap[0],
+                    "folded": hasil_lengkap[1],
+                    "tokens": hasil_lengkap[2],
+                    "stopwords_removed": hasil_lengkap[3],
+                    "normalized": hasil_lengkap[4],
+                    "stemmed": hasil_lengkap[5],
+                    "final": hasil_lengkap[6],
+                },
+                "normalization_dict_sample": dict(list(normalisasi_dict.items())[:10]),
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error debug_normalization: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@prepro_bp.route("/clear_cache", methods=["POST"])
+def clear_cache():
+    """Membersihkan cache terjemahan dan bahasa"""
+    try:
+        terjemahan_cache.clear()
+        language_cache.clear()
+
+        # Hapus file cache
+        if os.path.exists(CACHE_FILE):
+            os.remove(CACHE_FILE)
+        if os.path.exists(LANGUAGE_CACHE_FILE):
+            os.remove(LANGUAGE_CACHE_FILE)
+
+        # Re-initialize data
+        global _INITIALIZED
+        _INITIALIZED = False
+        initialize_preprocessing_data()
+
+        return jsonify({"status": "success", "message": "Cache berhasil dibersihkan"})
+    except Exception as e:
+        logging.error(f"Error clear_cache: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @prepro_bp.route("/load_data", methods=["GET"])
 def load_data():
     """Memuat data dari file CSV saat halaman dibuka"""
@@ -1215,6 +1463,128 @@ def debug_stopword():
         )
     except Exception as e:
         logging.error(f"Error debug_stopword: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# --- ENDPOINT DEBUG BARU UNTUK ANALISIS MASALAH ---
+@prepro_bp.route("/analyze_issues", methods=["POST"])
+def analyze_issues():
+    """Endpoint untuk menganalisis masalah normalisasi dan kata asing"""
+    try:
+        data = request.get_json()
+        if not data or "text" not in data:
+            return jsonify({"error": "Tidak ada teks yang dikirim."}), 400
+
+        teks = data["text"]
+        logging.info(f"🔍 Analisis masalah untuk: {teks}")
+
+        # Proses dengan debug mode
+        hasil = proses_preprocessing_standar(teks, debug=True)
+
+        # Analisis tambahan
+        tokens = word_tokenize(teks.lower())
+        normalization_analysis = []
+        foreign_analysis = []
+
+        for token in tokens:
+            # Analisis normalisasi
+            if token in normalisasi_dict:
+                normalization_analysis.append(
+                    {
+                        "token": token,
+                        "in_dict": True,
+                        "normalized_to": normalisasi_dict[token],
+                        "status": "✅ BISA DINORMALISASI",
+                    }
+                )
+            else:
+                normalization_analysis.append(
+                    {
+                        "token": token,
+                        "in_dict": False,
+                        "normalized_to": None,
+                        "status": "❌ TIDAK ADA DI DICTIONARY",
+                    }
+                )
+
+            # Analisis kata asing
+            if (
+                len(token) > 2
+                and token not in game_terms
+                and token not in kata_id_pasti
+                and token not in normalisasi_dict
+                and token not in stemming_dict
+            ):
+                try:
+                    lang = cached_detect_language(token)
+                    if lang != "id":
+                        foreign_analysis.append(
+                            {
+                                "token": token,
+                                "language": lang,
+                                "status": "🌍 BAHASA ASING",
+                            }
+                        )
+                except Exception:
+                    pass
+
+        return jsonify(
+            {
+                "input_text": teks,
+                "processing_steps": {
+                    "clean": hasil[0],
+                    "folded": hasil[1],
+                    "tokens": hasil[2],
+                    "stopwords_removed": hasil[3],
+                    "normalized": hasil[4],
+                    "stemmed": hasil[5],
+                    "final": hasil[6],
+                },
+                "normalization_analysis": normalization_analysis,
+                "foreign_words_analysis": foreign_analysis,
+                "dictionary_info": {
+                    "normalization_dict_size": len(normalisasi_dict),
+                    "game_terms_size": len(game_terms),
+                    "whitelist_size": len(kata_id_pasti),
+                    "sample_normalization": dict(list(normalisasi_dict.items())[:10]),
+                },
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error analyze_issues: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@prepro_bp.route("/check_dictionary", methods=["POST"])
+def check_dictionary():
+    """Endpoint untuk mengecek apakah kata ada di dictionary"""
+    try:
+        data = request.get_json()
+        if not data or "word" not in data:
+            return jsonify({"error": "Tidak ada kata yang dikirim."}), 400
+
+        word = data["word"].lower()
+
+        in_normalization = word in normalisasi_dict
+        in_stemming = word in stemming_dict
+        in_game_terms = word in game_terms
+        in_whitelist = word in kata_id_pasti
+
+        return jsonify(
+            {
+                "word": word,
+                "in_normalization_dict": in_normalization,
+                "normalization_value": normalisasi_dict.get(word)
+                if in_normalization
+                else None,
+                "in_stemming_dict": in_stemming,
+                "stemming_value": stemming_dict.get(word) if in_stemming else None,
+                "in_game_terms": in_game_terms,
+                "in_whitelist": in_whitelist,
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error check_dictionary: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -104,7 +104,7 @@ def process_file():
 
         # Split data 70:30
         train_df, test_df = train_test_split(
-            df, test_size=0.3, random_state=42, stratify=df["Status"]
+            df, test_size=0.5, random_state=42, stratify=df["Status"]
         )
 
         # Dapatkan parameter optimal
