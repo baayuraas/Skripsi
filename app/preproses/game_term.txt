@@ -126,11 +126,14 @@ ethereal
 eul
 ez
 farm
+farm
 farming
+feed
 ff
 fiend
 flying
 force
+fortnite
 fortnite
 fountain
 furion
@@ -216,6 +219,7 @@ matchmaking
 medusa
 meepo
 messed up algorithm
+meta
 meta
 metas
 mia
@@ -306,6 +310,7 @@ sange
 satanic
 scepter
 scroll
+sea
 seer
 sentry
 shadow

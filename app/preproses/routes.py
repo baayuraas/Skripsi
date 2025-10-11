@@ -198,6 +198,87 @@ short_word_pattern = re.compile(r"^\w{1,2}$")
 mixed_alnum_pattern = re.compile(r"^[a-z]+\d+|\d+[a-z]+$")
 
 
+# --- FUNGSI LOADING NORMALISASI YANG DIPERBAIKI ---
+def load_normalization_dict():
+    """Fungsi loading yang lebih robust untuk normalisasi_list.txt"""
+    global normalisasi_dict
+    normalisasi_dict.clear()
+
+    normalisasi_file = os.path.join(TXT_DIR, "normalisasi_list.txt")
+    if not os.path.exists(normalisasi_file):
+        logging.error("❌ File normalisasi_list.txt tidak ditemukan!")
+        return
+
+    loaded_count = 0
+    error_count = 0
+
+    try:
+        with open(normalisasi_file, "r", encoding="utf-8") as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+
+                # Skip baris kosong dan komentar
+                if not line or line.startswith("#"):
+                    continue
+
+                # CARI POSISI "=" PERTAMA - lebih fleksibel
+                equal_pos = line.find("=")
+                if equal_pos == -1:
+                    logging.warning(
+                        f"Baris {line_num}: Format tidak valid (tidak ada '='): {line}"
+                    )
+                    error_count += 1
+                    continue
+
+                # Split berdasarkan posisi =
+                k = line[:equal_pos].strip().lower()
+                v = line[equal_pos + 1 :].strip().lower()
+
+                # Validasi
+                if not k:
+                    logging.warning(f"Baris {line_num}: Key kosong: {line}")
+                    error_count += 1
+                    continue
+                if not v:
+                    logging.warning(f"Baris {line_num}: Value kosong: {line}")
+                    error_count += 1
+                    continue
+
+                # Simpan ke dictionary
+                normalisasi_dict[k] = v
+                loaded_count += 1
+
+                # Juga tambahkan variasi tanpa spasi jika ada spasi
+                if " " in k:
+                    k_no_space = k.replace(" ", "")
+                    if k_no_space != k and k_no_space not in normalisasi_dict:
+                        normalisasi_dict[k_no_space] = v
+                        loaded_count += 1
+
+        logging.info(
+            f"✅ SUCCESS: Loaded {loaded_count} entries dari normalisasi_list.txt, {error_count} errors"
+        )
+
+        # Debug: tampilkan beberapa entri untuk verifikasi
+        sample_keys = ["bgtt", "bs", "td", "klo", "yg", "dgn", "gue", "lo"]
+        found_keys = []
+        missing_keys = []
+
+        for key in sample_keys:
+            if key in normalisasi_dict:
+                found_keys.append(f"'{key}' -> '{normalisasi_dict[key]}'")
+            else:
+                missing_keys.append(key)
+
+        if found_keys:
+            logging.info(f"✅ Sample entries: {', '.join(found_keys)}")
+        if missing_keys:
+            logging.warning(f"❌ Missing keys: {missing_keys}")
+
+    except Exception as e:
+        logging.error(f"❌ Error load_normalization_dict: {e}")
+
+
 # --- Fungsi untuk memuat cache terjemahan yang sudah ada ---
 def load_translation_cache():
     """Memuat cache terjemahan dari folder terjemahan yang sudah ada"""
@@ -341,39 +422,8 @@ def initialize_preprocessing_data():
     logging.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
     logging.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
 
-    # Load normalisasi dictionary - DIPERBAIKI
-    normalisasi_dict.clear()
-    normalisasi_file = os.path.join(TXT_DIR, "normalisasi_list.txt")
-    if os.path.exists(normalisasi_file):
-        loaded_count = 0
-        with open(normalisasi_file, "r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line or line.startswith("#"):  # Skip komentar dan baris kosong
-                    continue
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip().lower()
-                    v = v.strip().lower()
-                    if k and v:  # Pastikan kedua bagian tidak kosong
-                        normalisasi_dict[k] = v
-                        loaded_count += 1
-                    else:
-                        logging.warning(
-                            f"Format tidak valid di baris {line_num}: {line}"
-                        )
-                else:
-                    logging.warning(f"Format tidak valid di baris {line_num}: {line}")
-
-        logging.info(
-            f"✅ Loaded {loaded_count} valid entries dari normalisasi_list.txt"
-        )
-
-        # Debug: tampilkan beberapa contoh
-        sample_items = list(normalisasi_dict.items())[:5]
-        logging.info(f"Contoh normalisasi: {sample_items}")
-    else:
-        logging.warning("File normalisasi_list.txt tidak ditemukan")
+    # PERBAIKAN: Load normalisasi dictionary dengan fungsi baru
+    load_normalization_dict()
 
     # Load stemming_list.txt
     stemming_dict.clear()
@@ -631,25 +681,62 @@ def hapus_kata_ulang(word):
 
 # --- FUNGSI NORMALISASI YANG DIPERBAIKI ---
 def normalisasi_teks(words, debug=False):
-    """Fungsi normalisasi yang diperbaiki - dengan logging detail"""
+    """Fungsi normalisasi yang lebih robust dengan multiple fallback"""
     hasil = []
     normalisasi_count = 0
+    skipped_words = []
 
     for w in words:
-        wl = w.lower()
-        # Cek apakah kata ada di dictionary normalisasi
+        wl = w.lower().strip()
+
+        # Skip jika kata kosong
+        if not wl:
+            continue
+
+        # CLEANING LEBIH AGGRESIF - hapus karakter non-alphabet di awal/akhir
+        wl_clean = re.sub(r"^[^a-z]+|[^a-z]+$", "", wl)
+
+        # PRIORITAS 1: Cek kata bersih (setelah cleaning)
+        if wl_clean and wl_clean in normalisasi_dict:
+            mapped = normalisasi_dict[wl_clean]
+            if debug:
+                logging.debug(
+                    f"🔧 Normalisasi (clean): '{wl}' -> '{wl_clean}' -> '{mapped}'"
+                )
+            hasil.extend(mapped.split())
+            normalisasi_count += 1
+            continue
+
+        # PRIORITAS 2: Cek kata asli (tanpa cleaning)
         if wl in normalisasi_dict:
             mapped = normalisasi_dict[wl]
             if debug:
-                logging.debug(f"🔧 Normalisasi: '{wl}' -> '{mapped}'")
+                logging.debug(f"🔧 Normalisasi (original): '{wl}' -> '{mapped}'")
             hasil.extend(mapped.split())
             normalisasi_count += 1
-        else:
-            # Jika tidak ada di dictionary, pertahankan kata asli
-            hasil.append(wl)
+            continue
 
-    if debug and normalisasi_count > 0:
-        logging.info(f"✅ Dilakukan {normalisasi_count} normalisasi")
+        # PRIORITAS 3: Cek variasi dengan menghilangkan pengulangan huruf
+        wl_normalized = normalize_repeated_letters(wl)
+        if wl_normalized != wl and wl_normalized in normalisasi_dict:
+            mapped = normalisasi_dict[wl_normalized]
+            if debug:
+                logging.debug(
+                    f"🔧 Normalisasi (repeated): '{wl}' -> '{wl_normalized}' -> '{mapped}'"
+                )
+            hasil.extend(mapped.split())
+            normalisasi_count += 1
+            continue
+
+        # Jika tidak ada di dictionary, pertahankan kata asli
+        hasil.append(wl)
+        skipped_words.append(wl)
+
+    if debug:
+        if normalisasi_count > 0:
+            logging.info(f"✅ Dilakukan {normalisasi_count} normalisasi")
+        if skipped_words:
+            logging.info(f"❌ Kata tidak ternormalisasi: {skipped_words}")
 
     return hasil
 
@@ -1064,6 +1151,86 @@ def save_csv(df: pd.DataFrame, file_path: str = PREPRO_CSV_PATH):
     except Exception as e:
         logging.error(f"Error save_csv: {e}")
         return False
+
+
+# --- ENDPOINT BARU UNTUK TESTING NORMALISASI ---
+@prepro_bp.route("/test_normalization", methods=["POST"])
+def test_normalization():
+    """Test normalisasi dengan teks contoh"""
+    try:
+        data = request.get_json()
+        test_text = data.get("text", "gue mau makan bgtt ntar klo bs")
+
+        # Paksa reload dictionary
+        load_normalization_dict()
+
+        # Test normalisasi
+        tokens = word_tokenize(test_text.lower())
+        normalized = normalisasi_teks(tokens, debug=True)
+
+        # Analisis detail
+        analysis = []
+        for token in tokens:
+            in_dict = token in normalisasi_dict
+            mapped_to = normalisasi_dict.get(token, "TIDAK_ADA")
+            analysis.append(
+                {
+                    "token": token,
+                    "in_dictionary": in_dict,
+                    "mapped_to": mapped_to,
+                    "status": "✅ NORMALIZED" if in_dict else "❌ MISSING",
+                }
+            )
+
+        return jsonify(
+            {
+                "input_text": test_text,
+                "tokens": tokens,
+                "normalized_result": normalized,
+                "analysis": analysis,
+                "dictionary_sample": dict(list(normalisasi_dict.items())[:10]),
+                "test_keys_presence": {
+                    "bgtt": "bgtt" in normalisasi_dict,
+                    "bs": "bs" in normalisasi_dict,
+                    "td": "td" in normalisasi_dict,
+                    "klo": "klo" in normalisasi_dict,
+                    "yg": "yg" in normalisasi_dict,
+                    "dgn": "dgn" in normalisasi_dict,
+                    "gue": "gue" in normalisasi_dict,
+                    "lo": "lo" in normalisasi_dict,
+                },
+            }
+        )
+
+    except Exception as e:
+        logging.error(f"Error test_normalization: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@prepro_bp.route("/validate_dictionary", methods=["GET"])
+def validate_dictionary():
+    """Validasi isi kamus normalisasi"""
+    sample_size = min(20, len(normalisasi_dict))
+    sample_items = dict(list(normalisasi_dict.items())[:sample_size])
+
+    # Cek contoh kata yang seharusnya dinormalisasi
+    test_cases = ["gue", "lo", "bgtt", "bs", "td", "klo", "yg", "dgn", "ntar", "ga"]
+    test_results = {}
+
+    for test_word in test_cases:
+        test_results[test_word] = {
+            "in_dict": test_word in normalisasi_dict,
+            "mapped_to": normalisasi_dict.get(test_word, "TIDAK_ADA"),
+        }
+
+    return jsonify(
+        {
+            "dictionary_size": len(normalisasi_dict),
+            "sample_items": sample_items,
+            "test_cases": test_results,
+            "common_missing": [k for k in test_cases if k not in normalisasi_dict],
+        }
+    )
 
 
 # --- Routes yang diperbaiki ---
