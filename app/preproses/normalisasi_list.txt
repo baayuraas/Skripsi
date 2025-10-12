@@ -54,7 +54,7 @@ bermanfat=bermanfaat
 bermanfatnya=manfaatnya
 bertangung=bertanggung
 besok=esok
-bff - best friends forever
+bff=best friends forever
 bgt=banget
 bgtt=banget
 bising=berisik
@@ -70,18 +70,18 @@ boosters=joki
 bost=boost
 boster=booster
 braindead=otak mati
-brb - be right back
+brb=be right back
 bro=brother
 brp=berapa
 bs=bisa
-btw - by the way
+btw=by the way
 buat=untuk
 bulutan=berbulu
 buruk=jelek
 buter=mentega
 bye=goodbye
 byk=banyak
-cal - call
+cal=call
 calm=tenang
 cangih=canggih
 cantik=indah
@@ -108,9 +108,9 @@ comp=competition
 compatitve=competitive
 compedium=compendium
 competiton=competition
-coms - communications
+coms=communications
 comunity=komunitas
-cons - console/cons
+cons=console/cons
 cooldowns=cooldown
 corporation=perusahaan
 counity=community
@@ -171,7 +171,7 @@ dityabot=dianggap bot
 dityaingi=dianggap ini
 divine=ilahi
 diwal=diawal
-dll - dan lain-lain
+dll=dan lain-lain
 dll=dan lain lain
 dmg=damage
 doverver=driver
@@ -203,8 +203,8 @@ flopy=floppy
 fomo=fomo
 fortres=fortress
 fountain=markas
-fps - frames per second
-fre - free
+fps=frames per second
+fre=free
 fun=menyenangkan
 fundamen=fundamental
 ga=tidak
@@ -220,7 +220,7 @@ gg=permainan bagus
 ggwp=permainan bagus
 gini=begini
 gitu=begitu
-gl - good luck
+gl=good luck
 glhf=semoga menyenangkan
 gmn=bagaimana
 gpm=gold per minute
@@ -230,17 +230,17 @@ hack=retas
 hard=sulit
 hardcore=ekstrem
 harus=wajib
-hf - have fun
+hf=have fun
 hf=senang
 hinga=hingga
 hit=serang
 hubunganya=hubungannya
 hukumanya=hukumannya
 hypercary=hypercarry
-idk - I don't know
+idk=I don't know
 imbalanya=imbalannya
-imho - in my humble opinion
-imo - in my opinion
+imho=in my humble opinion
+imo=in my opinion
 ingris=Inggris
 instalanya=instalasinya
 item=barang
@@ -393,13 +393,13 @@ noob=pemula
 nope=tidak
 normals=normal
 nouhidev=no hide
-np - no problem
+np=no problem
 nrow=narrow
 ntar=nanti
 nthe=the
 nti=nanti
 numerior=numerical
-nvm - never mind
+nvm=never mind
 obrolanya=obrolannya
 ocasi=occasion
 ocasion=occasion
@@ -412,9 +412,9 @@ ohing=owning
 ok=baik
 oke=baik
 olok=olok olok
-omg - oh my god
+omg=oh my god
 oom=kehabisan mana
-op - overpowering
+op=overpowering
 optimalisasi=optimisasi
 optimasi=optimisasi
 org=orang
@@ -488,7 +488,7 @@ prio=priority
 programer=programmer
 progres=progress
 psikos=psikosis
-pub - public
+pub=public
 pudge=pudge
 pull=tarik
 push=dorong
@@ -601,8 +601,8 @@ tangkapanya=tangkapannya
 tanguh=tangguh
 tantanganya=tantangannya
 tapi=tetapi
-tbh - to be honest
-tbt - throwback Thursday
+tbh=to be honest
+tbt=throwback Thursday
 tcp=transmission control protocol
 td=tadi
 tdk=tidak
@@ -620,7 +620,7 @@ that=itu
 there=sana
 tho=though
 throne=ancient
-thx - thanks
+thx=thanks
 tima=team
 time=waktu
 timernya=timernya
@@ -653,7 +653,7 @@ tungu=tunggu
 turb=turbo
 tuscle=muscle
 twosentencehoror=two sentence horror
-ty - thank you
+ty=thank you
 type=type
 udah=sudah
 udh=sudah
