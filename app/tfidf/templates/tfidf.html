@@ -32,13 +32,32 @@
 </div>
 
 <div id="review-table-box" style="display: none;">
-    <div style="margin-top: 1rem;">
-      <button id="clear-data" class="btn btn-danger">Hapus Data</button>
-      <button id="save-csv" class="btn btn-success">Simpan ke CSV</button>
-      <button id="download-train-csv" class="btn btn-secondary">⬇️ Train CSV</button>
-      <button id="download-test-csv" class="btn btn-secondary">⬇️ Test CSV</button>
-      <button id="download-train-model" class="btn btn-secondary">⬇️ Train Model</button>
-      <button id="download-test-model" class="btn btn-secondary">⬇️ Test Model</button>
+    <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 8px;">
+        <button id="clear-data" class="btn btn-danger">Hapus Data</button>
+        <button id="save-csv" class="btn btn-success">Simpan ke CSV (Display)</button>
+      </div>
+      
+      <!-- CSV Download Buttons (Limited) -->
+      <div style="display: flex; gap: 8px;">
+        <button id="download-train-csv" class="btn btn-secondary">⬇️ Train CSV (Limited)</button>
+        <button id="download-test-csv" class="btn btn-secondary">⬇️ Test CSV (Limited)</button>
+      </div>
+
+      <!-- CSV Download Buttons (Unlimited) -->
+      <div style="display: flex; gap: 8px;">
+        <button id="download-unlimited-train-csv" class="btn btn-warning">⬇️ Train CSV (Unlimited)</button>
+        <button id="download-unlimited-test-csv" class="btn btn-warning">⬇️ Test CSV (Unlimited)</button>
+        <button id="download-unlimited-csv" class="btn btn-warning">⬇️ Full CSV (Unlimited)</button>
+      </div>
+      
+      <!-- Model Download Buttons -->
+      <div style="display: flex; gap: 8px;">
+        <button id="download-train-model" class="btn btn-info">⬇️ Train Model</button>
+        <button id="download-test-model" class="btn btn-info">⬇️ Test Model</button>
+        <button id="download-unlimited-model" class="btn btn-info">⬇️ Unlimited Model</button>
+      </div>
     </div>
 
     <div class="table-responsive mt-3">
@@ -91,8 +110,18 @@ $(function () {
         
         let summaryHTML = `
             <p><strong>Total Dokumen:</strong> ${summary.total_documents}</p>
-            <p><strong>Total Term:</strong> ${summary.total_terms}</p>
+            <p><strong>Total Term yang Ditampilkan:</strong> ${summary.total_terms}</p>
         `;
+        
+        if (summary.total_terms_unlimited) {
+            summaryHTML += `<p><strong>Total Term Keseluruhan (Perhitungan):</strong> ${summary.total_terms_unlimited}</p>`;
+            
+            const percentage = ((summary.total_terms / summary.total_terms_unlimited) * 100).toFixed(1);
+            summaryHTML += `<p><strong>Term yang Ditampilkan:</strong> ${percentage}% dari total term</p>`;
+            
+            summaryHTML += `<p><em>💡 Semua perhitungan menggunakan ${summary.total_terms_unlimited} term</em></p>`;
+            summaryHTML += `<p><em>📁 Tersedia CSV Unlimited dengan semua ${summary.total_terms_unlimited} term untuk analisis lengkap</em></p>`;
+        }
         
         $("#summary-content").html(summaryHTML);
         $("#summary-info").show();
@@ -101,7 +130,7 @@ $(function () {
     // Fungsi untuk memuat data existing
     function loadExistingData() {
         $.ajax({
-            url: "/tfidf/process",  // Menggunakan endpoint /process dengan method GET
+            url: "/tfidf/process",
             type: "GET",
             success: function(res) {
                 if (res.data) {
@@ -161,11 +190,16 @@ $(function () {
         }
     });
 
+    // Download handlers - SEMUA TOMBOL
     $("#save-csv").click(() => triggerDownload("full_csv"));
     $("#download-train-csv").click(() => triggerDownload("train_csv"));
     $("#download-test-csv").click(() => triggerDownload("test_csv"));
+    $("#download-unlimited-train-csv").click(() => triggerDownload("unlimited_train_csv"));
+    $("#download-unlimited-test-csv").click(() => triggerDownload("unlimited_test_csv"));
+    $("#download-unlimited-csv").click(() => triggerDownload("unlimited_csv"));
     $("#download-train-model").click(() => triggerDownload("train_model"));
     $("#download-test-model").click(() => triggerDownload("test_model"));
+    $("#download-unlimited-model").click(() => triggerDownload("unlimited_model"));
 
     function triggerDownload(type) {
         window.location.href = `/tfidf/download/${type}`;
