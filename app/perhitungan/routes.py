@@ -115,7 +115,7 @@ def process_csv():
         and os.path.exists(LABEL_ENCODER_PATH)
     ):
         try:
-            # Langsung muat hasil yang tersimpan
+            # Langsung muat hasil yang tersimpan (SEMUA DATA)
             df = pd.read_csv(HASIL_CSV_PATH, encoding="utf-8-sig")
 
             # Muat model dan encoder
@@ -123,7 +123,7 @@ def process_csv():
             with open(LABEL_ENCODER_PATH, "rb") as f:
                 le = pickle.load(f)
 
-            # Hitung metrik evaluasi
+            # Hitung metrik evaluasi menggunakan SEMUA DATA
             if "Status" in df.columns and "Prediksi" in df.columns:
                 y_actual = df["Status"].astype(str)
                 y_pred = df["Prediksi"].astype(str)
@@ -141,28 +141,35 @@ def process_csv():
                 ).tolist()
                 labels = list(np.unique(y_actual))
 
+                # HANYA TAMPILKAN 1000 BARIS PERTAMA DI FRONTEND
+                df_display = df.head(1000)
+
                 return jsonify(
                     {
                         "message": "Data hasil sebelumnya berhasil dimuat.",
-                        "train": df.to_dict(orient="records"),
+                        "train": df_display.to_dict(orient="records"),
                         "accuracy": round(float(acc) * 100, 2),
                         "precision": round(float(prec) * 100, 2),
                         "recall": round(float(rec) * 100, 2),
                         "f1": round(float(f1) * 100, 2),
                         "labels": labels,
                         "confusion": cm,
+                        "total_records": len(df),
+                        "displayed_records": len(df_display),
                     }
                 )
             else:
+                df_display = df.head(1000)
                 return jsonify(
                     {
                         "message": "Data hasil sebelumnya berhasil dimuat.",
-                        "train": df.to_dict(orient="records"),
+                        "train": df_display.to_dict(orient="records"),
+                        "total_records": len(df),
+                        "displayed_records": len(df_display),
                     }
                 )
 
-        except Exception as e:
-            # Jika ada error, lanjutkan dengan proses normal
+        except Exception:  # Diubah: hapus 'as e' karena tidak digunakan
             traceback.print_exc()
             # Jangan return error, biarkan lanjut ke proses normal
 
@@ -180,16 +187,16 @@ def process_csv():
         model = build_and_train_model(X, y, output_dim)
         le = encoder
 
-        # Prediksi training set (hanya evaluasi internal)
+        # Prediksi training set (hanya evaluasi internal) menggunakan SEMUA DATA
         y_pred = le.inverse_transform(np.argmax(model.predict(X), axis=1))
         y_actual = le.inverse_transform(y)
 
         df_clean["Prediksi"] = y_pred
 
-        # Simpan hasil ke CSV
+        # Simpan hasil ke CSV (SEMUA DATA)
         df_clean.to_csv(HASIL_CSV_PATH, index=False, encoding="utf-8-sig")
 
-        # Hitung metrik evaluasi
+        # Hitung metrik evaluasi menggunakan SEMUA DATA
         acc = accuracy_score(y_actual, y_pred)
         prec = precision_score(y_actual, y_pred, average="weighted", zero_division=0)
         rec = recall_score(y_actual, y_pred, average="weighted", zero_division=0)
@@ -197,16 +204,21 @@ def process_csv():
         cm = confusion_matrix(y_actual, y_pred, labels=np.unique(y_actual)).tolist()
         labels = list(np.unique(y_actual))
 
+        # HANYA TAMPILKAN 1000 BARIS PERTAMA DI FRONTEND
+        df_display = df_clean.head(1000)
+
         return jsonify(
             {
                 "message": "Pelatihan selesai.",
-                "train": df_clean.to_dict(orient="records"),
+                "train": df_display.to_dict(orient="records"),
                 "accuracy": round(float(acc) * 100, 2),
                 "precision": round(float(prec) * 100, 2),
                 "recall": round(float(rec) * 100, 2),
                 "f1": round(float(f1) * 100, 2),
                 "labels": labels,
                 "confusion": cm,
+                "total_records": len(df_clean),
+                "displayed_records": len(df_display),
             }
         )
 
@@ -222,9 +234,10 @@ def load_result():
         return jsonify({"error": "Tidak ada data hasil yang tersimpan."}), 404
 
     try:
+        # Muat SEMUA DATA dari CSV
         df = pd.read_csv(HASIL_CSV_PATH, encoding="utf-8-sig")
 
-        # Hitung metrik evaluasi jika data memiliki kolom Status dan Prediksi
+        # Hitung metrik evaluasi menggunakan SEMUA DATA
         if "Status" in df.columns and "Prediksi" in df.columns:
             y_actual = df["Status"].astype(str)
             y_pred = df["Prediksi"].astype(str)
@@ -238,22 +251,30 @@ def load_result():
             cm = confusion_matrix(y_actual, y_pred, labels=np.unique(y_actual)).tolist()
             labels = list(np.unique(y_actual))
 
+            # HANYA TAMPILKAN 1000 BARIS PERTAMA DI FRONTEND
+            df_display = df.head(1000)
+
             return jsonify(
                 {
-                    "train": df.to_dict(orient="records"),
+                    "train": df_display.to_dict(orient="records"),
                     "accuracy": round(float(acc) * 100, 2),
                     "precision": round(float(prec) * 100, 2),
                     "recall": round(float(rec) * 100, 2),
                     "f1": round(float(f1) * 100, 2),
                     "labels": labels,
                     "confusion": cm,
+                    "total_records": len(df),
+                    "displayed_records": len(df_display),
                 }
             )
         else:
+            df_display = df.head(1000)
             return jsonify(
                 {
-                    "train": df.to_dict(orient="records"),
+                    "train": df_display.to_dict(orient="records"),
                     "message": "Data hasil dimuat, tetapi tidak memiliki kolom yang diperlukan untuk evaluasi.",
+                    "total_records": len(df),
+                    "displayed_records": len(df_display),
                 }
             )
 

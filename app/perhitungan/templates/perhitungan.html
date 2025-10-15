@@ -38,6 +38,9 @@
         <button id="load-saved-data" class="btn btn-outline-secondary">Muat Data Tersimpan</button>
     </div>
 
+    <!-- Tambahkan div untuk info data -->
+    <div id="data-info" class="mt-3"></div>
+
     <div class="table-responsive mt-4">
         <table class="table table-bordered">
             <thead id="table-header"></thead>
@@ -52,9 +55,18 @@
 {% block extra_script %}
 <script>
 $(function () {
-    function renderTable(data) {
+    function renderTable(data, totalRecords, displayedRecords) {
         if (!data.length) return;
         const headers = Object.keys(data[0]);
+        
+        // Tambahkan informasi jumlah data
+        $("#data-info").html(`
+            <div class="alert alert-info">
+                <strong>Info Data:</strong> Menampilkan ${displayedRecords} dari ${totalRecords} total records. 
+                Proses perhitungan menggunakan semua data (${totalRecords} records).
+            </div>
+        `);
+        
         $("#table-header").html(`<tr><th>#</th>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`);
         $("#reviews-table-body").html(
             data.map((row, i) => `
@@ -101,7 +113,7 @@ $(function () {
             success: res => {
                 $("#loading").hide();
                 if (res.train) {
-                    renderTable(res.train);
+                    renderTable(res.train, res.total_records || res.train.length, res.displayed_records || res.train.length);
                     renderEvaluation(res);
                     $('#review-table-box').show();
                     $("#statusMessage").html(`<span style="color:green;">Data hasil berhasil dimuat.</span>`);
@@ -161,9 +173,11 @@ $(function () {
                     $("#statusMessage").html(`<span style="color:red;">${res.error}</span>`);
                 } else {
                     $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
-                    if (res.train) renderTable(res.train);
-                    renderEvaluation(res);
-                    $('#review-table-box').show();
+                    if (res.train) {
+                        renderTable(res.train, res.total_records, res.displayed_records);
+                        renderEvaluation(res);
+                        $('#review-table-box').show();
+                    }
                 }
             },
             error: xhr => {
@@ -194,9 +208,11 @@ $(function () {
             success: res => {
                 $("#loading").hide();
                 $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
-                if (res.train) renderTable(res.train);
-                renderEvaluation(res);
-                $('#review-table-box').show();
+                if (res.train) {
+                    renderTable(res.train, res.total_records, res.displayed_records);
+                    renderEvaluation(res);
+                    $('#review-table-box').show();
+                }
             },
             error: xhr => {
                 $("#loading").hide();
@@ -209,7 +225,7 @@ $(function () {
         if (confirm("Apakah Anda yakin ingin menghapus semua data dan model?")) {
             $.post("/perhitungan/clear", res => {
                 $("#statusMessage").text(res.message);
-                $("#table-header, #reviews-table-body, #eval-info").empty();
+                $("#table-header, #reviews-table-body, #eval-info, #data-info").empty();
                 $('#review-table-box').hide();
                 checkExistingResult();
             });
