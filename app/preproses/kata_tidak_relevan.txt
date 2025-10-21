@@ -136,8 +136,11 @@ was
 wtf
 wth
 xd
+xwayland
 yorsa
 yw
 zat
 zink
 zxc
+zquixotix
+zhosky

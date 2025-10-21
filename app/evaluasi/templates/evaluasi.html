@@ -53,6 +53,8 @@
       <button class="btn btn-outline-success" onclick="window.location='/evaluasi/download/data_sampled.csv'">Download Data Sampel</button>
     </div>
 
+    <div id="table-info" class="mt-3"></div>
+
     <div class="table-responsive mt-4">
       <table class="table table-bordered">
         <thead id="table-header"></thead>
@@ -60,17 +62,33 @@
       </table>
     </div>
 
-    <div id="confusion-matrix-wrapper" class="mt-4"></div>
-    <div id="metrics-wrapper" class="mt-4"></div>
+    <!-- Tampilan confusion matrix dan metrik seperti program perhitungan -->
+    <div id="eval-info" class="mt-4"></div>
 </div>
 {% endblock %}
 
 {% block extra_script %}
 <script>
 $(function () {
-  function renderTable(data) {
+  function renderTable(data, displayedColumns, totalColumns) {
     if (!data.length) return;
     const keys = Object.keys(data[0]);
+    
+    // Tambahkan informasi tentang kolom
+    let tableInfo = "";
+    if (displayedColumns !== undefined && totalColumns !== undefined && displayedColumns < totalColumns) {
+        tableInfo = `<div class="alert alert-info">
+            <i class="icon-info-sign"></i> 
+            Menampilkan ${displayedColumns} dari ${totalColumns} fitur. 
+            Proses perhitungan menggunakan semua ${totalColumns} fitur.
+        </div>`;
+    } else if (displayedColumns !== undefined && totalColumns !== undefined) {
+        tableInfo = `<div class="alert alert-success">
+            <i class="icon-ok"></i> 
+            Menampilkan semua ${totalColumns} fitur.
+        </div>`;
+    }
+    
     $("#table-header").html(`<tr><th>#</th>${keys.map(k => `<th>${k}</th>`).join("")}</tr>`);
     $("#reviews-table-body").html(
       data.map((row, i) => `
@@ -82,30 +100,40 @@ $(function () {
         }</tr>`
       ).join("")
     );
+    
+    // Tambahkan info di atas tabel
+    $("#table-info").html(tableInfo);
   }
 
-  function renderConfusionMatrix(matrix, labels) {
-    if (!matrix.length) return;
-    let html = "<h5>Confusion Matrix:</h5><table class='table table-bordered'><thead><tr><th></th>";
-    html += labels.map(l => `<th>${l}</th>`).join("") + "</tr></thead><tbody>";
-    matrix.forEach((row, i) => {
-      html += `<tr><th>${labels[i]}</th>${row.map(c => `<td>${c}</td>`).join("")}</tr>`;
-    });
-    html += "</tbody></table>";
-    $("#confusion-matrix-wrapper").html(html);
-  }
-
-  function renderMetrics(metrics) {
-    if (!metrics) return;
-    const html = `
-      <h5>Skor Evaluasi:</h5>
-      <ul>
-        <li><strong>Akurasi:</strong> ${metrics.accuracy}%</li>
-        <li><strong>Presisi:</strong> ${metrics.precision}%</li>
-        <li><strong>Recall:</strong> ${metrics.recall}%</li>
-        <li><strong>F1-Score:</strong> ${metrics.f1_score}%</li>
-      </ul>`;
-    $("#metrics-wrapper").html(html);
+  // Fungsi untuk render confusion matrix dan metrik seperti program perhitungan
+  function renderEvaluation(res) {
+    if (res.labels && res.confusion_matrix) {
+      const labels = res.labels;
+      const cm = res.confusion_matrix;
+      
+      // Render confusion matrix
+      let matrix = `<h5>Confusion Matrix:</h5><table class="table table-bordered"><thead><tr><th></th>`;
+      matrix += labels.map(l => `<th><strong>${l}</strong></th>`).join("") + "</tr></thead><tbody>";
+      cm.forEach((row, i) => {
+        matrix += `<tr><th><strong>${labels[i]}</strong></th>${row.map(c => `<td>${c}</td>`).join("")}</tr>`;
+      });
+      matrix += "</tbody></table>";
+      
+      // Render metrik evaluasi seperti program perhitungan
+      let metrics = ``;
+      if (res.metrics) {
+        metrics = `
+          <h5 class="mt-4">Metrik Evaluasi:</h5>
+          <ul class="list-unstyled">
+            <li><strong>Akurasi:</strong> ${res.metrics.accuracy}%</li>
+            <li><strong>Presisi:</strong> ${res.metrics.precision}%</li>
+            <li><strong>Recall:</strong> ${res.metrics.recall}%</li>
+            <li><strong>F1-Score:</strong> ${res.metrics.f1_score}%</li>
+          </ul>`;
+      }
+      
+      $("#eval-info").html(matrix + metrics);
+    }
   }
 
   function updateDataInfo() {
@@ -115,7 +143,7 @@ $(function () {
         return;
       }
       
-      let infoHtml = `<strong>Data Tersedia:</strong> ${response.total_data} total`;
+      let infoHtml = `<strong>Data Tersedia:</strong> ${response.total_data} total data, ${response.total_features} fitur`;
       Object.entries(response.label_counts).forEach(([label, count]) => {
         infoHtml += ` | ${label}: ${count}`;
       });
@@ -149,9 +177,19 @@ $(function () {
 
   // Fungsi untuk memuat hasil evaluasi yang tersimpan
   function loadSavedResults() {
-    $.get("/evaluasi/get_saved_data", function(response) {
+    $.get("/evaluasi/get_saved_evaluation", function(response) {
       if (response.data && response.data.length > 0) {
-        renderTable(response.data);
+        renderTable(response.data, response.displayed_columns, response.total_features);
+        
+        // Jika ada hasil evaluasi tersimpan, render juga evaluasinya
+        if (response.metrics && response.confusion_matrix && response.labels) {
+          renderEvaluation({
+            metrics: response.metrics,
+            confusion_matrix: response.confusion_matrix,
+            labels: response.labels
+          });
+        }
+        
         $('#review-table-box').show();
         $("#statusMessage").html("<span style='color:green'>Data evaluasi tersimpan dimuat</span>");
       }
@@ -181,12 +219,23 @@ $(function () {
       contentType: false,
       success: res => {
         $("#loading").hide();
-        $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
-        renderTable(res.data || []);
-        renderConfusionMatrix(res.confusion_matrix, res.labels);
-        renderMetrics(res.metrics);
+        
+        let message = res.message;
+        if (res.dimensional_adjustment) {
+          message += `<br><span style="color: orange;">⚠️ Warning: Dimensi fitur disesuaikan (${res.actual_features_used} → ${res.expected_features}) - ${res.adjustment_message}</span>`;
+        }
+        
+        $("#statusMessage").html(`<span style="color:green;">${message}</span>`);
+        renderTable(res.data || [], res.displayed_columns, res.total_features);
+        
+        // Render evaluasi seperti program perhitungan
+        renderEvaluation(res);
+        
         $('#review-table-box').show();
         updateDataInfo();
+        
+        // Simpan hasil evaluasi
+        saveEvaluationResults(res);
       },
       error: xhr => {
         $("#loading").hide();
@@ -223,7 +272,7 @@ $(function () {
       success: res => {
         $("#loading").hide();
         $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
-        renderTable(res.sampled_data || []);
+        renderTable(res.sampled_data || [], res.displayed_features, res.total_features);
         $('#review-table-box').show();
       },
       error: xhr => {
@@ -241,11 +290,22 @@ $(function () {
 
     $.post("/evaluasi/evaluate_sampled", function(res) {
       $("#loading").hide();
-      $("#statusMessage").html(`<span style="color:green;">${res.message}</span>`);
-      renderTable(res.data || []);
-      renderConfusionMatrix(res.confusion_matrix, res.labels);
-      renderMetrics(res.metrics);
+      
+      let message = res.message;
+      if (res.dimensional_adjustment) {
+        message += `<br><span style="color: orange;">⚠️ Warning: Dimensi fitur disesuaikan (${res.actual_features_used} → ${res.expected_features}) - ${res.adjustment_message}</span>`;
+      }
+      
+      $("#statusMessage").html(`<span style="color:green;">${message}</span>`);
+      renderTable(res.data || [], res.displayed_columns, res.total_features);
+      
+      // Render evaluasi seperti program perhitungan
+      renderEvaluation(res);
+      
       $('#review-table-box').show();
+      
+      // Simpan hasil evaluasi
+      saveEvaluationResults(res);
     }).fail(function(xhr) {
       $("#loading").hide();
       const msg = xhr.responseJSON?.error || "❌ Gagal evaluasi data sampel.";
@@ -253,10 +313,36 @@ $(function () {
     });
   });
 
+  // Fungsi untuk menyimpan hasil evaluasi
+  function saveEvaluationResults(evalData) {
+    const dataToSave = {
+      data: evalData.data || [],
+      metrics: evalData.metrics || {},
+      confusion_matrix: evalData.confusion_matrix || [],
+      labels: evalData.labels || [],
+      displayed_columns: evalData.displayed_columns || 0,
+      total_features: evalData.total_features || 0,
+      saved_at: new Date().toISOString()
+    };
+    
+    $.ajax({
+      url: "/evaluasi/save_evaluation_results",
+      type: "POST",
+      contentType: "application/json",
+      data: JSON.stringify(dataToSave),
+      success: function(response) {
+        console.log("Hasil evaluasi berhasil disimpan");
+      },
+      error: function(xhr) {
+        console.error("Gagal menyimpan hasil evaluasi:", xhr.responseJSON?.error);
+      }
+    });
+  }
+
   $("#clear-data").click(() => {
     $.post("/evaluasi/clear", res => {
       $("#statusMessage").text(res.message);
-      $("#table-header, #reviews-table-body, #confusion-matrix-wrapper, #metrics-wrapper").empty();
+      $("#table-header, #reviews-table-body, #eval-info, #table-info").empty();
       $('#review-table-box').hide();
       $('#sampling-section').hide();
       $("#data-info").empty();
@@ -277,4 +363,4 @@ $(function () {
   });
 });
 </script>
-{% endblock %}
+{% endblock %}  

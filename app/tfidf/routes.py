@@ -171,7 +171,7 @@ def process_file():
         display_params = get_display_parameters(n_docs)
         n_display_terms = display_params["max_features"]
 
-        # **STEP 1: HITUNG TF-IDF DENGAN SEMUA TERM (UNLIMITED) - UNTUK SEMUA PERHITUNGAN**
+        # **STEP 1: HITUNG TF-IDF DENGAN SEMUA TERM (UNLIMITED) - DENGAN SATU MODEL UNTUK SEMUA**
         print("🔄 Menghitung TF-IDF dengan semua term (unlimited)...")
         tfidf_unlimited = TfidfVectorizer(
             min_df=1,  # Minimal 1 dokumen
@@ -183,49 +183,38 @@ def process_file():
             dtype=np.float32,
         )
 
-        # Fit dan transform dengan SEMUA data menggunakan unlimited vectorizer
-        tfidf_unlimited_matrix = tfidf_unlimited.fit_transform(df["Hasil"])
+        # **PERBAIKAN: Fit HANYA dengan data training (best practice untuk avoid data leakage)**
+        print("📚 Training model dengan data training...")
+        tfidf_unlimited.fit(train_df["Hasil"])
         all_feature_names = tfidf_unlimited.get_feature_names_out()
         total_terms_unlimited = len(all_feature_names)
         print(f"✅ Total terms tanpa batasan: {total_terms_unlimited}")
 
-        # **STEP 2: BUAT MODEL TERPISAH UNTUK TRAIN DAN TEST**
-        print("🔧 Membuat model terpisah untuk train dan test...")
+        # **Transform SEMUA data dengan model yang sama untuk konsistensi**
+        print("🔁 Transform semua data dengan model yang sama...")
+        tfidf_unlimited_matrix = tfidf_unlimited.transform(df["Hasil"])
+        tfidf_train_matrix = tfidf_unlimited.transform(train_df["Hasil"])
+        tfidf_test_matrix = tfidf_unlimited.transform(test_df["Hasil"])
 
-        # Model untuk data train (hanya di-fit pada data train)
-        tfidf_train_model = TfidfVectorizer(
-            min_df=1,
-            max_df=1.0,
-            max_features=None,
-            smooth_idf=True,
-            sublinear_tf=True,
-            norm="l2",
-            dtype=np.float32,
+        print(
+            f"✅ Shape matrices (semua harus memiliki {total_terms_unlimited} terms):"
         )
-        tfidf_train_matrix = tfidf_train_model.fit_transform(train_df["Hasil"])
+        print(f"   - Full: {tfidf_unlimited_matrix.shape}")
+        print(f"   - Train: {tfidf_train_matrix.shape}")
+        print(f"   - Test: {tfidf_test_matrix.shape}")
 
-        # Model untuk data test (hanya di-fit pada data test)
-        tfidf_test_model = TfidfVectorizer(
-            min_df=1,
-            max_df=1.0,
-            max_features=None,
-            smooth_idf=True,
-            sublinear_tf=True,
-            norm="l2",
-            dtype=np.float32,
-        )
-        tfidf_test_matrix = tfidf_test_model.fit_transform(test_df["Hasil"])
-
-        # **STEP 3: SIMPAN SEMUA MODEL**
-        print("💾 Menyimpan semua model...")
+        # **STEP 2: SIMPAN SATU MODEL UNLIMITED UNTUK SEMUA KEBUTUHAN**
+        print("💾 Menyimpan model unlimited...")
         with open(UNLIMITED_MODEL, "wb") as f:
             pickle.dump(tfidf_unlimited, f)
-        with open(TRAIN_MODEL, "wb") as f:
-            pickle.dump(tfidf_train_model, f)
-        with open(TEST_MODEL, "wb") as f:
-            pickle.dump(tfidf_test_model, f)
 
-        # **STEP 4: BUAT CSV UNLIMITED (SEMUA TERM)**
+        # Untuk kompatibilitas, simpan juga sebagai train dan test model (sama modelnya)
+        with open(TRAIN_MODEL, "wb") as f:
+            pickle.dump(tfidf_unlimited, f)
+        with open(TEST_MODEL, "wb") as f:
+            pickle.dump(tfidf_unlimited, f)
+
+        # **STEP 3: BUAT CSV UNLIMITED (SEMUA TERM) DENGAN VOCABULARY YANG SAMA**
         print("📊 Membuat CSV unlimited...")
 
         def build_unlimited_df(matrix, feature_names, src_df):
@@ -242,15 +231,15 @@ def process_file():
             ]
             return tfidf_df[ordered_columns].fillna(0)
 
-        # Build DataFrame unlimited
+        # Build DataFrame unlimited dengan vocabulary yang sama
         tfidf_unlimited_df = build_unlimited_df(
             tfidf_unlimited_matrix, all_feature_names, df
         )
         tfidf_unlimited_train_df = build_unlimited_df(
-            tfidf_train_matrix, tfidf_train_model.get_feature_names_out(), train_df
+            tfidf_train_matrix, all_feature_names, train_df
         )
         tfidf_unlimited_test_df = build_unlimited_df(
-            tfidf_test_matrix, tfidf_test_model.get_feature_names_out(), test_df
+            tfidf_test_matrix, all_feature_names, test_df
         )
 
         # Save unlimited CSVs
@@ -258,7 +247,7 @@ def process_file():
         tfidf_unlimited_train_df.to_csv(UNLIMITED_TRAIN_CSV, index=False)
         tfidf_unlimited_test_df.to_csv(UNLIMITED_TEST_CSV, index=False)
 
-        # **STEP 5: PILIH TERM TERBAIK UNTUK DISPLAY FRONTEND (LIMITED)**
+        # **STEP 4: PILIH TERM TERBAIK UNTUK DISPLAY FRONTEND (LIMITED)**
         print("🔍 Memilih term terbaik untuk display frontend...")
         top_terms, top_indices = get_top_terms_from_matrix(
             tfidf_unlimited_matrix, all_feature_names, n_top_terms=n_display_terms
@@ -268,7 +257,7 @@ def process_file():
             f"✅ Term terpilih untuk display: {len(top_terms)} dari {total_terms_unlimited}"
         )
 
-        # **STEP 6: BUAT MATRIKS DISPLAY HANYA DENGAN TERM TERPILIH (LIMITED)**
+        # **STEP 5: BUAT MATRIKS DISPLAY HANYA DENGAN TERM TERPILIH (LIMITED)**
         print("🔧 Membuat matriks display dengan term terpilih...")
 
         # Apply extract columns ke semua matriks
@@ -295,7 +284,7 @@ def process_file():
         except Exception as e:
             print(f"Warning: Gagal menyimpan metadata: {str(e)}")
 
-        # **STEP 7: BUAT DATAFRAME UNTUK DISPLAY FRONTEND (LIMITED)**
+        # **STEP 6: BUAT DATAFRAME UNTUK DISPLAY FRONTEND (LIMITED)**
         def build_display_df(matrix, feature_names, src_df):
             """Build DataFrame hanya dengan term-term terpilih untuk display"""
             # Konversi ke dense matrix hanya jika diperlukan
@@ -349,9 +338,9 @@ def process_file():
         print(f"   - Term unlimited (perhitungan): {summary['total_terms_unlimited']}")
         print(f"   - Term display (frontend): {summary['total_terms']}")
         print("   - File yang disimpan:")
-        print("     • CSV Unlimited: Full, Train, Test")
+        print("     • CSV Unlimited: Full, Train, Test (semua dengan vocabulary sama)")
         print("     • CSV Limited: Full, Train, Test")
-        print("     • Model: Unlimited, Train, Test")
+        print("     • Model: Unlimited, Train, Test (semua model sama)")
 
         return jsonify({"data": response_data, "summary": summary})
 
