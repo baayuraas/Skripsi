@@ -3,6 +3,9 @@ import traceback
 import numpy as np
 import pandas as pd
 import pickle
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend untuk server
+import matplotlib.pyplot as plt
 from flask import Blueprint, request, jsonify, render_template, send_file
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import (
@@ -14,10 +17,12 @@ from sklearn.metrics import (
 )
 from tensorflow.keras import Input
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.initializers import RandomUniform
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import SparseCategoricalCrossentropy
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.callbacks import EarlyStopping
 
 perhitungan_bp = Blueprint(
     "perhitungan",
@@ -35,9 +40,8 @@ os.makedirs(ROOT_UPLOAD_FOLDER, exist_ok=True)
 # Jalur model & encoder
 MODEL_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "model_mlp_custom.keras")
 LABEL_ENCODER_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "label_encoder.pkl")
-HASIL_CSV_PATH = os.path.join(
-    ROOT_UPLOAD_FOLDER, "hasil_perhitungan.csv"
-)  # File untuk menyimpan hasil
+HASIL_CSV_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "hasil_perhitungan.csv")
+LEARNING_CURVE_PATH = os.path.join(ROOT_UPLOAD_FOLDER, "learning_curve.png")  # Path untuk gambar learning curve
 
 model = None
 le = None
@@ -86,6 +90,101 @@ def build_and_train_model(X, y, output_dim):
     return model
 
 
+def analyze_neuron_effect(X, y, output_dim):
+    """Metode 2: Learning Curve Analysis untuk menganalisis pengaruh jumlah neuron"""
+    neuron_counts = [4, 8, 16, 32, 64, 128]  # Range neuron yang akan diuji
+    train_scores = []
+    val_scores = []
+    best_val_acc = 0
+    best_neurons = None
+    
+    # Hapus file learning curve sebelumnya jika ada
+    if os.path.exists(LEARNING_CURVE_PATH):
+        os.remove(LEARNING_CURVE_PATH)
+    
+    print(f"Memulai analisis learning curve dengan {len(neuron_counts)} konfigurasi...")
+    
+    for i, neurons in enumerate(neuron_counts):
+        print(f"Testing konfigurasi {i+1}/{len(neuron_counts)}: {neurons} neuron")
+        
+        try:
+            # Bangun model dengan jumlah neuron yang berbeda
+            model = Sequential([
+                Input(shape=(X.shape[1],)),
+                Dense(neurons, activation='relu', kernel_regularizer=l2(0.001)),
+                Dropout(0.3),
+                Dense(max(neurons//2, 2), activation='relu', kernel_regularizer=l2(0.001)),  # Minimal 2 neuron
+                Dropout(0.3),
+                Dense(output_dim, activation='softmax'),
+            ])
+            
+            model.compile(
+                optimizer=Adam(learning_rate=0.001),
+                loss=SparseCategoricalCrossentropy(),
+                metrics=['accuracy']
+            )
+            
+            # Train dengan validation split
+            history = model.fit(
+                X, y, 
+                epochs=15, 
+                batch_size=16,
+                validation_split=0.2,
+                verbose=0
+            )
+            
+            # Catat skor terbaik
+            train_acc = max(history.history['accuracy'])
+            val_acc = max(history.history['val_accuracy'])
+            
+            train_scores.append(train_acc)
+            val_scores.append(val_acc)
+            
+            # Update konfigurasi terbaik
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_neurons = neurons
+                
+        except Exception as e:
+            print(f"Error pada konfigurasi {neurons} neuron: {str(e)}")
+            # Jika error, gunakan nilai default
+            train_scores.append(0.5)
+            val_scores.append(0.5)
+    
+    # Buat visualisasi learning curve
+    plt.figure(figsize=(10, 6))
+    plt.plot(neuron_counts, train_scores, 'bo-', label='Training Accuracy', linewidth=2, markersize=8)
+    plt.plot(neuron_counts, val_scores, 'ro-', label='Validation Accuracy', linewidth=2, markersize=8)
+    plt.xlabel('Jumlah Neuron di Layer 1')
+    plt.ylabel('Accuracy')
+    plt.title('Learning Curve: Pengaruh Jumlah Neuron terhadap Performa Model')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Highlight titik optimal
+    if best_neurons is not None:
+        best_idx = neuron_counts.index(best_neurons)
+        plt.scatter(best_neurons, val_scores[best_idx], color='green', s=200, zorder=5, 
+                   label=f'Optimal: {best_neurons} neuron (val_acc: {val_scores[best_idx]:.3f})')
+        plt.axvline(x=best_neurons, color='green', linestyle='--', alpha=0.7)
+    
+    plt.tight_layout()
+    
+    # Simpan gambar
+    plt.savefig(LEARNING_CURVE_PATH, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Analisis selesai. Neuron optimal: {best_neurons}, Validation Accuracy: {best_val_acc:.4f}")
+    
+    return {
+        "neuron_counts": neuron_counts,
+        "train_scores": [float(score) for score in train_scores],
+        "val_scores": [float(score) for score in val_scores],
+        "best_neurons": best_neurons,
+        "best_val_acc": float(best_val_acc)
+    }
+
+
 @perhitungan_bp.route("/")
 def index():
     return render_template("perhitungan.html", page_name="perhitungan")
@@ -94,14 +193,56 @@ def index():
 @perhitungan_bp.route("/check-result", methods=["GET"])
 def check_result():
     """Memeriksa apakah ada hasil perhitungan yang tersimpan"""
-    if (
-        os.path.exists(HASIL_CSV_PATH)
-        and os.path.exists(MODEL_PATH)
-        and os.path.exists(LABEL_ENCODER_PATH)
-    ):
-        return jsonify({"has_result": True})
-    else:
-        return jsonify({"has_result": False})
+    has_result = (
+        os.path.exists(HASIL_CSV_PATH) and
+        os.path.exists(MODEL_PATH) and 
+        os.path.exists(LABEL_ENCODER_PATH)
+    )
+    
+    has_learning_curve = os.path.exists(LEARNING_CURVE_PATH)
+    
+    return jsonify({
+        "has_result": has_result,
+        "has_learning_curve": has_learning_curve
+    })
+
+
+@perhitungan_bp.route("/analyze-neurons", methods=["POST"])
+def analyze_neurons():
+    """Endpoint baru untuk analisis learning curve"""
+    global model, le
+    
+    file = request.files.get("file")
+    if not file or not file.filename or not file.filename.lower().endswith(".csv"):
+        return jsonify({"error": "File harus CSV."}), 400
+
+    try:
+        csv_path = os.path.join(ROOT_UPLOAD_FOLDER, file.filename)
+        file.save(csv_path)
+
+        # Load data
+        X, y, encoder, output_dim, df_clean = load_and_prepare_data(csv_path)
+        le = encoder
+
+        # Lakukan analisis learning curve
+        analysis_result = analyze_neuron_effect(X, y, output_dim)
+        
+        # Konversi numpy types ke Python native types untuk JSON
+        analysis_result["neuron_counts"] = [int(x) for x in analysis_result["neuron_counts"]]
+        analysis_result["train_scores"] = [float(x) for x in analysis_result["train_scores"]]
+        analysis_result["val_scores"] = [float(x) for x in analysis_result["val_scores"]]
+        analysis_result["best_neurons"] = int(analysis_result["best_neurons"])
+        analysis_result["best_val_acc"] = float(analysis_result["best_val_acc"])
+
+        return jsonify({
+            "message": "Analisis learning curve selesai.",
+            "analysis": analysis_result,
+            "learning_curve_url": f"/perhitungan/download/learning_curve.png"
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"Gagal menganalisis: {str(e)}"}), 500
 
 
 @perhitungan_bp.route("/process", methods=["POST"])
@@ -169,7 +310,7 @@ def process_csv():
                     }
                 )
 
-        except Exception:  # Diubah: hapus 'as e' karena tidak digunakan
+        except Exception:
             traceback.print_exc()
             # Jangan return error, biarkan lanjut ke proses normal
 
@@ -289,6 +430,7 @@ def download_file(filename):
         "model_mlp_custom.keras": MODEL_PATH,
         "label_encoder.pkl": LABEL_ENCODER_PATH,
         "hasil_perhitungan.csv": HASIL_CSV_PATH,
+        "learning_curve.png": LEARNING_CURVE_PATH,  # Tambahkan learning curve
     }
     path = safe_files.get(filename)
     if path and os.path.exists(path):
@@ -299,7 +441,8 @@ def download_file(filename):
 @perhitungan_bp.route("/clear", methods=["POST"])
 def clear_data():
     global model, le
-    for path in [MODEL_PATH, LABEL_ENCODER_PATH, HASIL_CSV_PATH]:
+    files_to_clear = [MODEL_PATH, LABEL_ENCODER_PATH, HASIL_CSV_PATH, LEARNING_CURVE_PATH]
+    for path in files_to_clear:
         if os.path.exists(path):
             os.remove(path)
     model, le = None, None

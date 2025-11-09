@@ -1,6 +1,7 @@
 import os
 import logging
 import pickle
+import re
 import numpy as np
 from functools import lru_cache
 from typing import Optional, Tuple, Any
@@ -12,6 +13,11 @@ from flask_limiter.util import get_remote_address
 from datetime import datetime
 import scipy.sparse as sp
 import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+import pandas as pd
 from deep_translator import GoogleTranslator
 
 # Download NLTK resources
@@ -20,12 +26,6 @@ try:
     nltk.download("stopwords", quiet=True)
 except Exception as e:
     print(f"NLTK resources download failed: {e}")
-
-# IMPORT MODUL PREPROCESSING
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../preproses"))
-from preprocessing_module import preprocessor
 
 # Logging
 logging.basicConfig(
@@ -49,11 +49,181 @@ MODEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "model_mlp_custom.
 LABEL_PATH = os.path.join(BASE_DIR, "uploads", "perhitungan", "label_encoder.pkl")
 TFIDF_PATH = os.path.join(BASE_DIR, "uploads", "tfidf", "tfidf_unlimited_model.pkl")
 
+# Perbaikan: Path ke direktori preproses yang berisi file TXT
+TXT_DIR = os.path.join(BASE_DIR, "app", "preproses")
+
+# Daftar file txt yang diperlukan
+required_txt_files = [
+    "stopword_list.txt",
+    "stopword_list_ing.txt",
+    "normalisasi_list.txt",
+    "stemming_list.txt",
+    "game_term.txt",
+    "kata_tidak_relevan.txt",
+    "kata_ambigu.txt",
+]
+
+# Validasi file yang diperlukan
+for file_name in required_txt_files:
+    file_path = os.path.join(TXT_DIR, file_name)
+    if not os.path.exists(file_path):
+        logger.warning(f"File {file_name} tidak ditemukan di {TXT_DIR}")
+    else:
+        logger.info(f"File {file_name} ditemukan")
+
 # Cache untuk waktu modifikasi file
 file_modification_times = {}
 
 # Mapping label dari frontend ke model
 LABEL_MAPPING = {"positif": "baik", "negatif": "buruk"}
+
+
+# Fungsi untuk memuat stopword dengan format yang konsisten
+def load_stopwords(filename):
+    """Memuat stopword dari file dan memastikan format konsisten"""
+    stopwords_set = set()
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f:
+                word = line.strip().lower()
+                # Hapus karakter tidak diinginkan dan pastikan hanya huruf
+                word = re.sub(r"[^a-z]", "", word)
+                if (
+                    word and len(word) > 1
+                ):  # Hanya tambahkan jika tidak kosong dan panjang > 1
+                    stopwords_set.add(word)
+        logger.info(f"Loaded {len(stopwords_set)} kata dari {filename}")
+    except Exception as e:
+        logger.error(f"Error load_stopwords {filename}: {e}")
+    return stopwords_set
+
+
+# Inisialisasi stopword factory
+stopword_factory = StopWordRemoverFactory()
+stemmer = StemmerFactory().create_stemmer()
+
+# Load stopword dasar Indonesia
+stop_words_id = set(stopword_factory.get_stop_words()).union(
+    set(stopwords.words("indonesian"))
+)
+
+# Load stopword Indonesia dari file
+id_stopwords_file = os.path.join(TXT_DIR, "stopword_list.txt")
+if os.path.exists(id_stopwords_file):
+    id_stopwords = load_stopwords(id_stopwords_file)
+    stop_words_id.update(id_stopwords)
+
+# Load stopword Inggris dari file
+stopword_ing_file = os.path.join(TXT_DIR, "stopword_list_ing.txt")
+stop_words_ing = set()
+if os.path.exists(stopword_ing_file):
+    stop_words_ing = load_stopwords(stopword_ing_file)
+else:
+    # Fallback ke stopword Inggris dari NLTK jika file tidak ada
+    stop_words_ing = set(stopwords.words("english"))
+    logger.warning("Using NLTK English stopwords as fallback")
+
+logger.info(f"Total stopwords Indonesia: {len(stop_words_id)}")
+logger.info(f"Total stopwords Inggris: {len(stop_words_ing)}")
+
+# Load normalisasi dictionary
+normalisasi_dict = {}
+normalisasi_file = os.path.join(TXT_DIR, "normalisasi_list.txt")
+if os.path.exists(normalisasi_file):
+    with open(normalisasi_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                # Pastikan format konsisten (huruf kecil)
+                k = k.strip().lower()
+                v = v.strip().lower()
+                normalisasi_dict[k] = v
+    logger.info(f"Loaded {len(normalisasi_dict)} entries dari normalisasi_list.txt")
+
+# Load stemming_list.txt
+stemming_dict = {}
+stemming_file = os.path.join(TXT_DIR, "stemming_list.txt")
+if os.path.exists(stemming_file):
+    with open(stemming_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                parts = line.split("=", 1)
+                k = parts[0].strip().lower()
+                v = parts[1].strip().lower()
+                stemming_dict[k] = v
+
+                # Tambahkan juga varian dengan normalisasi pengulangan huruf
+                k_normalized = re.sub(r"(.)\1+", r"\1", k)
+                if k_normalized != k and k_normalized not in stemming_dict:
+                    stemming_dict[k_normalized] = v
+
+    logger.info(f"Loaded {len(stemming_dict)} pasangan dari stemming_list.txt")
+else:
+    logger.warning("File stemming_list.txt tidak ditemukan, gunakan default Sastrawi.")
+
+# Load game terms
+game_terms = set()
+game_terms_file = os.path.join(TXT_DIR, "game_term.txt")
+if os.path.exists(game_terms_file):
+    with open(game_terms_file, "r", encoding="utf-8") as f:
+        for line in f:
+            term = line.strip().lower()
+            if term:
+                game_terms.add(term)
+    logger.info(f"Loaded {len(game_terms)} game terms")
+
+# Load kata tidak relevan
+kata_tidak_relevan = set()
+kata_tidak_relevan_file = os.path.join(TXT_DIR, "kata_tidak_relevan.txt")
+if os.path.exists(kata_tidak_relevan_file):
+    with open(kata_tidak_relevan_file, "r", encoding="utf-8") as f:
+        for line in f:
+            word = line.strip().lower()
+            if word:
+                kata_tidak_relevan.add(word)
+    logger.info(f"Loaded {len(kata_tidak_relevan)} kata tidak relevan")
+
+# Load kata ambigu (whitelist)
+kata_id_pasti = set()
+kata_ambigu_file = os.path.join(TXT_DIR, "kata_ambigu.txt")
+if os.path.exists(kata_ambigu_file):
+    try:
+        with open(kata_ambigu_file, "r", encoding="utf-8") as f:
+            kata_id_pasti = {line.strip().lower() for line in f if line.strip()}
+        logger.info(f"Loaded {len(kata_id_pasti)} kata dari kata_ambigu.txt")
+    except Exception as e:
+        logger.error(f"Error baca whitelist: {e}")
+else:
+    logger.warning("File kata_ambigu.txt tidak ditemukan, whitelist kosong.")
+
+# Pre-compile regex patterns
+emoji_pattern = re.compile(
+    "["
+    "\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map symbols
+    "\U0001f1e0-\U0001f1ff"  # flags (iOS)
+    "\U00002702-\U000027b0"
+    "\U000024c2-\U0001f251"
+    "]+",
+    flags=re.UNICODE,
+)
+
+# Pattern yang diperbaiki
+special_char_pattern = re.compile(r"[-–—…\"»«]")
+bracket_pattern = re.compile(r"\[.*?\]")
+url_pattern = re.compile(r"http\S+")
+digit_pattern = re.compile(r"\b\d+\b")
+non_word_pattern = re.compile(r"[^\w\s@#]")
+whitespace_pattern = re.compile(r"\s+")
+repeated_word_pattern = re.compile(r"\b(\w{3,}?)(?:\1)\b")
+word_pattern = re.compile(r"\b\w+\b")
+
+# Pattern untuk membersihkan token tidak diinginkan
+number_unit_pattern = re.compile(r"^\d+[a-z]*\d*[a-z]*$")
+short_word_pattern = re.compile(r"^\w{1,2}$")
+mixed_alnum_pattern = re.compile(r"^[a-z]+\d+|\d+[a-z]+$")
 
 
 # Custom Exception
@@ -112,15 +282,222 @@ def translate_large_text(text: str, target_lang: str) -> str:
         return text
 
 
-# GUNAKAN MODUL PREPROCESSING UNTUK FUNGSI PREPROCESSING
+# Fungsi untuk membersihkan teks
+def bersihkan_terjemahan(teks: str) -> str:
+    if pd.isna(teks) or not isinstance(teks, str):
+        return ""
+
+    teks_asli = teks
+
+    try:
+        teks = emoji_pattern.sub(" ", teks)
+        teks = special_char_pattern.sub(" ", teks)
+        teks = bracket_pattern.sub(" ", teks)
+        teks = url_pattern.sub(" ", teks)
+        teks = digit_pattern.sub(" ", teks)
+        teks = non_word_pattern.sub(" ", teks)
+        teks = whitespace_pattern.sub(" ", teks).strip()
+
+        if not teks.strip():
+            teks = emoji_pattern.sub(" ", teks_asli)
+            teks = url_pattern.sub(" ", teks)
+            teks = whitespace_pattern.sub(" ", teks).strip()
+
+        return teks
+    except Exception as e:
+        logger.error(f"Error in bersihkan_terjemahan: {e}")
+        return whitespace_pattern.sub(" ", teks_asli).strip()
+
+
+# Fungsi untuk membersihkan token tidak diinginkan
+def bersihkan_token(tokens):
+    """Membersihkan token-token yang tidak diinginkan seperti angka dengan satuan, kata sangat pendek, dll."""
+    hasil = []
+    for token in tokens:
+        # Normalisasi pengulangan huruf terlebih dahulu
+        normalized_token = re.sub(r"(.)\1+", r"\1", token)
+
+        # JANGAN hapus token yang merupakan game terms
+        if normalized_token in game_terms:
+            hasil.append(normalized_token)
+            continue
+
+        # Skip token yang sesuai dengan pola tidak diinginkan
+        if (
+            number_unit_pattern.match(normalized_token)
+            or short_word_pattern.match(normalized_token)
+            or mixed_alnum_pattern.match(normalized_token)
+        ):
+            continue
+
+        # Skip token yang hanya terdiri dari angka
+        if normalized_token.isdigit():
+            continue
+
+        # Gunakan token yang sudah dinormalisasi
+        hasil.append(normalized_token)
+
+    return hasil
+
+
+# Fungsi normalisasi teks
+def normalisasi_teks(words):
+    hasil = []
+    for w in words:
+        wl = w.lower()
+        if wl in normalisasi_dict:
+            mapped = normalisasi_dict[wl]
+            hasil.extend(mapped.split())
+        else:
+            hasil.append(wl)
+    return hasil
+
+
+# Fungsi Stopword Removal yang Diperbarui - TANPA pemanggilan bersihkan_token
+def hapus_stopword(words, debug=False):
+    if debug:
+        logger.debug(f"Kata sebelum filter stopword: {words}")
+
+    result = []
+    stopword_removed = []
+
+    for w in words:
+        # Pengecualian 1: Game terms - selalu pertahankan
+        if w in game_terms:
+            if debug:
+                logger.debug(f"🎮 Menyimpan game term: '{w}'")
+            result.append(w)
+            continue
+
+        # Pengecualian 2: Whitelist kata - selalu pertahankan
+        if w in kata_id_pasti:
+            if debug:
+                logger.debug(f"📝 Menyimpan kata whitelist: '{w}'")
+            result.append(w)
+            continue
+
+        # Prioritas 1: Kata tidak relevan
+        if w in kata_tidak_relevan:
+            if debug:
+                logger.debug(f"🗑️ Menghapus kata tidak relevan: '{w}'")
+            stopword_removed.append(w)
+            continue
+
+        # Prioritas 2: Stopword Indonesia
+        if w in stop_words_id:
+            if debug:
+                logger.debug(f"🗑️ Menghapus stopword Indonesia: '{w}'")
+            stopword_removed.append(w)
+            continue
+
+        # Prioritas 3: Stopword Inggris
+        if w in stop_words_ing:
+            if debug:
+                logger.debug(f"🗑️ Menghapus stopword Inggris: '{w}'")
+            stopword_removed.append(w)
+            continue
+
+        # Jika lolos semua filter, simpan kata
+        if debug:
+            logger.debug(f"💾 Menyimpan kata: '{w}'")
+        result.append(w)
+
+    if debug:
+        logger.debug(f"Kata yang dihapus: {stopword_removed}")
+        logger.debug(f"Kata setelah filter stopword: {result}")
+
+    return result
+
+
+# Fungsi Stemming yang Diperbarui
+def stemming_teks(words, debug=False):
+    hasil = []
+    stem_methods = []
+
+    for w in words:
+        wl = w.lower()
+        wl_normalized = re.sub(r"(.)\1+", r"\1", wl)
+        method_used = "original"
+
+        if wl in stemming_dict:
+            mapped = stemming_dict[wl]
+            hasil.extend(mapped.split())
+            method_used = "custom_dict"
+        elif wl_normalized in stemming_dict:
+            mapped = stemming_dict[wl_normalized]
+            hasil.extend(mapped.split())
+            method_used = "custom_dict_normalized"
+        else:
+            stemmed_sastrawi = stemmer.stem(wl_normalized)
+            if stemmed_sastrawi != wl_normalized:
+                hasil.append(stemmed_sastrawi)
+                method_used = "sastrawi"
+            else:
+                hasil.append(wl_normalized)
+                method_used = "normalized"
+
+        stem_methods.append(method_used)
+
+    if debug and stem_methods:
+        method_counts = dict(zip(*np.unique(stem_methods, return_counts=True)))
+        logger.debug(f"Stemming methods digunakan: {method_counts}")
+
+    return hasil
+
+
+# PREPROCESSING FUNCTION DENGAN URUTAN YANG DIPERBAIKI
 def proses_baris_aman(text: str) -> list:
     """
-    Preprocess text menggunakan modul preprocessing yang SAMA dengan preproses
+    Preprocess text dengan urutan yang diperbaiki:
+    1. Cleaning → Hapus emoji, URL, karakter khusus
+    2. Case Folding → Ubah ke huruf kecil
+    3. Tokenisasi → Pecah teks menjadi kata per kata
+    4. Normalisasi → Ubah kata tidak baku menjadi baku
+    5. Pembersihan Token → Hapus token tidak diinginkan
+    6. Stopword Removal → Hapus kata umum tidak penting
+    7. Stemming → Ubah kata ke bentuk dasar
+
     Returns a list containing the preprocessed text.
     """
     try:
-        # Gunakan modul preprocessing
-        return preprocessor.proses_baris_aman(text)
+        logger.info(f"📥 Input: '{text}'")
+
+        # 1. CLEANING - Hapus emoji, URL, karakter khusus
+        clean = bersihkan_terjemahan(text)
+        logger.info(f"🧹 Cleaning: '{clean}'")
+
+        # 2. CASE FOLDING - Ubah ke huruf kecil
+        folded = clean.lower()
+        logger.info(f"🔠 Case Folding: '{folded}'")
+
+        # 3. TOKENISASI - Pecah teks menjadi kata per kata
+        try:
+            token = word_tokenize(folded)
+        except Exception:
+            token = word_pattern.findall(folded)
+        logger.info(f"🔪 Tokenisasi: {token}")
+
+        # 4. NORMALISASI - Ubah kata tidak baku menjadi baku
+        norm = normalisasi_teks(token) if token else []
+        logger.info(f"🔧 Normalisasi: {norm}")
+
+        # 5. PEMBERSIHAN TOKEN - Hapus token tidak diinginkan
+        token_cleaned = bersihkan_token(norm) if norm else []
+        logger.info(f"🧽 Pembersihan Token: {token_cleaned}")
+
+        # 6. STOPWORD REMOVAL - Hapus kata umum tidak penting
+        stop = hapus_stopword(token_cleaned) if token_cleaned else []
+        logger.info(f"🚫 Stopword Removal: {stop}")
+
+        # 7. STEMMING - Ubah kata ke bentuk dasar
+        stem = stemming_teks(stop) if stop else []
+        logger.info(f"✂️ Stemming: {stem}")
+
+        # Gabungkan hasil
+        hasil = " ".join(stem) if stem else folded
+        logger.info(f"🎯 Hasil Akhir: '{hasil}'")
+
+        return [hasil]
     except Exception as e:
         logger.error(f"Preprocessing failed: {str(e)}")
         raise PreprocessingError(f"Text preprocessing failed: {str(e)}")
@@ -398,7 +775,7 @@ def predict_sentimen():
             terjemahan = ulasan
             is_translated = False
 
-        # Preprocessing menggunakan MODUL PREPROCESSING yang SAMA dengan preproses
+        # Preprocessing menggunakan program preprocessing yang lengkap
         try:
             hasil_prepro = proses_baris_aman(terjemahan)
             if not hasil_prepro or not hasil_prepro[0]:
@@ -512,85 +889,3 @@ def predict_sentimen():
                 "details": str(e),
             }
         ), 500
-
-
-# Endpoint untuk debugging preprocessing
-@pengujian_bp.route("/debug_preprocessing", methods=["POST"])
-def debug_preprocessing():
-    """Endpoint untuk debugging preprocessing pada teks tertentu"""
-    try:
-        data = request.get_json()
-        if not data or "text" not in data:
-            return jsonify({"error": "Tidak ada teks yang dikirim."}), 400
-
-        teks = data["text"]
-        logger.info(f"Debug Preprocessing: Memproses teks: {teks}")
-
-        # Lakukan preprocessing dengan debug mode menggunakan MODUL
-        hasil = preprocessor.proses_preprocessing_standar(teks, debug=True)
-
-        return jsonify(
-            {
-                "status": "success",
-                "input_text": teks,
-                "processing_steps": {
-                    "clean": hasil[0],
-                    "folded": hasil[1],
-                    "tokens": hasil[2],
-                    "stopwords_removed": hasil[3],
-                    "normalized": hasil[4],
-                    "stemmed": hasil[5],
-                    "final": hasil[6],
-                },
-                "dictionary_info": {
-                    "normalization_dict_size": len(preprocessor.normalisasi_dict),
-                    "game_terms_size": len(preprocessor.game_terms),
-                    "whitelist_size": len(preprocessor.kata_id_pasti),
-                },
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error debug_preprocessing: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-# Endpoint untuk mengecek kesehatan preprocessing module
-@pengujian_bp.route("/preprocessing_health", methods=["GET"])
-def preprocessing_health():
-    """Endpoint untuk mengecek kesehatan modul preprocessing"""
-    try:
-        # Test dengan contoh teks
-        test_text = "gue mau makan bgtt ntar klo bs"
-        hasil = preprocessor.proses_preprocessing_standar(test_text, debug=False)
-
-        return jsonify(
-            {
-                "status": "success",
-                "message": "Modul preprocessing berjalan normal",
-                "test_preprocessing": {
-                    "input": test_text,
-                    "output": hasil[6],
-                    "steps": {
-                        "clean": hasil[0],
-                        "folded": hasil[1],
-                        "tokens": len(hasil[2]),
-                        "stopwords_removed": len(hasil[3]),
-                        "normalized": len(hasil[4]),
-                        "stemmed": len(hasil[5]),
-                    },
-                },
-                "module_info": {
-                    "initialized": preprocessor._initialized,
-                    "dictionaries_loaded": {
-                        "normalization": len(preprocessor.normalisasi_dict) > 0,
-                        "stemming": len(preprocessor.stemming_dict) > 0,
-                        "game_terms": len(preprocessor.game_terms) > 0,
-                        "stopwords_id": len(preprocessor.stop_words_id) > 0,
-                        "stopwords_ing": len(preprocessor.stop_words_ing) > 0,
-                    },
-                },
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error preprocessing_health: {e}")
-        return jsonify({"error": str(e)}), 500
