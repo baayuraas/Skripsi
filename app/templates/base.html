@@ -5,7 +5,6 @@
 </head>
 <body>
     {% include 'navbar.html' %}
-
     <div class="container-fluid" id="main-container">
         {% include 'sidebar.html' %}
         <div id="main-content">
@@ -23,4 +22,119 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     {% block extra_script %}{% endblock %}
 </body>
+<style>
+    /* CSS untuk memperbaiki tampilan chart dan tabel */
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+        margin-bottom: 20px;
+    }
+    
+    .chart-container canvas {
+        max-width: 100%;
+        height: auto !important;
+    }
+    
+    .table-responsive {
+        max-height: 500px;
+        overflow: auto;
+    }
+    
+    .card-body {
+        overflow: hidden;
+    }
+    
+    #comparison-table {
+        min-width: 1000px;
+    }
+    
+    .chart-section {
+        margin-bottom: 30px;
+    }
+    
+    /* Styling untuk tabel yang lebih baik */
+    .table th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+    
+    .table-success {
+        background-color: #d4edda !important;
+    }
+    
+    .table-danger {
+        background-color: #f8d7da !important;
+    }
+    
+    .table-warning {
+        background-color: #fff3cd !important;
+    }
+
+    /* Loading animation */
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Cache status styling */
+    .cache-file-list {
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+    
+    .cache-status-good {
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .cache-status-bad {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    /* Smooth transitions */
+    #result-check, #upload-form {
+        transition: all 0.3s ease-in-out;
+    }
+    
+    .hidden-section {
+        display: none !important;
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    
+    /* Responsive design untuk mobile */
+    @media (max-width: 768px) {
+        .chart-container {
+            height: 250px;
+        }
+        
+        .btn-group .btn {
+            font-size: 12px;
+            padding: 5px 8px;
+        }
+        
+        #comparison-table {
+            min-width: 800px;
+        }
+        
+        .card-body {
+            padding: 15px;
+        }
+    }
+</style>
 </html>
