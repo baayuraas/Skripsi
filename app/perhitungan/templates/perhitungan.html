@@ -15,6 +15,116 @@
 {% endblock %}
 
 {% block content %}
+<!-- CSS untuk memperbesar chart -->
+<style>
+    /* PERBAIKAN UKURAN CHART DAN FONT */
+    .chart-container {
+        position: relative;
+        height: 500px !important;  /* Perbesar tinggi chart */
+        width: 100%;
+        margin-bottom: 20px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    /* Perbesar ukuran font untuk chart */
+    .chartjs-size-monitor, .chartjs-render-monitor {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Responsive untuk mobile */
+    @media (max-width: 768px) {
+        .chart-container {
+            height: 350px !important;
+        }
+        .chart-controls .btn {
+            font-size: 12px;
+            padding: 5px 8px;
+        }
+    }
+    
+    /* Animasi loading */
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Cache status styling */
+    .cache-status-good {
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .cache-status-bad {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    .cache-file-list {
+        font-size: 12px;
+    }
+    
+    /* Hidden section dengan efek smooth */
+    .hidden-section {
+        opacity: 0;
+        height: 0;
+        overflow: hidden;
+        transition: opacity 0.3s, height 0.3s;
+    }
+    
+    /* Table styling untuk comparison */
+    #comparison-table th {
+        background-color: #343a40;
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    
+    #comparison-table td {
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    
+    .table-success {
+        background-color: rgba(40, 167, 69, 0.15) !important;
+    }
+    
+    .badge {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+    
+    /* Card header styling */
+    .card-header {
+        font-weight: 600;
+        font-size: 16px;
+    }
+    
+    /* Button group untuk chart controls */
+    .btn-group .btn {
+        font-size: 13px;
+        padding: 6px 12px;
+    }
+    
+    /* Alert styling */
+    .alert {
+        font-size: 14px;
+    }
+</style>
+
 <h3>Train Model dengan Optimasi Neuron Otomatis</h3>
 
 <!-- Cache Status Indicator -->
@@ -112,8 +222,8 @@
                             <canvas id="performanceChart"></canvas>
                         </div>
                     </div>
-                    <div class="col-mt-4">
-                        <div class="card">
+                    <div class="col-md-4">
+                        <div class="card mt-4">
                             <div class="card-header">
                                 <h6><i class="icon-info"></i> Keterangan Metrik</h6>
                             </div>
@@ -137,7 +247,7 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="card">
+                        <div class="card mt-4">
                             <div class="card-header">
                                 <h6><i class="icon-info"></i> Keterangan Resource</h6>
                             </div>
@@ -381,6 +491,10 @@
 {% block extra_script %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// =============================================
+// GLOBAL VARIABLES DAN KONFIGURASI CHART
+// =============================================
+
 // Global variables untuk menyimpan chart instances
 let learningCurveChart = null;
 let accuracyChart = null;
@@ -394,6 +508,21 @@ let lossProgressChart = null;
 // Global variables untuk menyimpan data chart
 let currentComparisonData = null;
 let currentTrainingHistories = null;
+
+// Konfigurasi font yang diperbesar untuk semua chart
+const CHART_FONT_CONFIG = {
+    family: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    size: {
+        title: 16,
+        axis: 14,
+        ticks: 12,
+        legend: 14
+    }
+};
+
+// =============================================
+// FUNGSI UTILITY DAN HELPER
+// =============================================
 
 // Resize handler untuk chart
 let resizeTimer;
@@ -495,8 +624,29 @@ function checkVisualizationCache() {
     });
 }
 
-// Fungsi untuk membuat chart performa
-// Fungsi untuk membuat chart performa - DIPERBAIKI
+// Fungsi untuk mengurutkan data arsitektur
+function sortArchitectureData(architectureResults) {
+    if (!architectureResults) return architectureResults;
+    
+    const desiredOrder = [
+        "MLP-A (Sederhana)",
+        "MLP-B (Sedang)",
+        "MLP-C (Dalam)", 
+        "MLP-D (Wide + Shallow)"
+    ];
+    
+    return architectureResults.sort((a, b) => {
+        const indexA = desiredOrder.indexOf(a.architecture);
+        const indexB = desiredOrder.indexOf(b.architecture);
+        return indexA - indexB;
+    });
+}
+
+// =============================================
+// FUNGSI PEMBUATAN CHART (DIPERBESAR)
+// =============================================
+
+// Fungsi untuk membuat chart performa - DIPERBAIKI DENGAN FONT BESAR
 function createPerformanceChart(comparisonData) {
     const ctx = document.getElementById('performanceChart').getContext('2d');
     
@@ -526,16 +676,16 @@ function createPerformanceChart(comparisonData) {
                     yAxisID: 'y'
                 },
                 {
-                    label: 'Macro Precision',  // GUNAKAN macro_precision
-                    data: comparisonData.macro_precision || comparisonData.precision, // Fallback untuk kompatibilitas
+                    label: 'Macro Precision',
+                    data: comparisonData.macro_precision || comparisonData.precision,
                     backgroundColor: 'rgba(255, 99, 132, 0.8)',
                     borderColor: 'rgba(255, 99, 132, 1)',
                     borderWidth: 1,
                     yAxisID: 'y'
                 },
                 {
-                    label: 'Macro Recall',  // GUNAKAN macro_recall
-                    data: comparisonData.macro_recall || comparisonData.recall, // Fallback untuk kompatibilitas
+                    label: 'Macro Recall',
+                    data: comparisonData.macro_recall || comparisonData.recall,
                     backgroundColor: 'rgba(75, 192, 192, 0.8)',
                     borderColor: 'rgba(75, 192, 192, 1)',
                     borderWidth: 1,
@@ -550,7 +700,12 @@ function createPerformanceChart(comparisonData) {
                 title: {
                     display: true,
                     text: 'Perbandingan Metrik Performa Arsitektur MLP',
-                    font: { size: 16 }
+                    font: { 
+                        size: CHART_FONT_CONFIG.size.title,
+                        family: CHART_FONT_CONFIG.family,
+                        weight: 'bold'
+                    },
+                    padding: { top: 10, bottom: 30 }
                 },
                 tooltip: {
                     mode: 'index',
@@ -559,23 +714,58 @@ function createPerformanceChart(comparisonData) {
                         label: function(context) {
                             return `${context.dataset.label}: ${context.parsed.y}%`;
                         }
+                    },
+                    titleFont: {
+                        size: CHART_FONT_CONFIG.size.axis
+                    },
+                    bodyFont: {
+                        size: CHART_FONT_CONFIG.size.ticks
                     }
                 },
                 legend: {
                     position: 'top',
+                    labels: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.legend,
+                            family: CHART_FONT_CONFIG.family
+                        },
+                        padding: 20
+                    }
                 }
             },
             scales: {
                 x: {
                     title: {
                         display: true,
-                        text: 'Arsitektur MLP'
+                        text: 'Arsitektur MLP',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     }
                 },
                 y: {
                     title: {
                         display: true,
-                        text: 'Persentase (%)'
+                        text: 'Persentase (%)',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     },
                     min: 0,
                     max: 100
@@ -585,7 +775,7 @@ function createPerformanceChart(comparisonData) {
     });
 }
 
-// Fungsi untuk membuat chart resource usage
+// Fungsi untuk membuat chart resource usage dengan font besar
 function createResourcesChart(comparisonData) {
     const ctx = document.getElementById('resourcesChart').getContext('2d');
     
@@ -639,7 +829,12 @@ function createResourcesChart(comparisonData) {
                 title: {
                     display: true,
                     text: 'Penggunaan Resource Arsitektur MLP',
-                    font: { size: 16 }
+                    font: { 
+                        size: CHART_FONT_CONFIG.size.title,
+                        family: CHART_FONT_CONFIG.family,
+                        weight: 'bold'
+                    },
+                    padding: { top: 10, bottom: 30 }
                 },
                 tooltip: {
                     mode: 'index',
@@ -657,23 +852,58 @@ function createResourcesChart(comparisonData) {
                                 return `${context.dataset.label}: ${context.parsed.y}MB`;
                             }
                         }
+                    },
+                    titleFont: {
+                        size: CHART_FONT_CONFIG.size.axis
+                    },
+                    bodyFont: {
+                        size: CHART_FONT_CONFIG.size.ticks
                     }
                 },
                 legend: {
                     position: 'top',
+                    labels: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.legend,
+                            family: CHART_FONT_CONFIG.family
+                        },
+                        padding: 20
+                    }
                 }
             },
             scales: {
                 x: {
                     title: {
                         display: true,
-                        text: 'Arsitektur MLP'
+                        text: 'Arsitektur MLP',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     }
                 },
                 y: {
                     title: {
                         display: true,
-                        text: 'Nilai'
+                        text: 'Nilai',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     },
                     beginAtZero: true
                 }
@@ -682,7 +912,7 @@ function createResourcesChart(comparisonData) {
     });
 }
 
-// Fungsi untuk membuat chart efisiensi
+// Fungsi untuk membuat chart efisiensi dengan font besar
 function createEfficiencyChart(comparisonData) {
     const ctx = document.getElementById('efficiencyChart').getContext('2d');
     
@@ -741,7 +971,12 @@ function createEfficiencyChart(comparisonData) {
                 title: {
                     display: true,
                     text: 'Efisiensi Training Arsitektur MLP',
-                    font: { size: 16 }
+                    font: { 
+                        size: CHART_FONT_CONFIG.size.title,
+                        family: CHART_FONT_CONFIG.family,
+                        weight: 'bold'
+                    },
+                    padding: { top: 10, bottom: 30 }
                 },
                 tooltip: {
                     mode: 'index',
@@ -750,23 +985,58 @@ function createEfficiencyChart(comparisonData) {
                         label: function(context) {
                             return `${context.dataset.label}: ${context.parsed.y}`;
                         }
+                    },
+                    titleFont: {
+                        size: CHART_FONT_CONFIG.size.axis
+                    },
+                    bodyFont: {
+                        size: CHART_FONT_CONFIG.size.ticks
                     }
                 },
                 legend: {
                     position: 'top',
+                    labels: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.legend,
+                            family: CHART_FONT_CONFIG.family
+                        },
+                        padding: 20
+                    }
                 }
             },
             scales: {
                 x: {
                     title: {
                         display: true,
-                        text: 'Arsitektur MLP'
+                        text: 'Arsitektur MLP',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     }
                 },
                 y: {
                     title: {
                         display: true,
-                        text: 'Nilai Efisiensi'
+                        text: 'Nilai Efisiensi',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     },
                     beginAtZero: true
                 }
@@ -775,7 +1045,7 @@ function createEfficiencyChart(comparisonData) {
     });
 }
 
-// Fungsi untuk membuat training progress charts
+// Fungsi untuk membuat training progress charts dengan font besar
 function createTrainingProgressCharts(trainingHistories) {
     if (!trainingHistories) {
         console.log("❌ Tidak ada training histories untuk membuat chart");
@@ -859,14 +1129,40 @@ function createTrainingProgressCharts(trainingHistories) {
             plugins: {
                 title: {
                     display: true,
-                    text: 'Training & Validation Accuracy Progress'
+                    text: 'Training & Validation Accuracy Progress',
+                    font: { 
+                        size: CHART_FONT_CONFIG.size.title,
+                        family: CHART_FONT_CONFIG.family,
+                        weight: 'bold'
+                    },
+                    padding: { top: 10, bottom: 30 }
+                },
+                legend: {
+                    labels: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.legend,
+                            family: CHART_FONT_CONFIG.family
+                        },
+                        padding: 20
+                    }
                 }
             },
             scales: {
                 y: {
                     title: {
                         display: true,
-                        text: 'Accuracy (%)'
+                        text: 'Accuracy (%)',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     },
                     min: 0,
                     max: 100
@@ -874,7 +1170,18 @@ function createTrainingProgressCharts(trainingHistories) {
                 x: {
                     title: {
                         display: true,
-                        text: 'Epoch'
+                        text: 'Epoch',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     }
                 }
             }
@@ -897,21 +1204,58 @@ function createTrainingProgressCharts(trainingHistories) {
             plugins: {
                 title: {
                     display: true,
-                    text: 'Training & Validation Loss Progress'
+                    text: 'Training & Validation Loss Progress',
+                    font: { 
+                        size: CHART_FONT_CONFIG.size.title,
+                        family: CHART_FONT_CONFIG.family,
+                        weight: 'bold'
+                    },
+                    padding: { top: 10, bottom: 30 }
+                },
+                legend: {
+                    labels: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.legend,
+                            family: CHART_FONT_CONFIG.family
+                        },
+                        padding: 20
+                    }
                 }
             },
             scales: {
                 y: {
                     title: {
                         display: true,
-                        text: 'Loss'
+                        text: 'Loss',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     },
                     beginAtZero: true
                 },
                 x: {
                     title: {
                         display: true,
-                        text: 'Epoch'
+                        text: 'Epoch',
+                        font: {
+                            size: CHART_FONT_CONFIG.size.axis,
+                            family: CHART_FONT_CONFIG.family,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        font: {
+                            size: CHART_FONT_CONFIG.size.ticks,
+                            family: CHART_FONT_CONFIG.family
+                        }
                     }
                 }
             }
@@ -920,7 +1264,6 @@ function createTrainingProgressCharts(trainingHistories) {
 }
 
 // Fungsi untuk mengisi tabel perbandingan
-// Fungsi untuk mengisi tabel perbandingan - DIPERBAIKI
 function renderComparisonTable(architectureResults) {
     const tbody = $('#comparison-table tbody');
     tbody.empty();
@@ -930,18 +1273,21 @@ function renderComparisonTable(architectureResults) {
         return;
     }
     
-    // Cari yang terbaik untuk setiap metrik
-    const bestMacroF1 = Math.max(...architectureResults.map(r => r.macro_f1 || 0));
-    const bestMacroPrecision = Math.max(...architectureResults.map(r => r.macro_precision || 0)); // BARU
-    const bestMacroRecall = Math.max(...architectureResults.map(r => r.macro_recall || 0));       // BARU
-    const bestAccuracy = Math.max(...architectureResults.map(r => r.val_accuracy));
-    const bestInferenceTime = Math.min(...architectureResults.map(r => r.inference_time_ms || 0));
-    const bestMemory = Math.min(...architectureResults.map(r => r.avg_memory_mb));
+    // Urutkan data arsitektur
+    const sortedResults = sortArchitectureData(architectureResults);
     
-    architectureResults.forEach(arch => {
+    // Cari yang terbaik untuk setiap metrik
+    const bestMacroF1 = Math.max(...sortedResults.map(r => r.macro_f1 || 0));
+    const bestMacroPrecision = Math.max(...sortedResults.map(r => r.macro_precision || 0));
+    const bestMacroRecall = Math.max(...sortedResults.map(r => r.macro_recall || 0));
+    const bestAccuracy = Math.max(...sortedResults.map(r => r.val_accuracy));
+    const bestInferenceTime = Math.min(...sortedResults.map(r => r.inference_time_ms || 0));
+    const bestMemory = Math.min(...sortedResults.map(r => r.avg_memory_mb));
+    
+    sortedResults.forEach(arch => {
         const isBestMacroF1 = (arch.macro_f1 || 0) === bestMacroF1;
-        const isBestMacroPrecision = (arch.macro_precision || 0) === bestMacroPrecision; // BARU
-        const isBestMacroRecall = (arch.macro_recall || 0) === bestMacroRecall;           // BARU
+        const isBestMacroPrecision = (arch.macro_precision || 0) === bestMacroPrecision;
+        const isBestMacroRecall = (arch.macro_recall || 0) === bestMacroRecall;
         const isBestAccuracy = arch.val_accuracy === bestAccuracy;
         const isBestInferenceTime = (arch.inference_time_ms || 0) === bestInferenceTime;
         const isBestMemory = arch.avg_memory_mb === bestMemory;
@@ -993,7 +1339,6 @@ function renderComparisonTable(architectureResults) {
 }
 
 // Fungsi untuk menampilkan best architecture info
-// Fungsi untuk menampilkan best architecture info - DIPERBAIKI
 function showBestArchitectureInfo(bestArchitecture, bestHyperparams, bestAccuracy, bestMacroF1, bestMacroPrecision, bestMacroRecall) {
     if (bestArchitecture) {
         $('#best-architecture-info').show();
@@ -1017,7 +1362,7 @@ function showBestArchitectureInfo(bestArchitecture, bestHyperparams, bestAccurac
     }
 }
 
-// Fungsi untuk menampilkan perbandingan arsitektur - DIPERBAIKI
+// Fungsi untuk menampilkan perbandingan arsitektur
 function renderArchitectureComparison(res) {
     if (res.has_visualization_data && res.architecture_comparison && res.training_histories) {
         $('#architecture-comparison').show();
@@ -1025,6 +1370,11 @@ function renderArchitectureComparison(res) {
         // Simpan data untuk resize
         currentComparisonData = res.architecture_comparison;
         currentTrainingHistories = res.training_histories;
+        
+        // Urutkan data arsitektur jika diperlukan
+        if (res.architecture_results) {
+            res.architecture_results = sortArchitectureData(res.architecture_results);
+        }
         
         // Tampilkan best architecture info
         const bestAccuracy = res.architecture_results ? Math.max(...res.architecture_results.map(r => r.val_accuracy)) : 0;
@@ -1050,7 +1400,11 @@ function renderArchitectureComparison(res) {
     }
 }
 
-// Fungsi untuk memuat data visualisasi saja - DIPERBAIKI
+// =============================================
+// FUNGSI UTAMA UNTUK MEMUAT DAN MERENDER DATA
+// =============================================
+
+// Fungsi untuk memuat data visualisasi saja
 function loadVisualizationData() {
     $("#loading").show();
     $("#statusMessage").html('<div class="alert alert-info">Memuat data visualisasi dari cache...</div>');
@@ -1118,10 +1472,7 @@ function debugCache() {
     });
 }
 
-// =============================================
-// FUNGSI UTAMA UNTUK RENDER DATA
-// =============================================
-
+// Fungsi untuk render tabel data
 function renderTable(data, totalRecords, displayedRecords) {
     if (!data || !data.length) {
         $("#reviews-table-body").html('<tr><td colspan="100" class="text-center">Tidak ada data untuk ditampilkan</td></tr>');
@@ -1153,6 +1504,7 @@ function renderTable(data, totalRecords, displayedRecords) {
     $("#reviews-table-body").html(tableRows);
 }
 
+// Fungsi untuk render evaluasi model
 function renderEvaluation(res) {
     if (!res.labels || !res.confusion) {
         $("#eval-info").html(`
@@ -1164,8 +1516,6 @@ function renderEvaluation(res) {
     }
     
     const labels = res.labels;
-    
-    // ========== MATRIX EVALUASI YANG DIPERBAIKI ==========
     
     // 1. Metrik Utama (Macro F1) dan Sekunder
     let mainMetrics = `
@@ -1343,321 +1693,12 @@ function renderEvaluation(res) {
             </div>`;
     }
     
-    // 4. Deployment Considerations
-    let deploymentInfo = `
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5><i class="icon-cloud"></i> 🚀 Pertimbangan Deployment</h5>
-            </div>
-            <div class="card-body">
-                <div class="mt-4">
-                    <div class="col-mt-4">
-                        <h6>Performansi Inference:</h6>
-                        <ul>
-                            <li><strong>Waktu Inference:</strong> ${res.inference_time_ms || 0} ms per sample</li>
-                            <li><strong>Throughput Estimasi:</strong> ${res.inference_time_ms ? Math.floor(1000 / res.inference_time_ms) : 0} samples/detik</li>
-                            <li><strong>Konsumsi Memori:</strong> ${res.avg_memory_mb || 0} MB (training)</li>
-                        </ul>
-                    </div>
-                    <div class="col-mt-4">
-                        <h6>Rekomendasi Deployment:</h6>
-                        <ul>
-                            <li>${(res.inference_time_ms || 0) < 10 ? '✅ Cocok untuk real-time applications' : '⚠️ Pertimbangkan untuk optimasi lebih lanjut'}</li>
-                            <li>${(res.avg_memory_mb || 0) < 500 ? '✅ Ramah memori untuk deployment' : '⚠️ Perhatikan kebutuhan memori server'}</li>
-                            <li>${(res.macro_f1 || 0) > 80 ? '✅ Akurasi cukup untuk production' : '⚠️ Pertimbangkan improvement model'}</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-    
-    $("#eval-info").html(mainMetrics + classMetrics + matrix + deploymentInfo);
-}
-
-function createLearningCurveChart(lcData) {
-    const ctx = document.getElementById('learningCurveChart').getContext('2d');
-    
-    // Hancurkan chart sebelumnya jika ada
-    if (learningCurveChart) {
-        learningCurveChart.destroy();
-    }
-    
-    // Validasi data
-    if (!lcData || !lcData.neuron_counts || !lcData.train_scores || !lcData.val_scores) {
-        $("#learningCurveChart").closest('.card-body').html(`
-            <div class="alert alert-warning">
-                <i class="icon-warning"></i> Data learning curve tidak valid.
-            </div>
-        `);
-        return;
-    }
-    
-    learningCurveChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: lcData.neuron_counts,
-            datasets: [{
-                label: 'Training Accuracy',
-                data: lcData.train_scores,
-                borderColor: 'rgb(54, 162, 235)',
-                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            }, {
-                label: 'Validation Accuracy',
-                data: lcData.val_scores,
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Learning Curve: Jumlah Neuron vs Akurasi',
-                    font: { size: 16 }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y}%`;
-                        }
-                    }
-                },
-                legend: {
-                    position: 'top',
-                }
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Jumlah Neuron di Layer 1'
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Akurasi (%)'
-                    },
-                    min: 0,
-                    max: 100
-                }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'nearest'
-            }
-        }
-    });
-}
-
-function createTrainingProgressChart(neuronCount, trainingData) {
-    if (!trainingData || trainingData.length === 0) {
-        alert('Data training tidak tersedia untuk konfigurasi ini.');
-        return;
-    }
-
-    const epochs = trainingData.map(d => d.epoch);
-    const trainAcc = trainingData.map(d => d.train_accuracy);
-    const valAcc = trainingData.map(d => d.val_accuracy);
-    const trainLoss = trainingData.map(d => d.train_loss);
-    const valLoss = trainingData.map(d => d.val_loss);
-
-    // Accuracy Chart
-    const accCtx = document.getElementById('accuracyChart').getContext('2d');
-    if (accuracyChart) accuracyChart.destroy();
-    accuracyChart = new Chart(accCtx, {
-        type: 'line',
-        data: {
-            labels: epochs,
-            datasets: [{
-                label: 'Training Accuracy',
-                data: trainAcc,
-                borderColor: 'rgb(54, 162, 235)',
-                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                borderWidth: 2,
-                tension: 0.4
-            }, {
-                label: 'Validation Accuracy',
-                data: valAcc,
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                borderWidth: 2,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: `Accuracy Progress (${neuronCount} neurons)`
-                }
-            },
-            scales: {
-                y: {
-                    title: { display: true, text: 'Accuracy (%)' },
-                    min: 0,
-                    max: 100
-                },
-                x: {
-                    title: { display: true, text: 'Epoch' }
-                }
-            }
-        }
-    });
-
-    // Loss Chart
-    const lossCtx = document.getElementById('lossChart').getContext('2d');
-    if (lossChart) lossChart.destroy();
-    lossChart = new Chart(lossCtx, {
-        type: 'line',
-        data: {
-            labels: epochs,
-            datasets: [{
-                label: 'Training Loss',
-                data: trainLoss,
-                borderColor: 'rgb(255, 159, 64)',
-                backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                borderWidth: 2,
-                tension: 0.4
-            }, {
-                label: 'Validation Loss',
-                data: valLoss,
-                borderColor: 'rgb(153, 102, 255)',
-                backgroundColor: 'rgba(153, 102, 255, 0.1)',
-                borderWidth: 2,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: `Loss Progress (${neuronCount} neurons)`
-                }
-            },
-            scales: {
-                y: {
-                    title: { display: true, text: 'Loss' },
-                    beginAtZero: true
-                },
-                x: {
-                    title: { display: true, text: 'Epoch' }
-                }
-            }
-        }
-    });
-}
-
-function showTrainingProgress(neuronCount) {
-    // Cari data training untuk neuron yang dipilih
-    if (!window.learningCurveData || !window.learningCurveData.training_histories) {
-        alert('Data training tidak tersedia.');
-        return;
-    }
-    
-    const trainingHistory = window.learningCurveData.training_histories.find(
-        item => item.neurons === neuronCount
-    );
-    
-    if (trainingHistory && trainingHistory.epochs && trainingHistory.epochs.length > 0) {
-        createTrainingProgressChart(neuronCount, trainingHistory.epochs);
-        $('#training-detail').show();
-    } else {
-        $('#training-detail').hide();
-        alert('Data training tidak tersedia untuk konfigurasi ini.');
-    }
-}
-
-function renderOptimizationResults(res) {
-    if (res.best_config || res.learning_curve_data || res.grid_results) {
-        $("#optimization-results").show();
-        
-        // Simpan data learning curve secara global
-        window.learningCurveData = res.learning_curve_data;
-        
-        // Tampilkan konfigurasi terbaik
-        if (res.best_config) {
-            $("#best-config-text").html(`
-                <strong>${res.best_config}</strong>
-            `);
-        } else {
-            $("#best-config-text").html(`
-                <strong>⚠️ Konfigurasi optimal tidak dapat ditentukan. Menggunakan model fallback.</strong>
-            `);
-        }
-        
-        // Tampilkan learning curve chart jika ada data
-        if (res.learning_curve_data && res.learning_curve_data.neuron_counts) {
-            createLearningCurveChart(res.learning_curve_data);
-            
-            // Isi dropdown untuk pilihan neuron
-            const select = $('#neuron-select');
-            select.empty();
-            select.append('<option value="">Pilih Jumlah Neuron</option>');
-            res.learning_curve_data.neuron_counts.forEach(neuron => {
-                select.append(`<option value="${neuron}">${neuron} neurons</option>`);
-            });
-        } else {
-            // Jika tidak ada data learning curve
-            $("#learningCurveChart").closest('.card-body').html(`
-                <div class="alert alert-warning">
-                    <i class="icon-warning"></i> Data learning curve tidak tersedia.
-                </div>
-            `);
-        }
-        
-        // Tampilkan grid results
-        if (res.grid_results && res.grid_results.length > 0) {
-            const maxValAccuracy = Math.max(...res.grid_results.map(r => r.val_accuracy || 0));
-            const tableBody = res.grid_results.map(item => {
-                const isBest = item.val_accuracy === maxValAccuracy;
-                return `
-                <tr ${isBest ? 'class="table-success"' : ''}>
-                    <td>${item.config[0]}</td>
-                    <td>${item.config[1]}</td>
-                    <td>${item.train_accuracy || 0}%</td>
-                    <td><strong>${item.val_accuracy || 0}%</strong></td>
-                    <td class="${(item.gap || 0) > 10 ? 'text-danger' : 'text-success'}">${item.gap || 0}%</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-info view-training" 
-                                data-config="${item.config[0]}-${item.config[1]}"
-                                data-neurons="${item.config[0]}">
-                            <i class="icon-eye"></i> Lihat
-                        </button>
-                    </td>
-                </tr>`;
-            }).join('');
-            $("#grid-results-table tbody").html(tableBody);
-        } else {
-            // Jika tidak ada grid results
-            $("#grid-results-table").closest('.card-body').html(`
-                <div class="alert alert-warning">
-                    <i class="icon-warning"></i> Data grid search tidak tersedia.
-                </div>
-            `);
-        }
-    } else {
-        $("#optimization-results").hide();
-    }
+    $("#eval-info").html(mainMetrics + classMetrics + matrix);
 }
 
 // =============================================
-// EVENT HANDLERS DAN INISIALISASI
-// =============================================
+# Event Handlers dan Inisialisasi
+# =============================================
 
 $(function () {
     // Event handlers untuk chart controls
@@ -1791,7 +1832,7 @@ $(function () {
     checkExistingResult();
     checkVisualizationCache();
     
-    // Event handler untuk tombol gunakan hasil sebelumnya - DIMODIFIKASI
+    // Event handler untuk tombol gunakan hasil sebelumnya
     $("#use-existing").click(() => {
         // Sembunyikan opsi pilihan
         hideSelectionOptions();
@@ -1825,7 +1866,9 @@ $(function () {
                     }
                     
                     // Tampilkan hasil optimasi jika ada
-                    renderOptimizationResults(res);
+                    if (res.best_config || res.learning_curve_data || res.grid_results) {
+                        $("#optimization-results").show();
+                    }
                     
                     // Tampilkan perbandingan arsitektur
                     renderArchitectureComparison(res);
@@ -1844,7 +1887,7 @@ $(function () {
         });
     });
     
-    // Event handler untuk tombol latih model baru - DIMODIFIKASI
+    // Event handler untuk tombol latih model baru
     $("#train-new").click(() => {
         // Sembunyikan opsi pilihan
         hideSelectionOptions();
@@ -1864,7 +1907,7 @@ $(function () {
         debugCache();
     });
 
-    // Event handler untuk form submit - DIMODIFIKASI
+    // Event handler untuk form submit
     $("#upload-form").submit(function (e) {
         e.preventDefault();
         
@@ -1904,7 +1947,9 @@ $(function () {
                     }
                     
                     // Tampilkan hasil optimasi
-                    renderOptimizationResults(res);
+                    if (res.best_config || res.learning_curve_data || res.grid_results) {
+                        $("#optimization-results").show();
+                    }
                     
                     // Tampilkan perbandingan arsitektur
                     renderArchitectureComparison(res);

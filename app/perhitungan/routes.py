@@ -305,28 +305,63 @@ def load_comprehensive_cache():
 
 
 def prepare_architecture_comparison_data(architecture_results):
-    """Mempersiapkan data untuk chart dan tabel perbandingan - DIPERBAIKI"""
+    """Mempersiapkan data untuk chart dan tabel perbandingan - DIPERBAIKI URUTAN"""
     if not architecture_results:
         return None
 
+    # Urutkan berdasarkan urutan yang diinginkan: A, B, C, D
+    desired_order = [
+        "MLP-A (Sederhana)",
+        "MLP-B (Sedang)",
+        "MLP-C (Dalam)",
+        "MLP-D (Wide + Shallow)",
+    ]
+
+    # Buat mapping untuk akses cepat
+    result_mapping = {result["architecture"]: result for result in architecture_results}
+
+    # Siapkan data dalam urutan yang benar
+    ordered_results = []
+    for arch_name in desired_order:
+        if arch_name in result_mapping:
+            ordered_results.append(result_mapping[arch_name])
+        else:
+            # Tambahkan placeholder jika arsitektur tidak ada
+            ordered_results.append(
+                {
+                    "architecture": arch_name,
+                    "val_accuracy": 0,
+                    "macro_f1": 0,
+                    "macro_precision": 0,
+                    "macro_recall": 0,
+                    "training_time_total": 0,
+                    "avg_memory_mb": 0,
+                    "inference_time_ms": 0,
+                    "total_params": 0,
+                    "epochs_used": 0,
+                    "success": False,
+                }
+            )
+
     comparison_data = {
-        "labels": [result["architecture"] for result in architecture_results],
-        "accuracy": [result["val_accuracy"] for result in architecture_results],
-        "macro_f1": [result["macro_f1"] for result in architecture_results],
-        "macro_precision": [result.get("macro_precision", 0) for result in architecture_results],  # BARU
-        "macro_recall": [result.get("macro_recall", 0) for result in architecture_results],        # BARU
-        "training_time": [
-            result["training_time_total"] for result in architecture_results
+        "labels": [result["architecture"] for result in ordered_results],
+        "accuracy": [result["val_accuracy"] for result in ordered_results],
+        "macro_f1": [result["macro_f1"] for result in ordered_results],
+        "macro_precision": [
+            result.get("macro_precision", 0) for result in ordered_results
         ],
-        "memory_usage": [result["avg_memory_mb"] for result in architecture_results],
+        "macro_recall": [result.get("macro_recall", 0) for result in ordered_results],
+        "training_time": [result["training_time_total"] for result in ordered_results],
+        "memory_usage": [result["avg_memory_mb"] for result in ordered_results],
         "inference_time": [
-            result.get("inference_time_ms", 0) for result in architecture_results
+            result.get("inference_time_ms", 0) for result in ordered_results
         ],
-        "parameters": [result["total_params"] for result in architecture_results],
-        "epochs_used": [result["epochs_used"] for result in architecture_results],
+        "parameters": [result["total_params"] for result in ordered_results],
+        "epochs_used": [result["epochs_used"] for result in ordered_results],
     }
 
     return comparison_data
+
 
 def validate_cache_completeness():
     """Validasi kelengkapan cache - VERSI DIPERBAIKI"""
@@ -462,11 +497,8 @@ def create_mlp_c(input_dim, output_dim, dropout_rate=0.5, l2_rate=1e-5):
         [
             Input(shape=(input_dim,)),
             Dense(512, activation="relu", kernel_regularizer=l2(l2_rate)),
-            BatchNormalization(),
             Dense(256, activation="relu", kernel_regularizer=l2(l2_rate)),
-            BatchNormalization(),
             Dense(128, activation="relu", kernel_regularizer=l2(l2_rate)),
-            BatchNormalization(),
             Dropout(dropout_rate),
             Dense(output_dim, activation="softmax"),
         ]
@@ -684,6 +716,7 @@ def evaluate_architecture_with_hyperparams(
         }
         return error_result, None
 
+
 def generate_hyperparameter_combinations():
     """Generate semua kombinasi hyperparameter untuk grid search"""
     optimizers = ["adam", "sgd"]
@@ -757,13 +790,15 @@ def perform_hyperparameter_tuning(
 
     print(f"✅ Hyperparameter terbaik untuk {architecture_name}:")
     print(f"   Val Accuracy: {best_result['val_accuracy']}%")
+    print(f"   Macro F1: {best_result['macro_f1']}%")
     print(f"   Hyperparams: {best_hyperparams}")
 
     return best_model, best_hyperparams, arch_results
 
 
 def analyze_architectures_with_tuning(X, y, output_dim):
-    """Menganalisis semua arsitektur MLP dengan hyperparameter tuning"""
+    """Menganalisis semua arsitektur MLP dengan hyperparameter tuning - DIPERBAIKI URUTAN"""
+    # Definisikan urutan arsitektur yang FIXED
     architectures = [
         (create_mlp_a, "MLP-A (Sederhana)"),
         (create_mlp_b, "MLP-B (Sedang)"),
@@ -773,6 +808,7 @@ def analyze_architectures_with_tuning(X, y, output_dim):
 
     successful_architectures = []  # List of tuples (result, model, architecture_name)
     all_training_histories = {}  # Simpan training history untuk setiap model
+    architecture_results = []  # Hasil untuk setiap arsitektur dalam urutan yang benar
 
     print("🔍 Memulai analisis arsitektur MLP dengan Hyperparameter Tuning...")
 
@@ -796,18 +832,19 @@ def analyze_architectures_with_tuning(X, y, output_dim):
                 successful_architectures.append(
                     (best_arch_result, best_model, arch_name)
                 )
+                architecture_results.append(best_arch_result)  # Tambahkan dalam urutan
 
-                # Simpan training history untuk chart (jika ada)
-                if "history" in best_arch_result:
-                    all_training_histories[arch_name] = best_arch_result["history"]
-                else:
-                    # Buat history sederhana jika tidak ada
-                    all_training_histories[arch_name] = {
-                        "accuracy": [best_arch_result.get("train_accuracy", 0)],
-                        "val_accuracy": [best_arch_result.get("val_accuracy", 0)],
-                        "loss": [0],
-                        "val_loss": [0],
-                    }
+                # Simpan training history untuk chart
+                all_training_histories[arch_name] = {
+                    "accuracy": [
+                        best_arch_result.get("train_accuracy", 0) / 100
+                    ],  # Convert to 0-1
+                    "val_accuracy": [
+                        best_arch_result.get("val_accuracy", 0) / 100
+                    ],  # Convert to 0-1
+                    "loss": [0.5],  # Default values
+                    "val_loss": [0.5],
+                }
 
                 print(f"✅ {arch_name} berhasil ditambahkan ke kandidat")
             else:
@@ -818,33 +855,105 @@ def analyze_architectures_with_tuning(X, y, output_dim):
 
         except Exception as e:
             print(f"❌ Arsitektur {arch_name} gagal dalam tuning: {str(e)}")
+            # Tambahkan result kosong untuk menjaga urutan
+            empty_result = {
+                "architecture": arch_name,
+                "hyperparams": {},
+                "total_params": 0,
+                "training_time_total": 0,
+                "time_per_epoch": 0,
+                "epochs_used": 0,
+                "train_accuracy": 0,
+                "val_accuracy": 0,
+                "final_train_accuracy": 0,
+                "final_val_accuracy": 0,
+                "avg_memory_mb": 0,
+                "max_memory_mb": 0,
+                "macro_f1": 0,
+                "macro_precision": 0,
+                "macro_recall": 0,
+                "accuracy": 0,
+                "precision_per_class": [],
+                "recall_per_class": [],
+                "f1_per_class": [],
+                "inference_time_ms": 0,
+                "confusion_matrix": [],
+                "classification_report": {},
+                "success": False,
+                "error": str(e),
+            }
+            architecture_results.append(empty_result)
             continue
 
     if not successful_architectures:
         raise ValueError("Tidak ada arsitektur yang berhasil dilatih")
 
-    # Urutkan berdasarkan validation accuracy
-    successful_architectures.sort(key=lambda x: x[0]["val_accuracy"], reverse=True)
+    # =============================================
+    # 🎯 PERBAIKAN: KRITERIA PEMILIHAN TERBAIK
+    # Macro F1 sebagai UTAMA, Accuracy sebagai SEKUNDER
+    # =============================================
 
-    best_result, best_model, best_architecture = successful_architectures[0]
-    best_hyperparams = best_result["hyperparams"]
+    best_result, best_model, best_architecture = None, None, None
+    best_macro_f1 = -1
+    best_val_accuracy = -1
 
-    # Extract hanya results untuk return
-    architecture_results = [result for result, _, _ in successful_architectures]
+    print("\n📊 Menentukan arsitektur terbaik berdasarkan:")
+    print("   🎯 Primary: Macro F1 Score")
+    print("   🎯 Secondary: Validation Accuracy")
+    print("   📈 Tertiary: Inference Time (jika semua sama)")
 
-    print(f"🎯 Arsitektur terbaik: {best_architecture}")
-    print(f"   Validation Accuracy: {best_result['val_accuracy']}%")
-    print(f"   Macro F1: {best_result['macro_f1']}%")
-    print(f"   Inference Time: {best_result['inference_time_ms']}ms")
-    print(f"   Hyperparameters: {best_hyperparams}")
-    print(f"   Total Parameters: {best_result['total_params']:,}")
-    print(f"   Training Time: {best_result['training_time_total']}s")
+    for result, model, arch_name in successful_architectures:
+        current_macro_f1 = result.get("macro_f1", 0)
+        current_val_accuracy = result.get("val_accuracy", 0)
+        current_inference_time = result.get("inference_time_ms", float("inf"))
+
+        print(
+            f"   🔍 {arch_name}: F1={current_macro_f1}%, Acc={current_val_accuracy}%, Inference={current_inference_time}ms"
+        )
+
+        # Kriteria 1: Bandingkan Macro F1
+        if current_macro_f1 > best_macro_f1:
+            best_macro_f1 = current_macro_f1
+            best_val_accuracy = current_val_accuracy
+            best_result, best_model, best_architecture = result, model, arch_name
+            print(f"     🆕 LEADER: F1 lebih tinggi")
+
+        # Kriteria 2: Jika Macro F1 sama, bandingkan Validation Accuracy
+        elif current_macro_f1 == best_macro_f1:
+            if current_val_accuracy > best_val_accuracy:
+                best_val_accuracy = current_val_accuracy
+                best_result, best_model, best_architecture = result, model, arch_name
+                print(f"     🆕 LEADER: Accuracy lebih tinggi (F1 sama)")
+
+            # Kriteria 3: Jika F1 dan Accuracy sama, bandingkan Inference Time
+            elif (
+                current_val_accuracy == best_val_accuracy
+                and current_inference_time
+                < best_result.get("inference_time_ms", float("inf"))
+            ):
+                best_result, best_model, best_architecture = result, model, arch_name
+                print(f"     🆕 LEADER: Inference lebih cepat (F1 & Acc sama)")
+
+    if best_result:
+        best_hyperparams = best_result["hyperparams"]
+
+        print(f"\n🎯 ARSITEKTUR TERBAIK DIPILIH: {best_architecture}")
+        print(f"   📊 Macro F1: {best_result['macro_f1']}% (Primary)")
+        print(f"   ✅ Validation Accuracy: {best_result['val_accuracy']}% (Secondary)")
+        print(f"   ⚡ Inference Time: {best_result['inference_time_ms']}ms")
+        print(f"   ⚙️  Hyperparameters: {best_hyperparams}")
+        print(f"   🔢 Total Parameters: {best_result['total_params']:,}")
+        print(f"   ⏱️  Training Time: {best_result['training_time_total']}s")
+    else:
+        # Fallback jika tidak ada yang berhasil
+        best_model, best_architecture, best_hyperparams = None, "Tidak ada", {}
+        print("❌ Tidak ada arsitektur yang memenuhi kriteria")
 
     return (
         best_model,
         best_architecture,
         best_hyperparams,
-        architecture_results,
+        architecture_results,  # Kembalikan dalam urutan definisi
         all_training_histories,
     )
 
@@ -1014,7 +1123,11 @@ def process_csv():
                     # Tambahkan best architecture info jika ada
                     if architecture_results:
                         best_arch = max(
-                            architecture_results, key=lambda x: x["val_accuracy"]
+                            architecture_results,
+                            key=lambda x: (
+                                x.get("macro_f1", 0),  # Primary: Macro F1
+                                x.get("val_accuracy", 0),  # Secondary: Accuracy
+                            ),
                         )
                         response_data["best_architecture"] = best_arch["architecture"]
                         response_data["best_hyperparams"] = best_arch["hyperparams"]
@@ -1317,10 +1430,14 @@ def load_result():
                         "timestamp", "Unknown"
                     )
 
-                # Tambahkan best architecture info jika ada
+                # Tambahkan best architecture info jika ada - DENGAN KRITERIA BARU
                 if architecture_results:
                     best_arch = max(
-                        architecture_results, key=lambda x: x["val_accuracy"]
+                        architecture_results,
+                        key=lambda x: (
+                            x.get("macro_f1", 0),  # Primary: Macro F1
+                            x.get("val_accuracy", 0),  # Secondary: Accuracy
+                        ),
                     )
                     response_data["best_architecture"] = best_arch["architecture"]
                     response_data["best_hyperparams"] = best_arch["hyperparams"]
@@ -1471,16 +1588,21 @@ def load_visualization_data():
                 response_data["cache_version"] = full_results.get("version", "Unknown")
                 print("✅ Full results termasuk dalam response")
 
-            # Tambahkan best architecture info jika ada
+            # Tambahkan best architecture info jika ada - DENGAN KRITERIA BARU
             if architecture_results:
                 best_arch = max(
-                    architecture_results, key=lambda x: x.get("val_accuracy", 0)
+                    architecture_results,
+                    key=lambda x: (
+                        x.get("macro_f1", 0),  # Primary: Macro F1
+                        x.get("val_accuracy", 0),  # Secondary: Accuracy
+                    ),
                 )
                 response_data["best_architecture"] = best_arch.get(
                     "architecture", "Unknown"
                 )
                 response_data["best_hyperparams"] = best_arch.get("hyperparams", {})
                 response_data["best_accuracy"] = best_arch.get("val_accuracy", 0)
+                response_data["best_macro_f1"] = best_arch.get("macro_f1", 0)
 
             print("✅ Data visualisasi berhasil dimuat dan dikirim")
             return jsonify(response_data)
