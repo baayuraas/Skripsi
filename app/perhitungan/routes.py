@@ -928,8 +928,7 @@ def analyze_architectures_with_tuning(X, y, output_dim):
             # Kriteria 3: Jika F1 dan Accuracy sama, bandingkan Inference Time
             elif (
                 current_val_accuracy == best_val_accuracy
-                and current_inference_time
-                < best_result.get("inference_time_ms", float("inf"))
+                and current_inference_time < (best_result.get("inference_time_ms", float("inf")) if best_result else float("inf"))
             ):
                 best_result, best_model, best_architecture = result, model, arch_name
                 print(f"     🆕 LEADER: Inference lebih cepat (F1 & Acc sama)")
