@@ -55,6 +55,7 @@ TRAINING_HISTORIES_CACHE = os.path.join(
 )
 COMPARISON_DATA_CACHE = os.path.join(ROOT_UPLOAD_FOLDER, "comparison_data_cache.pkl")
 FULL_RESULTS_CACHE = os.path.join(ROOT_UPLOAD_FOLDER, "full_results_cache.pkl")
+BEST_RESULT_CACHE = os.path.join(ROOT_UPLOAD_FOLDER, "best_result_cache.pkl")
 
 model = None
 le = None
@@ -115,6 +116,7 @@ def get_cache_status():
         "training_histories": TRAINING_HISTORIES_CACHE,
         "comparison_data": COMPARISON_DATA_CACHE,
         "full_results": FULL_RESULTS_CACHE,
+        "best_result": BEST_RESULT_CACHE,
         "model": MODEL_PATH,
         "encoder": LABEL_ENCODER_PATH,
         "hasil_csv": HASIL_CSV_PATH,
@@ -187,7 +189,7 @@ def debug_cache_contents():
 
 
 def save_comprehensive_cache(
-    architecture_results, training_histories, comparison_data, full_results=None
+    architecture_results, training_histories, comparison_data, best_result=None
 ):
     """Menyimpan semua data untuk visualisasi ke cache - VERSI DIPERBAIKI"""
     try:
@@ -208,13 +210,20 @@ def save_comprehensive_cache(
             pickle.dump(comparison_data, f)
         print(f"  ✅ comparison_data: {len(comparison_data)} keys")
 
+        # Simpan best result secara terpisah
+        if best_result:
+            with open(BEST_RESULT_CACHE, "wb") as f:
+                pickle.dump(best_result, f)
+        print("✅ best_result: Disimpan")
+
         # Simpan full results - PASTIKAN INI DISIMPAN
         full_data = {
             "architecture_results": architecture_results,
             "training_histories": training_histories,
             "comparison_data": comparison_data,
+            "best_result": best_result,
             "timestamp": datetime.now().isoformat(),
-            "version": "1.0",
+            "version": "2.0",
             "total_architectures": len(architecture_results),
             "cache_info": "Full results cache for visualization",
         }
@@ -243,6 +252,7 @@ def load_comprehensive_cache():
         training_histories = None
         comparison_data = None
         full_results = None
+        best_result = None
 
         print("📂 Memuat data dari cache...")
 
@@ -267,6 +277,11 @@ def load_comprehensive_cache():
                 f"  ✅ comparison_data: {len(comparison_data) if comparison_data else 0} keys"
             )
 
+        if os.path.exists(BEST_RESULT_CACHE):
+            with open(BEST_RESULT_CACHE, "rb") as f:
+                best_result = pickle.load(f)
+        print("✅ best_result: Dimuat")
+
         if os.path.exists(FULL_RESULTS_CACHE):
             with open(FULL_RESULTS_CACHE, "rb") as f:
                 full_results = pickle.load(f)
@@ -287,25 +302,32 @@ def load_comprehensive_cache():
                 "architecture_results": architecture_results,
                 "training_histories": training_histories,
                 "comparison_data": comparison_data,
+                "best_result": best_result,
                 "timestamp": datetime.now().isoformat(),
-                "version": "1.0-reconstructed",
+                "version": "2.0-reconstructed",
                 "total_architectures": len(architecture_results),
                 "cache_info": "Reconstructed from individual cache files",
             }
             print("  🔄 full_results: Direkonstruksi dari data individual")
 
         print("✅ Data visualisasi berhasil dimuat dari cache")
-        return architecture_results, training_histories, comparison_data, full_results
+        return (
+            architecture_results,
+            training_histories,
+            comparison_data,
+            full_results,
+            best_result,
+        )
     except Exception as e:
         print(f"❌ Gagal memuat cache visualisasi: {str(e)}")
         import traceback
 
         traceback.print_exc()
-        return None, None, None, None
+        return None, None, None, None, None
 
 
-def prepare_architecture_comparison_data(architecture_results):
-    """Mempersiapkan data untuk chart dan tabel perbandingan - DIPERBAIKI URUTAN"""
+def prepare_architecture_comparison_data(architecture_results, best_result=None):
+    """Mempersiapkan data untuk chart dan tabel perbandingan - DIPERBAIKI UNTUK KONSISTENSI"""
     if not architecture_results:
         return None
 
@@ -319,6 +341,11 @@ def prepare_architecture_comparison_data(architecture_results):
 
     # Buat mapping untuk akses cepat
     result_mapping = {result["architecture"]: result for result in architecture_results}
+
+    # Jika ada best_result, pastikan data untuk arsitektur tersebut terupdate
+    if best_result and best_result["architecture"] in result_mapping:
+        result_mapping[best_result["architecture"]] = best_result
+        print(f"🎯 Updated {best_result['architecture']} with best_result data")
 
     # Siapkan data dalam urutan yang benar
     ordered_results = []
@@ -358,6 +385,8 @@ def prepare_architecture_comparison_data(architecture_results):
         ],
         "parameters": [result["total_params"] for result in ordered_results],
         "epochs_used": [result["epochs_used"] for result in ordered_results],
+        # Tambahkan best architecture flag
+        "best_architecture": best_result["architecture"] if best_result else None,
     }
 
     return comparison_data
@@ -374,8 +403,8 @@ def validate_cache_completeness():
         HASIL_CSV_PATH,
     ]
 
-    # FULL_RESULTS_CACHE tidak wajib karena bisa direkonstruksi
-    optional_files = [FULL_RESULTS_CACHE]
+    # BEST_RESULT_CACHE dan FULL_RESULTS_CACHE tidak wajib karena bisa direkonstruksi
+    optional_files = [FULL_RESULTS_CACHE, BEST_RESULT_CACHE]
 
     missing_files = []
     for file_path in required_files:
@@ -398,6 +427,7 @@ def clear_visualization_cache():
             TRAINING_HISTORIES_CACHE,
             COMPARISON_DATA_CACHE,
             FULL_RESULTS_CACHE,
+            BEST_RESULT_CACHE,
         ]
 
         deleted_files = []
@@ -675,8 +705,8 @@ def evaluate_architecture_with_hyperparams(
             "max_memory_mb": safe_round(max_memory),
             # Metrik evaluasi baru dengan handling yang aman
             "macro_f1": safe_round(macro_f1),
-            "macro_precision": safe_round(macro_precision),  # BARU
-            "macro_recall": safe_round(macro_recall),  # BARU
+            "macro_precision": safe_round(macro_precision),
+            "macro_recall": safe_round(macro_recall),
             "accuracy": safe_round(accuracy_val),
             "precision_per_class": [safe_round(p) for p in precision_per_class]
             if isinstance(precision_per_class, (list, np.ndarray))
@@ -797,7 +827,7 @@ def perform_hyperparameter_tuning(
 
 
 def analyze_architectures_with_tuning(X, y, output_dim):
-    """Menganalisis semua arsitektur MLP dengan hyperparameter tuning - DIPERBAIKI URUTAN"""
+    """Menganalisis semua arsitektur MLP dengan hyperparameter tuning - DIPERBAIKI KRITERIA"""
     # Definisikan urutan arsitektur yang FIXED
     architectures = [
         (create_mlp_a, "MLP-A (Sederhana)"),
@@ -898,62 +928,58 @@ def analyze_architectures_with_tuning(X, y, output_dim):
     best_val_accuracy = -1
 
     print("\n📊 Menentukan arsitektur terbaik berdasarkan:")
-    print("   🎯 Primary: Macro F1 Score")
-    print("   🎯 Secondary: Validation Accuracy")
-    print("   📈 Tertiary: Inference Time (jika semua sama)")
+    print("   🎯 Primary: Macro F1 Score (UTAMA)")
+    print("   🎯 Secondary: Validation Accuracy (PENDUKUNG)")
 
     for result, model, arch_name in successful_architectures:
         current_macro_f1 = result.get("macro_f1", 0)
         current_val_accuracy = result.get("val_accuracy", 0)
-        current_inference_time = result.get("inference_time_ms", float("inf"))
 
         print(
-            f"   🔍 {arch_name}: F1={current_macro_f1}%, Acc={current_val_accuracy}%, Inference={current_inference_time}ms"
+            f"   🔍 {arch_name}: Macro F1={current_macro_f1}%, Val Acc={current_val_accuracy}%"
         )
 
-        # Kriteria 1: Bandingkan Macro F1
+        # KRITERIA UTAMA: Pilih yang Macro F1 tertinggi
         if current_macro_f1 > best_macro_f1:
             best_macro_f1 = current_macro_f1
             best_val_accuracy = current_val_accuracy
             best_result, best_model, best_architecture = result, model, arch_name
-            print(f"     🆕 LEADER: F1 lebih tinggi")
+            print(f"     🏆 LEADER BARU: Macro F1 lebih tinggi ({best_macro_f1}%)")
 
-        # Kriteria 2: Jika Macro F1 sama, bandingkan Validation Accuracy
-        elif current_macro_f1 == best_macro_f1:
-            if current_val_accuracy > best_val_accuracy:
-                best_val_accuracy = current_val_accuracy
-                best_result, best_model, best_architecture = result, model, arch_name
-                print(f"     🆕 LEADER: Accuracy lebih tinggi (F1 sama)")
+        # KRITERIA CADANGAN: Jika Macro F1 sama, pilih yang Validation Accuracy tertinggi
+        elif (
+            current_macro_f1 == best_macro_f1
+            and current_val_accuracy > best_val_accuracy
+        ):
+            best_val_accuracy = current_val_accuracy
+            best_result, best_model, best_architecture = result, model, arch_name
+            print(
+                f"     🔄 LEADER DIPERBARUI: Accuracy lebih tinggi ({best_val_accuracy}%)"
+            )
 
-            # Kriteria 3: Jika F1 dan Accuracy sama, bandingkan Inference Time
-            elif (
-                current_val_accuracy == best_val_accuracy
-                and current_inference_time < (best_result.get("inference_time_ms", float("inf")) if best_result else float("inf"))
-            ):
-                best_result, best_model, best_architecture = result, model, arch_name
-                print(f"     🆕 LEADER: Inference lebih cepat (F1 & Acc sama)")
-
+    # Simpan BEST RESULT yang sudah dipilih
     if best_result:
-        best_hyperparams = best_result["hyperparams"]
+        # SALIN DATA DARI BEST RESULT KE ARCHITECTURE RESULTS UNTUK KONSISTENSI
+        for i, result in enumerate(architecture_results):
+            if result["architecture"] == best_architecture:
+                # Update dengan data yang sama persis
+                architecture_results[i] = best_result.copy()
+                break
 
-        print(f"\n🎯 ARSITEKTUR TERBAIK DIPILIH: {best_architecture}")
-        print(f"   📊 Macro F1: {best_result['macro_f1']}% (Primary)")
-        print(f"   ✅ Validation Accuracy: {best_result['val_accuracy']}% (Secondary)")
-        print(f"   ⚡ Inference Time: {best_result['inference_time_ms']}ms")
-        print(f"   ⚙️  Hyperparameters: {best_hyperparams}")
-        print(f"   🔢 Total Parameters: {best_result['total_params']:,}")
-        print(f"   ⏱️  Training Time: {best_result['training_time_total']}s")
+        print(f"\n🏆 ARSITEKTUR TERBAIK DIPILIH: {best_architecture}")
+        print(f"   🎯 Macro F1: {best_result['macro_f1']}% (PRIMARY CRITERION)")
+        print(f"   ✅ Validation Accuracy: {best_result['val_accuracy']}%")
+        print(f"   ⚙️  Hyperparameters: {best_result['hyperparams']}")
     else:
-        # Fallback jika tidak ada yang berhasil
-        best_model, best_architecture, best_hyperparams = None, "Tidak ada", {}
-        print("❌ Tidak ada arsitektur yang memenuhi kriteria")
+        raise ValueError("Tidak ada arsitektur yang memenuhi kriteria")
 
     return (
         best_model,
         best_architecture,
-        best_hyperparams,
-        architecture_results,  # Kembalikan dalam urutan definisi
+        best_result["hyperparams"],
+        architecture_results,
         all_training_histories,
+        best_result,  # Return best_result juga untuk konsistensi
     )
 
 
@@ -1011,9 +1037,13 @@ def process_csv():
                 le = pickle.load(f)
 
             # Load data visualisasi dari cache
-            architecture_results, training_histories, comparison_data, full_results = (
-                load_comprehensive_cache()
-            )
+            (
+                architecture_results,
+                training_histories,
+                comparison_data,
+                full_results,
+                best_result,
+            ) = load_comprehensive_cache()
 
             if "Status" in df.columns and "Prediksi" in df.columns:
                 y_actual = df["Status"].astype(str)
@@ -1112,24 +1142,27 @@ def process_csv():
                     response_data["architecture_comparison"] = comparison_data
                     response_data["has_visualization_data"] = True
 
-                    # Tambahkan full_results info jika ada
-                    if full_results:
-                        response_data["full_results"] = full_results
-                        response_data["cache_timestamp"] = full_results.get(
-                            "timestamp", "Unknown"
-                        )
+                    # Tambahkan best result jika ada
+                    if best_result:
+                        response_data["best_architecture"] = best_result["architecture"]
+                        response_data["best_hyperparams"] = best_result["hyperparams"]
+                        response_data["best_architecture_result"] = best_result
 
-                    # Tambahkan best architecture info jika ada
-                    if architecture_results:
+                        print(
+                            f"✅ Data best_result ditemukan: {best_result['architecture']}"
+                        )
+                    else:
+                        # Cari yang terbaik berdasarkan Macro F1
                         best_arch = max(
                             architecture_results,
                             key=lambda x: (
-                                x.get("macro_f1", 0),  # Primary: Macro F1
-                                x.get("val_accuracy", 0),  # Secondary: Accuracy
+                                x.get("macro_f1", 0),
+                                x.get("val_accuracy", 0),
                             ),
                         )
                         response_data["best_architecture"] = best_arch["architecture"]
                         response_data["best_hyperparams"] = best_arch["hyperparams"]
+                        response_data["best_architecture_result"] = best_arch
 
                     print("✅ Data visualisasi berhasil dimuat ke response")
                 else:
@@ -1178,6 +1211,7 @@ def process_csv():
             best_hyperparams,
             architecture_results,
             training_histories,
+            best_result,  # ← DAPATKAN best_result dari fungsi yang diperbarui
         ) = analyze_architectures_with_tuning(X, y, output_dim)
 
         # PERBAIKAN KRITIS: Pastikan model tidak None sebelum digunakan
@@ -1269,15 +1303,21 @@ def process_csv():
                     ]
             serializable_results.append(serializable_result)
 
-        # Siapkan data untuk comparison chart dan tabel
-        comparison_data = prepare_architecture_comparison_data(serializable_results)
-
-        # SIMPAN DATA VISUALISASI KE CACHE - DENGAN FULL_RESULTS
-        save_comprehensive_cache(
-            serializable_results, training_histories, comparison_data
+        # Siapkan data untuk comparison chart dan tabel DENGAN best_result
+        comparison_data = prepare_architecture_comparison_data(
+            serializable_results,
+            best_result,  # ← PASS best_result untuk konsistensi
         )
 
-        # Siapkan data untuk response
+        # SIMPAN DATA VISUALISASI KE CACHE - DENGAN DATA YANG KONSISTEN
+        save_comprehensive_cache(
+            serializable_results,
+            training_histories,
+            comparison_data,
+            best_result,  # ← Simpan best_result secara terpisah
+        )
+
+        # Siapkan data untuk response dengan data yang KONSISTEN
         response_data = {
             "message": f"Pelatihan selesai dengan Hyperparameter Tuning. Arsitektur terbaik: {best_architecture}",
             "train": df_display.to_dict(orient="records"),
@@ -1299,8 +1339,16 @@ def process_csv():
             "classification_report": class_report,
             "total_records": len(df_clean),
             "displayed_records": len(df_display),
+            # 🎯 DATA YANG KONSISTEN UNTUK VISUALISASI
             "best_architecture": best_architecture,
             "best_hyperparams": best_hyperparams,
+            "best_architecture_result": best_result,  # ← Kirim BEST RESULT lengkap
+            "best_accuracy": best_result.get(
+                "val_accuracy", 0
+            ),  # ← Ambil dari best_result
+            "best_macro_f1": best_result.get("macro_f1", 0),  # ← Ambil dari best_result
+            "best_macro_precision": best_result.get("macro_precision", 0),
+            "best_macro_recall": best_result.get("macro_recall", 0),
             "architecture_results": serializable_results,
             "training_histories": training_histories,
             "architecture_comparison": comparison_data,
@@ -1308,7 +1356,12 @@ def process_csv():
             "cache_saved": True,
         }
 
-        print("✅ Proses selesai dengan sukses, data visualisasi tersimpan")
+        print(
+            f"✅ Data konsisten untuk {best_architecture}: "
+            f"Macro F1={best_result.get('macro_f1', 0)}%, "
+            f"Val Acc={best_result.get('val_accuracy', 0)}%"
+        )
+
         return jsonify(response_data)
 
     except Exception as e:
@@ -1326,9 +1379,13 @@ def load_result():
         df = pd.read_csv(HASIL_CSV_PATH, encoding="utf-8-sig")
 
         # Load data visualisasi dari cache
-        architecture_results, training_histories, comparison_data, full_results = (
-            load_comprehensive_cache()
-        )
+        (
+            architecture_results,
+            training_histories,
+            comparison_data,
+            full_results,
+            best_result,
+        ) = load_comprehensive_cache()
 
         # Inisialisasi variabel sebelum try-catch
         labels = []
@@ -1422,24 +1479,29 @@ def load_result():
                 response_data["has_visualization_data"] = True
                 response_data["message"] = "Data hasil dan visualisasi berhasil dimuat."
 
-                # Tambahkan full_results info jika ada
-                if full_results:
-                    response_data["full_results"] = full_results
-                    response_data["cache_timestamp"] = full_results.get(
-                        "timestamp", "Unknown"
+                # Tambahkan best result info jika ada
+                if best_result:
+                    response_data["best_architecture"] = best_result.get(
+                        "architecture", "Unknown"
                     )
-
-                # Tambahkan best architecture info jika ada - DENGAN KRITERIA BARU
-                if architecture_results:
+                    response_data["best_hyperparams"] = best_result.get(
+                        "hyperparams", {}
+                    )
+                    response_data["best_architecture_result"] = best_result
+                else:
+                    # Cari yang terbaik berdasarkan Macro F1
                     best_arch = max(
                         architecture_results,
                         key=lambda x: (
-                            x.get("macro_f1", 0),  # Primary: Macro F1
-                            x.get("val_accuracy", 0),  # Secondary: Accuracy
+                            x.get("macro_f1", 0),
+                            x.get("val_accuracy", 0),
                         ),
                     )
-                    response_data["best_architecture"] = best_arch["architecture"]
-                    response_data["best_hyperparams"] = best_arch["hyperparams"]
+                    response_data["best_architecture"] = best_arch.get(
+                        "architecture", "Unknown"
+                    )
+                    response_data["best_hyperparams"] = best_arch.get("hyperparams", {})
+                    response_data["best_architecture_result"] = best_arch
             else:
                 response_data["has_visualization_data"] = False
                 response_data["message"] = (
@@ -1559,15 +1621,20 @@ def load_visualization_data():
     """Memuat hanya data visualisasi dari cache - VERSI DIPERBAIKI"""
     try:
         print("🔄 Memuat data visualisasi dari cache...")
-        architecture_results, training_histories, comparison_data, full_results = (
-            load_comprehensive_cache()
-        )
+        (
+            architecture_results,
+            training_histories,
+            comparison_data,
+            full_results,
+            best_result,
+        ) = load_comprehensive_cache()
 
         # Debug informasi
         print(f"Architecture results: {architecture_results is not None}")
         print(f"Training histories: {training_histories is not None}")
         print(f"Comparison data: {comparison_data is not None}")
         print(f"Full results: {full_results is not None}")
+        print(f"Best result: {best_result is not None}")
 
         if architecture_results and training_histories and comparison_data:
             response_data = {
@@ -1578,30 +1645,41 @@ def load_visualization_data():
                 "message": "Data visualisasi berhasil dimuat dari cache.",
             }
 
-            # Tambahkan full_results jika ada
-            if full_results:
-                response_data["full_results"] = full_results
-                response_data["cache_timestamp"] = full_results.get(
-                    "timestamp", "Unknown"
+            # Tambahkan best result jika ada
+            if best_result:
+                response_data["best_architecture"] = best_result.get(
+                    "architecture", "Unknown"
                 )
-                response_data["cache_version"] = full_results.get("version", "Unknown")
-                print("✅ Full results termasuk dalam response")
-
-            # Tambahkan best architecture info jika ada - DENGAN KRITERIA BARU
-            if architecture_results:
+                response_data["best_hyperparams"] = best_result.get("hyperparams", {})
+                response_data["best_architecture_result"] = best_result
+                response_data["best_accuracy"] = best_result.get("val_accuracy", 0)
+                response_data["best_macro_f1"] = best_result.get("macro_f1", 0)
+                response_data["best_macro_precision"] = best_result.get(
+                    "macro_precision", 0
+                )
+                response_data["best_macro_recall"] = best_result.get("macro_recall", 0)
+                print("✅ Best result termasuk dalam response")
+            else:
+                # Cari yang terbaik berdasarkan Macro F1
                 best_arch = max(
                     architecture_results,
                     key=lambda x: (
-                        x.get("macro_f1", 0),  # Primary: Macro F1
-                        x.get("val_accuracy", 0),  # Secondary: Accuracy
+                        x.get("macro_f1", 0),
+                        x.get("val_accuracy", 0),
                     ),
                 )
                 response_data["best_architecture"] = best_arch.get(
                     "architecture", "Unknown"
                 )
                 response_data["best_hyperparams"] = best_arch.get("hyperparams", {})
+                response_data["best_architecture_result"] = best_arch
                 response_data["best_accuracy"] = best_arch.get("val_accuracy", 0)
                 response_data["best_macro_f1"] = best_arch.get("macro_f1", 0)
+                response_data["best_macro_precision"] = best_arch.get(
+                    "macro_precision", 0
+                )
+                response_data["best_macro_recall"] = best_arch.get("macro_recall", 0)
+                print("⚠️ Best result direkonstruksi dari architecture_results")
 
             print("✅ Data visualisasi berhasil dimuat dan dikirim")
             return jsonify(response_data)
@@ -1647,3 +1725,76 @@ def debug_cache():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# Route untuk validasi konsistensi data
+@perhitungan_bp.route("/validate-data-consistency", methods=["GET"])
+def validate_data_consistency():
+    """Validasi konsistensi data antara best_result dan architecture_results"""
+    try:
+        (
+            architecture_results,
+            training_histories,
+            comparison_data,
+            full_results,
+            best_result,
+        ) = load_comprehensive_cache()
+
+        if not architecture_results or not best_result:
+            return jsonify(
+                {"consistent": False, "message": "Data tidak lengkap untuk validasi"}
+            )
+
+        # Cari arsitektur yang sama di architecture_results
+        matching_arch = None
+        for arch in architecture_results:
+            if arch["architecture"] == best_result["architecture"]:
+                matching_arch = arch
+                break
+
+        if not matching_arch:
+            return jsonify(
+                {
+                    "consistent": False,
+                    "message": f"Arsitektur {best_result['architecture']} tidak ditemukan di tabel",
+                }
+            )
+
+        # Bandingkan field penting
+        fields_to_check = [
+            ("val_accuracy", "Validation Accuracy"),
+            ("macro_f1", "Macro F1"),
+            ("macro_precision", "Macro Precision"),
+            ("macro_recall", "Macro Recall"),
+        ]
+
+        inconsistencies = []
+        for field_key, field_name in fields_to_check:
+            best_value = best_result.get(field_key, 0)
+            table_value = matching_arch.get(field_key, 0)
+
+            if best_value != table_value:
+                inconsistencies.append(
+                    {
+                        "field": field_name,
+                        "best_result": best_value,
+                        "table": table_value,
+                        "difference": abs(best_value - table_value),
+                    }
+                )
+
+        is_consistent = len(inconsistencies) == 0
+
+        return jsonify(
+            {
+                "consistent": is_consistent,
+                "best_architecture": best_result["architecture"],
+                "inconsistencies": inconsistencies,
+                "message": "✅ Data konsisten"
+                if is_consistent
+                else "⚠️ Ada ketidakkonsistenan",
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"consistent": False, "error": str(e)}), 500
