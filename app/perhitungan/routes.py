@@ -269,7 +269,9 @@ def debug_cache_contents():
                         print(
                             f"  - {arch.get('architecture', 'Unknown')}: "
                             f"Val Acc={arch.get('val_accuracy', 0)}%, "
-                            f"Macro F1={arch.get('macro_f1', 0)}%"
+                            f"Macro F1={arch.get('macro_f1', 0)}%, "
+                            f"Macro Precision={arch.get('macro_precision', 0)}%, "
+                            f"Macro Recall={arch.get('macro_recall', 0)}%"
                         )
 
         if os.path.exists(BEST_RESULT_CACHE):
@@ -278,6 +280,8 @@ def debug_cache_contents():
                 print(f"\nBest result: {best_data.get('architecture', 'Unknown')}")
                 print(f"  Val Accuracy: {best_data.get('val_accuracy', 0)}%")
                 print(f"  Macro F1: {best_data.get('macro_f1', 0)}%")
+                print(f"  Macro Precision: {best_data.get('macro_precision', 0)}%")
+                print(f"  Macro Recall: {best_data.get('macro_recall', 0)}%")
 
     except Exception as e:
         print(f"Error reading cache: {e}")
@@ -431,13 +435,19 @@ def prepare_universal_comparison_data(architecture_results, best_result=None):
         arch_name = result["architecture"]
         if best_result and arch_name == best_result.get("architecture"):
             print(
-                f"  ⭐ {arch_name}: Val Acc={result.get('val_accuracy', 0)}%, "
-                f"Macro F1={result.get('macro_f1', 0)}% (BEST RESULT)"
+                f"  ⭐ {arch_name}: "
+                f"Val Acc={result.get('val_accuracy', 0):.2f}%, "
+                f"Macro F1={result.get('macro_f1', 0):.2f}%, "
+                f"Macro Precision={result.get('macro_precision', 0):.2f}%, "
+                f"Macro Recall={result.get('macro_recall', 0):.2f}% (BEST RESULT)"
             )
         else:
             print(
-                f"  📋 {arch_name}: Val Acc={result.get('val_accuracy', 0)}%, "
-                f"Macro F1={result.get('macro_f1', 0)}%"
+                f"  📋 {arch_name}: "
+                f"Val Acc={result.get('val_accuracy', 0):.2f}%, "
+                f"Macro F1={result.get('macro_f1', 0):.2f}%, "
+                f"Macro Precision={result.get('macro_precision', 0):.2f}%, "
+                f"Macro Recall={result.get('macro_recall', 0):.2f}%"
             )
 
     # Siapkan data untuk chart
@@ -504,11 +514,11 @@ def verify_universal_consistency(architecture_results, best_result):
         arch_val = arch_data.get(field_key, 0)
 
         if abs(best_val - arch_val) <= 0.01:  # Toleransi 0.01%
-            print(f"   ✅ {field_name}: KONSISTEN ({best_val}%)")
+            print(f"   ✅ {field_name}: KONSISTEN ({best_val:.2f}%)")
         else:
             print(f"   ❌ {field_name}: TIDAK KONSISTEN!")
-            print(f"      best_result: {best_val}%")
-            print(f"      architecture_results: {arch_val}%")
+            print(f"      best_result: {best_val:.2f}%")
+            print(f"      architecture_results: {arch_val:.2f}%")
             all_consistent = False
 
     if all_consistent:
@@ -928,7 +938,9 @@ def evaluate_architecture_with_hyperparams(
         print(
             f"   ✅ {architecture_name}: "
             f"Val Acc={result['val_accuracy']}%, "
-            f"Macro F1={result['macro_f1']}%"
+            f"Macro F1={result['macro_f1']}%, "
+            f"Macro Precision={result['macro_precision']}%, "
+            f"Macro Recall={result['macro_recall']}%"
         )
 
         # Clean up memory
@@ -1022,6 +1034,8 @@ def perform_hyperparameter_tuning(
     print(f"✅ Hyperparameter terbaik untuk {architecture_name}:")
     print(f"   Macro F1: {best_result['macro_f1']}% (PRIMARY)")
     print(f"   Val Accuracy: {best_result['val_accuracy']}% (SECONDARY)")
+    print(f"   Macro Precision: {best_result['macro_precision']}%")
+    print(f"   Macro Recall: {best_result['macro_recall']}%")
 
     return (
         best_model,
@@ -1150,14 +1164,14 @@ def analyze_architectures_with_tuning(X, y, output_dim):
         print(f"🏆 ARSITEKTUR TERBAIK DIPILIH: {best_overall_architecture}")
         print("=" * 60)
         print(f"   ⚖️  Skor Komposit: {best_overall_score:.2f}")
-        print(f"   🎯 Macro F1: {best_overall_result.get('macro_f1', 0)}%")
+        print(f"   🎯 Macro F1: {best_overall_result.get('macro_f1', 0):.2f}%")
         print(
-            f"   ✅ Validation Accuracy: {best_overall_result.get('val_accuracy', 0)}%"
+            f"   ✅ Validation Accuracy: {best_overall_result.get('val_accuracy', 0):.2f}%"
         )
         print(
-            f"   📊 Macro Precision: {best_overall_result.get('macro_precision', 0)}%"
+            f"   📊 Macro Precision: {best_overall_result.get('macro_precision', 0):.2f}%"
         )
-        print(f"   📈 Macro Recall: {best_overall_result.get('macro_recall', 0)}%")
+        print(f"   📈 Macro Recall: {best_overall_result.get('macro_recall', 0):.2f}%")
 
         # Update data di all_architecture_results
         for i, result in enumerate(all_architecture_results):
@@ -1167,8 +1181,12 @@ def analyze_architectures_with_tuning(X, y, output_dim):
                     f"\n✅ Data {best_overall_architecture} di architecture_results telah diperbarui"
                 )
                 print(
-                    f"   Val Accuracy: {best_overall_result.get('val_accuracy', 0)}% "
-                    f"(sebelumnya: {result.get('val_accuracy', 0)}%)"
+                    f"   Val Accuracy: {best_overall_result.get('val_accuracy', 0):.2f}% "
+                    f"(sebelumnya: {result.get('val_accuracy', 0):.2f}%)"
+                )
+                print(
+                    f"   Macro F1: {best_overall_result.get('macro_f1', 0):.2f}% "
+                    f"(sebelumnya: {result.get('macro_f1', 0):.2f}%)"
                 )
                 break
     else:
@@ -1281,6 +1299,8 @@ def process_csv():
                     "message": "Data hasil sebelumnya berhasil dimuat dengan sistem universal.",
                     "train": df_display.to_dict(orient="records"),
                     "macro_f1": safe_round(metrics["macro_f1"]),
+                    "macro_precision": safe_round(metrics["macro_precision"]),
+                    "macro_recall": safe_round(metrics["macro_recall"]),
                     "accuracy": safe_round(metrics["accuracy"]),
                     "precision_per_class": [safe_round(p) for p in precision_per_class],
                     "recall_per_class": [safe_round(r) for r in recall_per_class],
@@ -1433,6 +1453,8 @@ def process_csv():
             "train": df_display.to_dict(orient="records"),
             # Metrik evaluasi
             "macro_f1": safe_round(metrics["macro_f1"]),
+            "macro_precision": safe_round(metrics["macro_precision"]),
+            "macro_recall": safe_round(metrics["macro_recall"]),
             "accuracy": safe_round(metrics["accuracy"]),
             "precision_per_class": [safe_round(p) for p in precision_per_class],
             "recall_per_class": [safe_round(r) for r in recall_per_class],
@@ -1462,10 +1484,10 @@ def process_csv():
         print("PROSES SELESAI DENGAN SISTEM KONSISTENSI UNIVERSAL")
         print("=" * 60)
         print(f"🏆 Arsitektur Terbaik: {best_architecture}")
-        print(f"🎯 Macro F1: {best_result.get('macro_f1', 0)}%")
-        print(f"✅ Val Accuracy: {best_result.get('val_accuracy', 0)}%")
-        print(f"📊 Macro Precision: {best_result.get('macro_precision', 0)}%")
-        print(f"📈 Macro Recall: {best_result.get('macro_recall', 0)}%")
+        print(f"🎯 Macro F1: {best_result.get('macro_f1', 0):.2f}%")
+        print(f"✅ Val Accuracy: {best_result.get('val_accuracy', 0):.2f}%")
+        print(f"📊 Macro Precision: {best_result.get('macro_precision', 0):.2f}%")
+        print(f"📈 Macro Recall: {best_result.get('macro_recall', 0):.2f}%")
         print("=" * 60)
 
         return jsonify(response_data)
@@ -1492,6 +1514,8 @@ def load_result():
         # Inisialisasi variabel
         labels = []
         macro_f1 = 0.0
+        macro_precision = 0.0
+        macro_recall = 0.0
         accuracy_val = 0.0
         precision_per_class = []
         recall_per_class = []
@@ -1509,6 +1533,8 @@ def load_result():
                 metrics = get_metrics_safely(y_actual, y_pred)
                 
                 macro_f1 = metrics["macro_f1"]
+                macro_precision = metrics["macro_precision"]
+                macro_recall = metrics["macro_recall"]
                 accuracy_val = metrics["accuracy"]
                 precision_per_class = ensure_list(metrics["precision_per_class"])
                 recall_per_class = ensure_list(metrics["recall_per_class"])
@@ -1539,6 +1565,8 @@ def load_result():
             response_data = {
                 "train": df_display.to_dict(orient="records"),
                 "macro_f1": safe_round(macro_f1),
+                "macro_precision": safe_round(macro_precision),
+                "macro_recall": safe_round(macro_recall),
                 "accuracy": safe_round(accuracy_val),
                 "precision_per_class": [safe_round(p) for p in precision_per_class],
                 "recall_per_class": [safe_round(r) for r in recall_per_class],
@@ -1786,6 +1814,12 @@ def validate_data_consistency():
         comparison_macro_f1 = (
             comparison_data.get("macro_f1", []) if comparison_data else []
         )
+        comparison_macro_precision = (
+            comparison_data.get("macro_precision", []) if comparison_data else []
+        )
+        comparison_macro_recall = (
+            comparison_data.get("macro_recall", []) if comparison_data else []
+        )
 
         # Cari indeks arsitektur terbaik di comparison_data
         best_arch_name = best_result.get("architecture")
@@ -1808,6 +1842,16 @@ def validate_data_consistency():
             comp_f1 = (
                 comparison_macro_f1[best_index]
                 if best_index < len(comparison_macro_f1)
+                else 0
+            )
+            comp_precision = (
+                comparison_macro_precision[best_index]
+                if best_index < len(comparison_macro_precision)
+                else 0
+            )
+            comp_recall = (
+                comparison_macro_recall[best_index]
+                if best_index < len(comparison_macro_recall)
                 else 0
             )
 
@@ -1833,12 +1877,38 @@ def validate_data_consistency():
                     }
                 )
 
+            if abs(best_result.get("macro_precision", 0) - comp_precision) > 0.1:
+                inconsistencies.append(
+                    {
+                        "field": "Macro Precision",
+                        "best_result": best_result.get("macro_precision", 0),
+                        "comparison_data": comp_precision,
+                        "difference": abs(
+                            best_result.get("macro_precision", 0) - comp_precision
+                        ),
+                    }
+                )
+
+            if abs(best_result.get("macro_recall", 0) - comp_recall) > 0.1:
+                inconsistencies.append(
+                    {
+                        "field": "Macro Recall",
+                        "best_result": best_result.get("macro_recall", 0),
+                        "comparison_data": comp_recall,
+                        "difference": abs(
+                            best_result.get("macro_recall", 0) - comp_recall
+                        ),
+                    }
+                )
+
         return jsonify(
             {
                 "consistent": is_consistent and len(inconsistencies) == 0,
                 "best_architecture": best_result["architecture"],
                 "best_accuracy": best_result.get("val_accuracy", 0),
                 "best_macro_f1": best_result.get("macro_f1", 0),
+                "best_macro_precision": best_result.get("macro_precision", 0),
+                "best_macro_recall": best_result.get("macro_recall", 0),
                 "inconsistencies": inconsistencies,
                 "message": "✅ SEMUA DATA KONSISTEN (Sistem Universal)"
                 if is_consistent and len(inconsistencies) == 0
