@@ -8,6 +8,7 @@ import psutil
 import gc
 import random
 from datetime import datetime
+from collections.abc import Iterable
 from flask import Blueprint, request, jsonify, render_template, send_file
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import (
@@ -92,7 +93,7 @@ def safe_confusion_matrix(cm):
 
 
 def set_seeds(seed=42):
-    """Set fixed seeds untuk reproducibility"""
+    """Set seeds untuk reproducibility"""
     random.seed(seed)
     np.random.seed(seed)
     tf.random.set_seed(seed)
@@ -118,43 +119,33 @@ def get_metrics_safely(y_true, y_pred):
             recall_per_class = recall_score(y_true, y_pred, average=None, zero_division=0) * 100
             f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0) * 100
             
-            # Konversi ke list dengan aman
-            # Perbaikan: JANGAN gunakan hasattr() karena float tidak punya tolist()
-            if isinstance(precision_per_class, np.ndarray):
-                precision_per_class = precision_per_class.tolist()
-            elif isinstance(precision_per_class, (int, float)):
-                precision_per_class = [precision_per_class]  # Buat list dengan 1 elemen
-            elif isinstance(precision_per_class, list):
-                pass  # Sudah list, tidak perlu konversi
-            else:
+            # Fungsi untuk konversi aman
+            def safe_convert_to_list(value):
+                if value is None:
+                    return []
+                if isinstance(value, (int, float, np.integer, np.floating)):
+                    return [float(value)]  # Konversi single number ke list
+                if isinstance(value, np.ndarray):
+                    return value.tolist()  # Konversi numpy array ke list
+                if isinstance(value, list):
+                    return value  # Sudah list
+                if isinstance(value, tuple):
+                    return list(value)  # Konversi tuple ke list
+                if isinstance(value, Iterable) and not isinstance(value, str):
+                    try:
+                        return list(value)  # Coba konversi iterable lainnya
+                    except:
+                        return []
+                # Jika tidak ada yang cocok, coba konversi umum
                 try:
-                    precision_per_class = list(precision_per_class)
+                    return list(value)
                 except:
-                    precision_per_class = []
+                    return []
             
-            if isinstance(recall_per_class, np.ndarray):
-                recall_per_class = recall_per_class.tolist()
-            elif isinstance(recall_per_class, (int, float)):
-                recall_per_class = [recall_per_class]
-            elif isinstance(recall_per_class, list):
-                pass
-            else:
-                try:
-                    recall_per_class = list(recall_per_class)
-                except:
-                    recall_per_class = []
-            
-            if isinstance(f1_per_class, np.ndarray):
-                f1_per_class = f1_per_class.tolist()
-            elif isinstance(f1_per_class, (int, float)):
-                f1_per_class = [f1_per_class]
-            elif isinstance(f1_per_class, list):
-                pass
-            else:
-                try:
-                    f1_per_class = list(f1_per_class)
-                except:
-                    f1_per_class = []
+            # Gunakan fungsi konversi aman
+            precision_per_class = safe_convert_to_list(precision_per_class)
+            recall_per_class = safe_convert_to_list(recall_per_class)
+            f1_per_class = safe_convert_to_list(f1_per_class)
                 
         except Exception as e:
             print(f"⚠️  Error menghitung metrik per kelas: {e}")
@@ -190,12 +181,14 @@ def ensure_list(value):
     """Memastikan nilai selalu berupa list untuk list comprehension"""
     if value is None:
         return []
-    if isinstance(value, (int, float)):
-        return [value]  # Konversi float tunggal ke list dengan 1 elemen
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return [float(value)]  # Konversi float/int tunggal ke list dengan 1 elemen
     if isinstance(value, np.ndarray):
         return value.tolist()
     if isinstance(value, list):
         return value
+    if isinstance(value, tuple):
+        return list(value)
     try:
         return list(value)  # Coba konversi ke list
     except:
@@ -543,7 +536,6 @@ def save_universal_cache(architecture_results, training_histories, best_result=N
         )
 
         # 3. SIMPAN SEMUA DATA KE FILE TERPISAH
-        # Architecture results (sudah konsisten)
         with open(ARCHITECTURE_RESULTS_CACHE, "wb") as f:
             pickle.dump(architecture_results, f)
         print(f"  ✅ architecture_results: {len(architecture_results)} items")
@@ -1040,7 +1032,7 @@ def perform_hyperparameter_tuning(
 
 def analyze_architectures_with_tuning(X, y, output_dim):
     """Menganalisis semua arsitektur MLP dengan hyperparameter tuning - SISTEM UNIVERSAL"""
-    # Definisikan urutan arsitektur yang FIXED
+    # Definisikan urutan arsitektur
     architectures = [
         (create_mlp_a, "MLP-A (Sederhana)"),
         (create_mlp_b, "MLP-B (Sedang)"),
