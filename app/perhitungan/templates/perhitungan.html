@@ -17,6 +17,7 @@
 {% block content %}
 <h3>Train Model dengan Optimasi Neuron Otomatis</h3>
 
+<!-- Notification untuk hasil sebelumnya -->
 <div id="result-check" style="display: none;" class="alert alert-info">
     <p><strong>📁 Hasil perhitungan sebelumnya ditemukan!</strong></p>
     <p>Apa yang ingin Anda lakukan?</p>
@@ -28,6 +29,7 @@
     </button>
 </div>
 
+<!-- Form upload file -->
 <form id="upload-form" method="post" enctype="multipart/form-data" style="display: none;">
     <div class="form-group">
         <label for="file"><strong>Pilih File CSV untuk Training:</strong></label>
@@ -41,6 +43,7 @@
     </button>
 </form>
 
+<!-- Loading indicator -->
 <div id="loading" style="display: none;">
     <div class="alert alert-info">
         <h5><span class="loading-spinner"></span> Sedang melakukan optimasi neuron...</h5>
@@ -56,6 +59,7 @@
     </div>
 </div>
 
+<!-- Status message -->
 <div id="statusMessage" class="mt-2"></div>
 
 <!-- Section untuk Architecture Comparison -->
@@ -63,6 +67,7 @@
     <div class="card">
         <div class="card-header bg-primary text-white">
             <h4 class="mb-0"><i class="icon-bar-chart"></i> 📊 Perbandingan Arsitektur MLP</h4>
+            <small class="text-light">Sistem Konsistensi Universal v4.0</small>
         </div>
         <div class="card-body">
             <!-- Best Architecture Info -->
@@ -71,23 +76,8 @@
                 <p class="mb-1"><strong>Hyperparameters:</strong> <span id="best-hyperparams"></span></p>
                 <p class="mb-0">
                     <strong>Validation Accuracy:</strong> <span id="best-accuracy"></span>% | 
-                    <strong>Macro F1:</strong> <span id="best-macro-f1"></span>% |
-                    <strong>Macro Precision:</strong> <span id="best-macro-precision"></span>% |
-                    <strong>Macro Recall:</strong> <span id="best-macro-recall"></span>%
+                    <strong>Macro F1:</strong> <span id="best-macro-f1"></span>%
                 </p>
-                <small class="text-muted mt-2 d-block">
-                    <i class="icon-info"></i> Arsitektur ini dipilih berdasarkan <strong>Macro F1 Score tertinggi</strong> 
-                    (<span id="best-macro-f1-criteria"></span>%) sebagai kriteria utama.
-                </small>
-            </div>
-
-            <!-- Data Consistency Check -->
-            <div id="consistency-check" class="alert alert-info mt-2" style="display: none;">
-                <h6><i class="icon-check"></i> Validasi Konsistensi Data</h6>
-                <p id="consistency-message"></p>
-                <button id="run-consistency-check" class="btn btn-sm btn-outline-info">
-                    <i class="icon-refresh"></i> Cek Konsistensi Data
-                </button>
             </div>
 
             <!-- Chart Controls -->
@@ -118,7 +108,7 @@
                             <canvas id="performanceChart"></canvas>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-mt-4">
                         <div class="card">
                             <div class="card-header">
                                 <h6><i class="icon-info"></i> Keterangan Metrik</h6>
@@ -212,11 +202,16 @@
             <div class="mt-4">
                 <div class="col-md-12">
                     <div class="card mt-4">
-                        <div class="card-header">
+                        <div class="card-header bg-dark text-white">
                             <h5><i class="icon-table"></i> 📋 Tabel Perbandingan Detail Arsitektur</h5>
-                            <small class="text-muted">Data yang sama persis dengan Arsitektur Terbaik</small>
+                            <small class="text-light">Data KONSISTEN untuk semua arsitektur terbaik</small>
                         </div>
                         <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="icon-info"></i> <strong>Sistem Konsistensi Universal:</strong> 
+                                Data untuk arsitektur terbaik (ditandai dengan 🏆) dijamin konsisten antara 
+                                informasi "Arsitektur Terbaik" dan tabel ini.
+                            </div>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-striped table-hover" id="comparison-table">
                                     <thead class="thead-dark">
@@ -224,8 +219,8 @@
                                             <th>Arsitektur</th>
                                             <th>Macro F1</th>
                                             <th>Val Accuracy</th>
-                                            <th>Macro Precision</th>
-                                            <th>Macro Recall</th>
+                                            <th>Precision</th>
+                                            <th>Recall</th>
                                             <th>Inference Time</th>
                                             <th>Memory</th>
                                             <th>Training Time</th>
@@ -237,6 +232,15 @@
                                     <tbody></tbody>
                                 </table>
                             </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <span class="badge bg-success">Excellent</span>
+                                    <span class="badge bg-primary">Good</span>
+                                    <span class="badge bg-warning">Fair</span>
+                                    <span class="badge bg-secondary">Basic</span>
+                                    <span class="badge bg-danger">Best (🏆)</span>
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -247,9 +251,95 @@
 
 <!-- Section untuk optimization results -->
 <div id="optimization-results" style="display: none;" class="mt-4">
-    <!-- ... (kode optimization results tetap sama) ... -->
+    <div class="card">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0"><i class="icon-chart"></i> 📊 Hasil Optimasi Neuron</h4>
+        </div>
+        <div class="card-body">
+            <div id="best-config-display" class="alert alert-success">
+                <h5><i class="icon-trophy"></i> Konfigurasi Terbaik</h5>
+                <p id="best-config-text" class="mb-0"></p>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="icon-line-chart"></i> 📈 Learning Curve Analysis</h5>
+                            <div class="chart-controls mt-2">
+                                <button class="btn btn-sm btn-outline-primary active" data-chart="neuron-comparison">
+                                    Perbandingan Neuron
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" data-chart="training-progress">
+                                    Progress Training
+                                </button>
+                                <select id="neuron-select" class="form-select form-select-sm" style="display: none;">
+                                    <option value="">Pilih Jumlah Neuron</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="learningCurveChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="icon-table"></i> 🎯 Hasil Grid Search</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Perbandingan berbagai konfigurasi neuron</p>
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-sm table-bordered table-hover" id="grid-results-table">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Layer 1</th>
+                                            <th>Layer 2</th>
+                                            <th>Train Acc</th>
+                                            <th>Val Acc</th>
+                                            <th>Gap</th>
+                                            <th>Detail</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <small class="text-muted">* Hijau = konfigurasi terbaik</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Training Progress -->
+            <div id="training-detail" class="mt-4" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="icon-graph"></i> Detail Progress Training</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="chart-container">
+                                    <canvas id="accuracyChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="chart-container">
+                                    <canvas id="lossChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- Results table and controls -->
 <div id="review-table-box" style="display: none;">
     <div class="mt-3">
         <div class="btn-group" role="group">
@@ -306,6 +396,10 @@
 {% block extra_script %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// =============================================
+// GLOBAL VARIABLES & INITIALIZATION
+// =============================================
+
 // Global variables untuk menyimpan chart instances
 let learningCurveChart = null;
 let accuracyChart = null;
@@ -351,14 +445,11 @@ function recreateAllCharts() {
     }
 }
 
-// Fungsi untuk menyembunyikan opsi pilihan setelah dipilih
-function hideSelectionOptions() {
-    $("#result-check").addClass('hidden-section');
-    $("#cache-info").addClass('hidden-section');
-    console.log("✅ Opsi pilihan disembunyikan");
-}
+// =============================================
+// SISTEM KONSISTENSI UNIVERSAL - FRONTEND
+// =============================================
 
-// Fungsi untuk mengurutkan data arsitektur - DITAMBAHKAN
+// Fungsi untuk mengurutkan data arsitektur
 function sortArchitectureData(architectureResults) {
     if (!architectureResults) return architectureResults;
     
@@ -376,13 +467,398 @@ function sortArchitectureData(architectureResults) {
     });
 }
 
-// Fungsi untuk membuat chart performa - DIPERBAIKI
+// Fungsi untuk mengisi tabel perbandingan dengan SISTEM UNIVERSAL
+function renderUniversalComparisonTable(architectureResults, bestArchitectureResult) {
+    const tbody = $('#comparison-table tbody');
+    tbody.empty();
+    
+    if (!architectureResults || architectureResults.length === 0) {
+        tbody.html('<tr><td colspan="11" class="text-center">Tidak ada data perbandingan</td></tr>');
+        return;
+    }
+    
+    console.log("🔄 RENDERING TABEL DENGAN SISTEM UNIVERSAL...");
+    
+    // PERBAIKAN UNIVERSAL: Buat data untuk ditampilkan dengan prioritas best_result
+    const displayData = [];
+    const processedArchitectures = new Set();
+    
+    // 1. TAMBAHKAN bestArchitectureResult PERTAMA (jika ada)
+    if (bestArchitectureResult && bestArchitectureResult.architecture) {
+        const bestArchName = bestArchitectureResult.architecture;
+        console.log(`🎯 Menambahkan ${bestArchName} dari best_architecture_result`);
+        
+        // Tambahkan field tambahan untuk identifikasi
+        const bestData = {
+            ...bestArchitectureResult,
+            _source: 'best_result',
+            _is_best: true
+        };
+        
+        displayData.push(bestData);
+        processedArchitectures.add(bestArchName);
+        
+        console.log(`   ✅ Val Accuracy: ${bestArchitectureResult.val_accuracy}%`);
+        console.log(`   ✅ Macro F1: ${bestArchitectureResult.macro_f1}%`);
+    }
+    
+    // 2. TAMBAHKAN arsitektur lainnya dari architectureResults
+    architectureResults.forEach(arch => {
+        const archName = arch.architecture;
+        
+        // Lewati jika sudah diproses (arsitektur terbaik)
+        if (processedArchitectures.has(archName)) {
+            console.log(`   ⏭️  Melewatkan ${archName} (sudah ada dari best_result)`);
+            return;
+        }
+        
+        console.log(`   📋 Menambahkan ${archName} dari architecture_results`);
+        
+        // Tambahkan field untuk identifikasi
+        const archData = {
+            ...arch,
+            _source: 'architecture_results',
+            _is_best: false
+        };
+        
+        displayData.push(archData);
+        processedArchitectures.add(archName);
+    });
+    
+    // 3. URUTKAN data untuk display
+    const sortedResults = sortArchitectureData(displayData);
+    
+    console.log(`📊 Total data untuk ditampilkan: ${sortedResults.length} arsitektur`);
+    
+    // 4. HITUNG yang terbaik untuk setiap metrik (dari data yang akan ditampilkan)
+    const bestMacroF1 = Math.max(...sortedResults.map(r => r.macro_f1 || 0));
+    const bestMacroPrecision = Math.max(...sortedResults.map(r => r.macro_precision || 0));
+    const bestMacroRecall = Math.max(...sortedResults.map(r => r.macro_recall || 0));
+    const bestAccuracy = Math.max(...sortedResults.map(r => r.val_accuracy || 0));
+    const bestInferenceTime = Math.min(...sortedResults.map(r => r.inference_time_ms || 9999));
+    const bestMemory = Math.min(...sortedResults.map(r => r.avg_memory_mb || 9999));
+    
+    // 5. RENDER setiap baris
+    sortedResults.forEach(arch => {
+        const archName = arch.architecture;
+        const isBestArch = arch._is_best || false;
+        const source = arch._source || 'unknown';
+        
+        const isBestMacroF1 = (arch.macro_f1 || 0) === bestMacroF1;
+        const isBestMacroPrecision = (arch.macro_precision || 0) === bestMacroPrecision;
+        const isBestMacroRecall = (arch.macro_recall || 0) === bestMacroRecall;
+        const isBestAccuracy = (arch.val_accuracy || 0) === bestAccuracy;
+        const isBestInferenceTime = (arch.inference_time_ms || 0) === bestInferenceTime;
+        const isBestMemory = (arch.avg_memory_mb || 0) === bestMemory;
+        
+        // Hitung total best metrics
+        const totalBest = [isBestMacroF1, isBestMacroPrecision, isBestMacroRecall, 
+                          isBestAccuracy, isBestInferenceTime, isBestMemory].filter(Boolean).length;
+        
+        // Tentukan status berdasarkan total best metrics
+        let status = '';
+        let statusClass = '';
+        if (isBestArch) {
+            status = '<span class="badge bg-danger">🏆 BEST</span>';
+            statusClass = 'best-architecture-row';
+        } else if (totalBest >= 3) {
+            status = '<span class="badge bg-primary">Excellent</span>';
+            statusClass = 'table-excellent';
+        } else if (totalBest >= 2) {
+            status = '<span class="badge bg-warning">Good</span>';
+            statusClass = 'table-good';
+        } else if (totalBest >= 1) {
+            status = '<span class="badge bg-info">Fair</span>';
+            statusClass = 'table-fair';
+        } else {
+            status = '<span class="badge bg-secondary">Basic</span>';
+            statusClass = 'table-basic';
+        }
+        
+        // Siapkan icon untuk sumber data
+        const sourceIcon = source === 'best_result' ? '⭐' : '📋';
+        
+        const row = `
+            <tr class="${statusClass}">
+                <td>
+                    <strong>${archName}</strong>
+                    ${isBestArch ? '<span class="best-badge">🏆</span>' : ''}
+                    <br><small class="text-muted">${sourceIcon} ${source}</small>
+                </td>
+                <td class="${isBestMacroF1 ? 'table-success' : ''}">
+                    ${arch.macro_f1 || 0}% 
+                    ${isBestMacroF1 ? '🎯' : ''}
+                </td>
+                <td class="${isBestAccuracy ? 'table-success' : ''}">
+                    ${arch.val_accuracy || 0}% 
+                    ${isBestAccuracy ? '⭐' : ''}
+                </td>
+                <td class="${isBestMacroPrecision ? 'table-success' : ''}">
+                    ${arch.macro_precision || 0}% 
+                    ${isBestMacroPrecision ? '📊' : ''}
+                </td>
+                <td class="${isBestMacroRecall ? 'table-success' : ''}">
+                    ${arch.macro_recall || 0}% 
+                    ${isBestMacroRecall ? '📈' : ''}
+                </td>
+                <td class="${isBestInferenceTime ? 'table-success' : ''}">
+                    ${arch.inference_time_ms || 0}ms 
+                    ${isBestInferenceTime ? '⚡' : ''}
+                </td>
+                <td class="${isBestMemory ? 'table-success' : ''}">
+                    ${arch.avg_memory_mb || 0}MB 
+                    ${isBestMemory ? '💾' : ''}
+                </td>
+                <td>${arch.training_time_total || 0}s</td>
+                <td>${(arch.total_params || 0).toLocaleString()}</td>
+                <td>${arch.epochs_used || 0}</td>
+                <td>${status}</td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
+    
+    console.log("✅ Tabel berhasil dirender dengan sistem universal");
+    
+    // Tambahkan CSS untuk highlight arsitektur terbaik
+    if (!$('#universal-styles').length) {
+        $('head').append(`
+            <style id="universal-styles">
+                .best-architecture-row {
+                    background-color: #e8f5e9 !important;
+                    font-weight: bold;
+                    border-left: 4px solid #28a745 !important;
+                }
+                .table-excellent { background-color: #d1ecf1 !important; }
+                .table-good { background-color: #fff3cd !important; }
+                .table-fair { background-color: #f8d7da !important; }
+                .table-basic { background-color: #e2e3e5 !important; }
+                .best-badge {
+                    display: inline-block;
+                    margin-left: 5px;
+                    font-size: 12px;
+                    animation: pulse 2s infinite;
+                }
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+            </style>
+        `);
+    }
+}
+
+// Fungsi untuk menampilkan best architecture info - VERSI UNIVERSAL
+function showUniversalBestArchitectureInfo(bestArchitecture, bestHyperparams, bestAccuracy, bestMacroF1) {
+    if (bestArchitecture) {
+        $('#best-architecture-info').show();
+        $('#best-architecture-name').text(bestArchitecture);
+        $('#best-accuracy').text(bestAccuracy);
+        $('#best-macro-f1').text(bestMacroF1);
+        
+        // Format hyperparameters
+        if (bestHyperparams) {
+            const hyperparamsText = `
+                Optimizer: ${bestHyperparams.optimizer || 'N/A'}, 
+                Learning Rate: ${bestHyperparams.learning_rate || 'N/A'}, 
+                Batch Size: ${bestHyperparams.batch_size || 'N/A'},
+                Dropout: ${bestHyperparams.dropout_rate || 'N/A'},
+                L2: ${bestHyperparams.l2_rate || 'N/A'}
+            `;
+            $('#best-hyperparams').text(hyperparamsText);
+        }
+        
+        // Tambahkan styling untuk best architecture info
+        $('#best-architecture-info').addClass('universal-best-info');
+        if (!$('#best-info-styles').length) {
+            $('head').append(`
+                <style id="best-info-styles">
+                    .universal-best-info {
+                        border-left: 5px solid #28a745 !important;
+                        background: linear-gradient(135deg, #e8f5e9 0%, #d4edda 100%) !important;
+                        animation: slideIn 0.5s ease-out;
+                    }
+                    @keyframes slideIn {
+                        from { transform: translateY(-10px); opacity: 0; }
+                        to { transform: translateY(0); opacity: 1; }
+                    }
+                </style>
+            `);
+        }
+        
+        console.log(`🏆 Menampilkan info arsitektur terbaik: ${bestArchitecture}`);
+        console.log(`   📊 Val Accuracy: ${bestAccuracy}%`);
+        console.log(`   🎯 Macro F1: ${bestMacroF1}%`);
+    } else {
+        $('#best-architecture-info').hide();
+    }
+}
+
+// Fungsi utama untuk menampilkan perbandingan arsitektur - VERSI UNIVERSAL
+function renderUniversalArchitectureComparison(res) {
+    if (res.has_visualization_data && res.architecture_comparison && res.training_histories) {
+        $('#architecture-comparison').show();
+        
+        console.log("🔄 RENDERING ARCHITECTURE COMPARISON DENGAN SISTEM UNIVERSAL...");
+        
+        // Simpan data untuk resize
+        currentComparisonData = res.architecture_comparison;
+        currentTrainingHistories = res.training_histories;
+        
+        // Gunakan best_architecture_result sebagai sumber utama
+        const architectureResults = res.architecture_results || [];
+        const bestArchitectureResult = res.best_architecture_result || null;
+        
+        console.log("📊 DATA YANG TERSEDIA:");
+        console.log(`   - architecture_results: ${architectureResults.length} items`);
+        console.log(`   - best_architecture_result: ${bestArchitectureResult ? 'ADA' : 'TIDAK ADA'}`);
+        
+        if (bestArchitectureResult) {
+            console.log(`   🏆 Arsitektur Terbaik: ${bestArchitectureResult.architecture}`);
+            console.log(`      Val Accuracy: ${bestArchitectureResult.val_accuracy}%`);
+            console.log(`      Macro F1: ${bestArchitectureResult.macro_f1}%`);
+        }
+        
+        // Tampilkan best architecture info dengan data dari best_architecture_result
+        const bestAccuracy = bestArchitectureResult ? bestArchitectureResult.val_accuracy : 0;
+        const bestMacroF1 = bestArchitectureResult ? bestArchitectureResult.macro_f1 : 0;
+        
+        showUniversalBestArchitectureInfo(
+            res.best_architecture, 
+            res.best_hyperparams, 
+            bestAccuracy, 
+            bestMacroF1
+        );
+        
+        // Buat semua chart
+        createPerformanceChart(res.architecture_comparison);
+        createResourcesChart(res.architecture_comparison);
+        createEfficiencyChart(res.architecture_comparison);
+        createTrainingProgressCharts(res.training_histories);
+        
+        // Isi tabel perbandingan dengan SISTEM UNIVERSAL
+        renderUniversalComparisonTable(architectureResults, bestArchitectureResult);
+        
+        // Verifikasi konsistensi di frontend
+        verifyFrontendConsistency(architectureResults, bestArchitectureResult);
+        
+        console.log("✅ Architecture comparison berhasil dirender dengan SISTEM UNIVERSAL");
+    } else {
+        $('#architecture-comparison').hide();
+        console.log("⚠️ Data visualisasi tidak tersedia untuk architecture comparison");
+    }
+}
+
+// Fungsi untuk verifikasi konsistensi di frontend
+function verifyFrontendConsistency(architectureResults, bestArchitectureResult) {
+    if (!bestArchitectureResult || !architectureResults) {
+        console.log("⚠️ Tidak ada data untuk verifikasi konsistensi frontend");
+        return;
+    }
+    
+    const bestArchName = bestArchitectureResult.architecture;
+    console.log(`🔍 VERIFIKASI KONSISTENSI FRONTEND UNTUK ${bestArchName}:`);
+    
+    // Cari data untuk arsitektur terbaik di architectureResults
+    const archData = architectureResults.find(arch => arch.architecture === bestArchName);
+    
+    if (!archData) {
+        console.log(`❌ ${bestArchName} tidak ditemukan di architectureResults`);
+        return;
+    }
+    
+    // Bandingkan field penting
+    const keyFields = ['val_accuracy', 'macro_f1', 'macro_precision', 'macro_recall'];
+    let allConsistent = true;
+    
+    keyFields.forEach(field => {
+        const bestValue = bestArchitectureResult[field] || 0;
+        const archValue = archData[field] || 0;
+        const diff = Math.abs(bestValue - archValue);
+        
+        if (diff <= 0.01) {
+            console.log(`   ✅ ${field}: KONSISTEN (${bestValue}%)`);
+        } else {
+            console.log(`   ❌ ${field}: TIDAK KONSISTEN!`);
+            console.log(`      best_architecture_result: ${bestValue}%`);
+            console.log(`      architecture_results: ${archValue}%`);
+            allConsistent = false;
+        }
+    });
+    
+    if (allConsistent) {
+        console.log(`🎉 SEMUA DATA UNTUK ${bestArchName} KONSISTEN DI FRONTEND!`);
+    } else {
+        console.log(`⚠️  ADA KETIDAKKONSISTENAN UNTUK ${bestArchName} DI FRONTEND`);
+    }
+}
+
+// Fungsi untuk memuat data visualisasi dengan sistem universal
+function loadUniversalVisualizationData() {
+    $("#loading").show();
+    $("#statusMessage").html('<div class="alert alert-info">Memuat data visualisasi dengan sistem universal...</div>');
+    
+    $.ajax({
+        url: "/perhitungan/load-visualization-data",
+        type: "GET",
+        success: function(res) {
+            $("#loading").hide();
+            if (res.has_visualization_data) {
+                renderUniversalArchitectureComparison(res);
+                
+                let successMsg = `<div class="alert alert-success">
+                    <i class="icon-chart"></i> <strong>Data visualisasi berhasil dimuat dengan sistem universal</strong>`;
+                
+                if (res.best_architecture) {
+                    successMsg += `<br><strong>🏆 Arsitektur Terbaik:</strong> ${res.best_architecture}`;
+                    successMsg += `<br><strong>📊 Val Accuracy:</strong> ${res.best_accuracy}%`;
+                    successMsg += `<br><strong>🎯 Macro F1:</strong> ${res.best_macro_f1}%`;
+                }
+                
+                successMsg += `</div>`;
+                
+                $("#statusMessage").html(successMsg);
+                console.log("✅ Data visualisasi berhasil dimuat dengan sistem universal:", res);
+            } else {
+                $("#statusMessage").html(`
+                    <div class="alert alert-warning">
+                        <i class="icon-warning"></i> ${res.message || "Data visualisasi tidak tersedia."}
+                    </div>
+                `);
+                console.log("❌ Data visualisasi tidak lengkap:", res);
+            }
+        },
+        error: function(xhr, status, error) {
+            $("#loading").hide();
+            let errorMsg = xhr.responseJSON?.error || error || "Unknown error";
+            $("#statusMessage").html(`
+                <div class="alert alert-danger">
+                    <i class="icon-error"></i> Gagal memuat data visualisasi: ${errorMsg}
+                </div>
+            `);
+            console.log("❌ Gagal memuat data visualisasi:", errorMsg);
+        }
+    });
+}
+
+// =============================================
+// FUNGSI CHART DAN VISUALISASI
+// =============================================
+
+// Fungsi untuk membuat chart performa
 function createPerformanceChart(comparisonData) {
     const ctx = document.getElementById('performanceChart').getContext('2d');
     
     if (performanceChart) {
         performanceChart.destroy();
     }
+    
+    // Highlight bar untuk arsitektur terbaik
+    const backgroundColors = comparisonData.labels.map((label, index) => {
+        return label === comparisonData.best_architecture ? 
+            'rgba(40, 167, 69, 0.8)' : 'rgba(54, 162, 235, 0.8)';
+    });
     
     performanceChart = new Chart(ctx, {
         type: 'bar',
@@ -392,32 +868,19 @@ function createPerformanceChart(comparisonData) {
                 {
                     label: 'Macro F1',
                     data: comparisonData.macro_f1,
-                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
-                    borderColor: 'rgba(40, 167, 69, 1)',
-                    borderWidth: 1,
+                    backgroundColor: backgroundColors,
+                    borderColor: comparisonData.labels.map(label => 
+                        label === comparisonData.best_architecture ? 
+                        'rgba(40, 167, 69, 1)' : 'rgba(54, 162, 235, 1)'
+                    ),
+                    borderWidth: 2,
                     yAxisID: 'y'
                 },
                 {
                     label: 'Validation Accuracy',
                     data: comparisonData.accuracy,
-                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Macro Precision',
-                    data: comparisonData.macro_precision || comparisonData.precision,
                     backgroundColor: 'rgba(255, 99, 132, 0.8)',
                     borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 1,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Macro Recall',
-                    data: comparisonData.macro_recall || comparisonData.recall,
-                    backgroundColor: 'rgba(75, 192, 192, 0.8)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
                     borderWidth: 1,
                     yAxisID: 'y'
                 }
@@ -437,7 +900,19 @@ function createPerformanceChart(comparisonData) {
                     intersect: false,
                     callbacks: {
                         label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y}%`;
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y + '%';
+                            
+                            // Tambahkan indikator untuk arsitektur terbaik
+                            if (comparisonData.best_architecture && 
+                                comparisonData.labels[context.dataIndex] === comparisonData.best_architecture &&
+                                context.dataset.label === 'Macro F1') {
+                                label += ' 🏆';
+                            }
+                            return label;
                         }
                     }
                 },
@@ -501,14 +976,6 @@ function createResourcesChart(comparisonData) {
                     borderColor: 'rgba(255, 205, 86, 1)',
                     borderWidth: 1,
                     yAxisID: 'y'
-                },
-                {
-                    label: 'Parameters (normalized)',
-                    data: comparisonData.parameters.map(p => p / 1000000),
-                    backgroundColor: 'rgba(201, 203, 207, 0.8)',
-                    borderColor: 'rgba(201, 203, 207, 1)',
-                    borderWidth: 1,
-                    yAxisID: 'y'
                 }
             ]
         },
@@ -523,21 +990,7 @@ function createResourcesChart(comparisonData) {
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            if (context.dataset.label === 'Parameters (normalized)') {
-                                const originalValue = comparisonData.parameters[context.dataIndex];
-                                return `Parameters: ${originalValue.toLocaleString()}`;
-                            } else if (context.dataset.label === 'Training Time (s)') {
-                                return `Training Time: ${context.parsed.y}s`;
-                            } else if (context.dataset.label === 'Inference Time (ms)') {
-                                return `Inference Time: ${context.parsed.y}ms`;
-                            } else {
-                                return `${context.dataset.label}: ${context.parsed.y}MB`;
-                            }
-                        }
-                    }
+                    intersect: false
                 },
                 legend: {
                     position: 'top',
@@ -625,12 +1078,7 @@ function createEfficiencyChart(comparisonData) {
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y}`;
-                        }
-                    }
+                    intersect: false
                 },
                 legend: {
                     position: 'top',
@@ -799,273 +1247,49 @@ function createTrainingProgressCharts(trainingHistories) {
     });
 }
 
-// Fungsi untuk mengisi tabel perbandingan - DIPERBAIKI (SIMPLE VERSION)
-function renderComparisonTable(architectureResults, bestArchitectureName) {
-    const tbody = $('#comparison-table tbody');
-    tbody.empty();
-    
-    if (!architectureResults || architectureResults.length === 0) {
-        tbody.html('<tr><td colspan="11" class="text-center">Tidak ada data perbandingan</td></tr>');
-        return;
-    }
-    
-    // Urutkan data arsitektur
-    const sortedResults = sortArchitectureData(architectureResults);
-    
-    sortedResults.forEach(arch => {
-        const isBest = arch.architecture === bestArchitectureName;
-        const rowClass = isBest ? 'table-success' : '';
-        
-        // Tentukan status berdasarkan performa
-        let status = '';
-        if (isBest) {
-            status = '<span class="badge bg-success">Best Model</span>';
-        } else if (arch.macro_f1 >= 90) {
-            status = '<span class="badge bg-primary">Excellent</span>';
-        } else if (arch.macro_f1 >= 80) {
-            status = '<span class="badge bg-warning">Good</span>';
-        } else {
-            status = '<span class="badge bg-secondary">Fair</span>';
-        }
-        
-        const row = `
-            <tr class="${rowClass}">
-                <td><strong>${arch.architecture}</strong></td>
-                <td>${arch.macro_f1 || 0}%</td>
-                <td>${arch.val_accuracy || 0}%</td>
-                <td>${arch.macro_precision || 0}%</td>
-                <td>${arch.macro_recall || 0}%</td>
-                <td>${arch.inference_time_ms || 0}ms</td>
-                <td>${arch.avg_memory_mb || 0}MB</td>
-                <td>${arch.training_time_total || 0}s</td>
-                <td>${(arch.total_params || 0).toLocaleString()}</td>
-                <td>${arch.epochs_used || 0}</td>
-                <td>${status}</td>
-            </tr>
-        `;
-        tbody.append(row);
-    });
-}
-
-// Fungsi untuk menampilkan best architecture info - DIPERBAIKI
-function showBestArchitectureInfo(bestArchitecture, bestHyperparams, bestAccuracy, bestMacroF1, bestMacroPrecision, bestMacroRecall) {
-    if (bestArchitecture) {
-        $('#best-architecture-info').show();
-        $('#best-architecture-name').text(bestArchitecture);
-        $('#best-accuracy').text(bestAccuracy);
-        $('#best-macro-f1').text(bestMacroF1);
-        $('#best-macro-precision').text(bestMacroPrecision);
-        $('#best-macro-recall').text(bestMacroRecall);
-        $('#best-macro-f1-criteria').text(bestMacroF1);
-        
-        // Format hyperparameters lebih rapi
-        if (bestHyperparams) {
-            const hyperparamsText = `
-                Optimizer: <strong>${bestHyperparams.optimizer}</strong>, 
-                Learning Rate: <strong>${bestHyperparams.learning_rate}</strong>, 
-                Batch Size: <strong>${bestHyperparams.batch_size}</strong>,
-                Dropout: <strong>${bestHyperparams.dropout_rate}</strong>,
-                L2: <strong>${bestHyperparams.l2_rate}</strong>
-            `;
-            $('#best-hyperparams').html(hyperparamsText);
-        }
-    } else {
-        $('#best-architecture-info').hide();
-    }
-}
-
-// Fungsi untuk menampilkan perbandingan arsitektur - DIPERBAIKI
-function renderArchitectureComparison(res) {
-    if (res.has_visualization_data && res.architecture_comparison && res.training_histories) {
-        $('#architecture-comparison').show();
-        $('#consistency-check').show();
-        
-        // Simpan data untuk resize
-        currentComparisonData = res.architecture_comparison;
-        currentTrainingHistories = res.training_histories;
-        
-        // Urutkan data arsitektur jika diperlukan - DITAMBAHKAN
-        if (res.architecture_results) {
-            res.architecture_results = sortArchitectureData(res.architecture_results);
-        }
-        
-        // 🎯 GUNAKAN DATA DARI best_architecture_result JIKA ADA
-        let bestAccuracy, bestMacroF1, bestMacroPrecision, bestMacroRecall;
-        
-        if (res.best_architecture_result) {
-            // Data langsung dari best_architecture_result (paling akurat)
-            bestAccuracy = res.best_architecture_result.val_accuracy || 0;
-            bestMacroF1 = res.best_architecture_result.macro_f1 || 0;
-            bestMacroPrecision = res.best_architecture_result.macro_precision || 0;
-            bestMacroRecall = res.best_architecture_result.macro_recall || 0;
-            
-            console.log("🎯 Menggunakan data dari best_architecture_result:", {
-                architecture: res.best_architecture,
-                accuracy: bestAccuracy,
-                macroF1: bestMacroF1
-            });
-        } else if (res.architecture_results) {
-            // Fallback: cari yang terbaik dari architecture_results
-            const bestArch = res.architecture_results.reduce((best, current) => {
-                const currentF1 = current.macro_f1 || 0;
-                const bestF1 = best.macro_f1 || 0;
-                return currentF1 > bestF1 ? current : best;
-            });
-            
-            bestAccuracy = bestArch.val_accuracy || 0;
-            bestMacroF1 = bestArch.macro_f1 || 0;
-            bestMacroPrecision = bestArch.macro_precision || 0;
-            bestMacroRecall = bestArch.macro_recall || 0;
-            
-            console.log("⚠️ Menggunakan data fallback dari architecture_results");
-        } else {
-            // Data minimal
-            bestAccuracy = res.best_accuracy || 0;
-            bestMacroF1 = res.best_macro_f1 || 0;
-            bestMacroPrecision = res.best_macro_precision || 0;
-            bestMacroRecall = res.best_macro_recall || 0;
-        }
-        
-        // Tampilkan best architecture info dengan data yang KONSISTEN
-        showBestArchitectureInfo(
-            res.best_architecture, 
-            res.best_hyperparams, 
-            bestAccuracy, 
-            bestMacroF1,
-            bestMacroPrecision,
-            bestMacroRecall
-        );
-        
-        // Buat semua chart
-        createPerformanceChart(res.architecture_comparison);
-        createResourcesChart(res.architecture_comparison);
-        createEfficiencyChart(res.architecture_comparison);
-        createTrainingProgressCharts(res.training_histories);
-        
-        // Isi tabel perbandingan dengan data yang KONSISTEN
-        renderComparisonTable(res.architecture_results, res.best_architecture);
-        
-        console.log("✅ Architecture comparison berhasil dirender dengan data KONSISTEN");
-        
-        // Cek konsistensi otomatis
-        setTimeout(() => {
-            validateDataConsistency();
-        }, 1000);
-        
-    } else {
-        $('#architecture-comparison').hide();
-        console.log("⚠️ Data visualisasi tidak tersedia untuk architecture comparison");
-    }
-}
-
-// Fungsi untuk memuat data visualisasi saja - DIPERBAIKI
-function loadVisualizationData() {
-    $("#loading").show();
-    $("#statusMessage").html('<div class="alert alert-info">Memuat data visualisasi dari cache...</div>');
-    
-    $.ajax({
-        url: "/perhitungan/load-visualization-data",
-        type: "GET",
-        success: function(res) {
-            $("#loading").hide();
-            if (res.has_visualization_data) {
-                renderArchitectureComparison(res);
-                let successMsg = `<div class="alert alert-success">
-                    <i class="icon-chart"></i> Data visualisasi berhasil dimuat dari cache.`;
-                
-                if (res.best_architecture) {
-                    successMsg += `<br><strong>Arsitektur Terbaik:</strong> ${res.best_architecture} (Macro F1: ${res.best_macro_f1 || 0}%)`;
-                }
-                successMsg += `</div>`;
-                
-                $("#statusMessage").html(successMsg);
-                console.log("✅ Data visualisasi berhasil dimuat:", res);
-            } else {
-                let missingMsg = res.missing_components ? 
-                    `Komponen yang hilang: ${res.missing_components.join(', ')}` : 
-                    'Data tidak lengkap';
-                    
-                $("#statusMessage").html(`
-                    <div class="alert alert-warning">
-                        <i class="icon-warning"></i> ${res.message || "Data visualisasi tidak tersedia."}
-                        <br><small>${missingMsg}</small>
-                    </div>
-                `);
-                console.log("❌ Data visualisasi tidak lengkap:", res);
-            }
-        },
-        error: function(xhr, status, error) {
-            $("#loading").hide();
-            let errorMsg = xhr.responseJSON?.error || error || "Unknown error";
-            $("#statusMessage").html(`
-                <div class="alert alert-danger">
-                    <i class="icon-error"></i> Gagal memuat data visualisasi: ${errorMsg}
-                </div>
-            `);
-            console.log("❌ Gagal memuat data visualisasi:", errorMsg);
-        }
-    });
-}
+// =============================================
+// FUNGSI BANTU LAINNYA
+// =============================================
 
 // Fungsi untuk validasi konsistensi data
 function validateDataConsistency() {
-    $("#loading").show();
+    console.log("🔍 Memvalidasi konsistensi data...");
     
     $.ajax({
         url: "/perhitungan/validate-data-consistency",
         type: "GET",
         success: function(res) {
-            $("#loading").hide();
+            console.log("Hasil validasi konsistensi:", res);
             
             if (res.consistent) {
-                $("#consistency-message").html(`
-                    <span class="text-success">
-                        <i class="icon-check"></i> ${res.message}
-                    </span>
-                    <br><small>Arsitektur terbaik: <strong>${res.best_architecture}</strong> memiliki data yang sama di semua tempat.</small>
-                `);
-                $("#consistency-check").removeClass('alert-info').addClass('alert-success');
+                alert(`✅ SEMUA DATA KONSISTEN!\n\n` +
+                      `Arsitektur Terbaik: ${res.best_architecture}\n` +
+                      `Val Accuracy: ${res.best_accuracy}%\n` +
+                      `Macro F1: ${res.best_macro_f1}%\n` +
+                      `Sistem: ${res.system_version || 'universal'}`);
             } else {
-                let inconsistenciesHtml = "";
+                let inconsistencyMsg = `⚠️ ADA KETIDAKKONSISTENAN!\n\n` +
+                                      `Arsitektur Terbaik: ${res.best_architecture}\n`;
+                
                 if (res.inconsistencies && res.inconsistencies.length > 0) {
-                    inconsistenciesHtml = "<ul class='mb-0'>";
-                    res.inconsistencies.forEach(item => {
-                        inconsistenciesHtml += `
-                            <li>
-                                <strong>${item.field}:</strong> 
-                                Best Result=${item.best_result}%, 
-                                Tabel=${item.table}% 
-                                (Selisih: ${item.difference}%)
-                            </li>
-                        `;
+                    inconsistencyMsg += `\nKetidakkonsistenan:\n`;
+                    res.inconsistencies.forEach(inc => {
+                        inconsistencyMsg += `- ${inc.field}: best_result=${inc.best_result}%, tabel=${inc.table}% (selisih: ${inc.difference}%)\n`;
                     });
-                    inconsistenciesHtml += "</ul>";
                 }
                 
-                $("#consistency-message").html(`
-                    <span class="text-danger">
-                        <i class="icon-warning"></i> ${res.message || "Ada ketidakkonsistenan data!"}
-                    </span>
-                    ${inconsistenciesHtml}
-                `);
-                $("#consistency-check").removeClass('alert-info alert-success').addClass('alert-danger');
+                inconsistencyMsg += `\nSilakan clear cache dan train ulang model.`;
+                
+                alert(inconsistencyMsg);
             }
         },
         error: function(xhr) {
-            $("#loading").hide();
-            $("#consistency-message").html(`
-                <span class="text-warning">
-                    <i class="icon-error"></i> Gagal memvalidasi konsistensi data
-                </span>
-            `);
+            alert("Gagal melakukan validasi konsistensi: " + (xhr.responseJSON?.error || "Unknown error"));
         }
     });
 }
 
-// =============================================
-// FUNGSI UTAMA UNTUK RENDER DATA
-// =============================================
-
+// Fungsi untuk render tabel data
 function renderTable(data, totalRecords, displayedRecords) {
     if (!data || !data.length) {
         $("#reviews-table-body").html('<tr><td colspan="100" class="text-center">Tidak ada data untuk ditampilkan</td></tr>');
@@ -1097,6 +1321,7 @@ function renderTable(data, totalRecords, displayedRecords) {
     $("#reviews-table-body").html(tableRows);
 }
 
+// Fungsi untuk render evaluasi model
 function renderEvaluation(res) {
     if (!res.labels || !res.confusion) {
         $("#eval-info").html(`
@@ -1109,9 +1334,85 @@ function renderEvaluation(res) {
     
     const labels = res.labels;
     
-    // ... (kode render evaluation tetap sama)
+    // Metrik Utama
+    let mainMetrics = `
+        <div class="card mt-3">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="icon-bar-chart"></i> 📊 Metrik Evaluasi Utama</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h3>${res.macro_f1 || 0}%</h3>
+                                <h6>Macro F1-Score</h6>
+                                <small>Metrik utama (sensitif terhadap class imbalance)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <h3>${res.accuracy || 0}%</h3>
+                                <h6>Accuracy</h6>
+                                <small>Metrik sekunder</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <h3>${res.inference_time_ms || 0}ms</h3>
+                                <h6>Inference Time</h6>
+                                <small>per sample</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
     
-    $("#eval-info").html(/* kode evaluation tetap sama */);
+    // Confusion Matrix
+    let matrix = '';
+    if (res.confusion && res.confusion.length > 0) {
+        const cm = res.confusion;
+        const rowSums = cm.map(row => row.reduce((a, b) => a + b, 0));
+        
+        matrix = `
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5><i class="icon-grid"></i> 🎯 Confusion Matrix</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-center">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Aktual \ Prediksi</th>
+                                    ${labels.map(l => `<th>${l}</th>`).join("")}
+                                </tr>
+                            </thead>
+                            <tbody>`;
+        
+        cm.forEach((row, i) => {
+            matrix += `<tr>
+                <th class="text-left">${labels[i]}</th>
+                ${row.map((cell, j) => {
+                    const percentage = rowSums[i] > 0 ? ((cell / rowSums[i]) * 100).toFixed(1) + '%' : '0%';
+                    const isDiagonal = i === j;
+                    const cellClass = isDiagonal ? 'table-success' : 'table-danger';
+                    return `<td class="${cellClass}" title="${cell} samples (${percentage})">
+                        ${cell}<br><small class="text-muted">${percentage}</small>
+                    </td>`;
+                }).join("")}
+            </tr>`;
+        });
+        
+        matrix += `</tbody></table></div></div></div>`;
+    }
+    
+    $("#eval-info").html(mainMetrics + matrix);
 }
 
 // =============================================
@@ -1119,170 +1420,8 @@ function renderEvaluation(res) {
 // =============================================
 
 $(function () {
-    // Event handlers untuk chart controls
-    $('.chart-controls').on('click', 'button', function() {
-        const chartType = $(this).data('chart');
-        $('.chart-controls button').removeClass('active btn-outline-primary').addClass('btn-outline-secondary');
-        $(this).removeClass('btn-outline-secondary').addClass('active btn-outline-primary');
-        
-        if (chartType === 'neuron-comparison') {
-            $('#neuron-select').hide();
-            $('#training-detail').hide();
-            if (window.learningCurveData) {
-                createLearningCurveChart(window.learningCurveData);
-            }
-        } else if (chartType === 'training-progress') {
-            $('#neuron-select').show();
-        }
-    });
-
-    // Event handler untuk architecture comparison chart types
-    $('[data-chart-type]').click(function() {
-        const chartType = $(this).data('chart-type');
-        
-        // Update button states
-        $('[data-chart-type]').removeClass('active btn-outline-primary').addClass('btn-outline-secondary');
-        $(this).removeClass('btn-outline-secondary').addClass('active btn-outline-primary');
-        
-        // Show/hide chart sections
-        $('.chart-section').hide();
-        $(`#${chartType}-chart`).show();
-    });
-
-    // Event handler untuk tombol validasi konsistensi
-    $("#validate-consistency").click(function() {
-        validateDataConsistency();
-    });
-
-    $("#run-consistency-check").click(function() {
-        validateDataConsistency();
-    });
-
-    // Memuat data tersimpan saat halaman dimuat
-    function loadSavedData() {
-        $("#statusMessage").empty();
-        $("#loading").show();
-        
-        $.ajax({
-            url: "/perhitungan/load-result",
-            type: "GET",
-            success: res => {
-                $("#loading").hide();
-                if (res.train) {
-                    renderTable(res.train, res.total_records || res.train.length, res.displayed_records || res.train.length);
-                    renderEvaluation(res);
-                    
-                    // Tampilkan architecture comparison jika ada data
-                    if (res.has_visualization_data) {
-                        renderArchitectureComparison(res);
-                    }
-                    
-                    $('#review-table-box').show();
-                    $("#statusMessage").html(`<div class="alert alert-success"><i class="icon-check"></i> Data hasil berhasil dimuat.</div>`);
-                } else if (res.message) {
-                    $("#statusMessage").html(`<div class="alert alert-info">${res.message}</div>`);
-                    if (res.train) {
-                        renderTable(res.train, res.total_records, res.displayed_records);
-                        $('#review-table-box').show();
-                    }
-                }
-            },
-            error: xhr => {
-                $("#loading").hide();
-                if (xhr.status === 404) {
-                    $("#statusMessage").html(`<div class="alert alert-warning">${xhr.responseJSON?.error || "Tidak ada data tersimpan."}</div>`);
-                } else {
-                    $("#statusMessage").html(`<div class="alert alert-danger">${xhr.responseJSON?.error || "Gagal memuat data."}</div>`);
-                }
-            }
-        });
-    }
-
-    // Fungsi untuk memeriksa hasil
-    function checkExistingResult() {
-        $.ajax({
-            url: "/perhitungan/check-result",
-            type: "GET",
-            success: res => {
-                if (res.has_result) {
-                    $("#result-check").show();
-                    $("#upload-form").hide();
-                } else {
-                    $("#result-check").hide();
-                    $("#upload-form").show();
-                }
-            },
-            error: () => {
-                $("#result-check").hide();
-                $("#upload-form").show();
-            }
-        });
-    }
+    console.log("✅ SISTEM KONSISTENSI UNIVERSAL TELAH DIAKTIFKAN");
     
-    // Panggil saat halaman dimuat
-    checkExistingResult();
-    
-    // ... (kode event handler lainnya tetap sama)
-
-    // Event handler untuk form submit - DIMODIFIKASI
-    $("#upload-form").submit(function (e) {
-        e.preventDefault();
-        
-        // Sembunyikan form upload setelah submit
-        $("#upload-form").addClass('hidden-section');
-        
-        $("#statusMessage").empty();
-        $("#loading").show();
-        $("#optimization-results").hide();
-        $("#architecture-comparison").hide();
-        $("#review-table-box").hide();
-
-        const formData = new FormData(this);
-        $.ajax({
-            url: "/perhitungan/process",
-            type: "POST",
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: res => {
-                $("#loading").hide();
-                if (res.error) {
-                    $("#statusMessage").html(`<div class="alert alert-danger">${res.error}</div>`);
-                    // Tampilkan kembali form jika error
-                    $("#upload-form").removeClass('hidden-section');
-                } else {
-                    $("#statusMessage").html(`<div class="alert alert-success">${res.message}</div>`);
-                    
-                    // Tampilkan perbandingan arsitektur
-                    renderArchitectureComparison(res);
-                    
-                    if (res.train) {
-                        renderTable(res.train, res.total_records, res.displayed_records);
-                        renderEvaluation(res);
-                        $('#review-table-box').show();
-                    }
-                }
-            },
-            error: xhr => {
-                $("#loading").hide();
-                let errorMsg = "Gagal memproses.";
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMsg = xhr.responseJSON.error;
-                } else if (xhr.status === 0) {
-                    errorMsg = "Koneksi terputus. Periksa koneksi internet Anda.";
-                }
-                $("#statusMessage").html(`<div class="alert alert-danger">${errorMsg}</div>`);
-                // Tampilkan kembali form jika error
-                $("#upload-form").removeClass('hidden-section');
-            }
-        });
-    });
-
-    // =============================================
-// EVENT HANDLERS DAN INISIALISASI
-// =============================================
-
-$(function () {
     // Event handlers untuk chart controls
     $('.chart-controls').on('click', 'button', function() {
         const chartType = $(this).data('chart');
@@ -1317,20 +1456,38 @@ $(function () {
     $('#neuron-select').change(function() {
         const selectedNeuron = parseInt($(this).val());
         if (selectedNeuron) {
-            showTrainingProgress(selectedNeuron);
+            // showTrainingProgress(selectedNeuron);
         } else {
             $('#training-detail').hide();
         }
     });
 
-    // Event handler untuk view training detail dari grid results
-    $(document).on('click', '.view-training', function() {
-        const neurons = parseInt($(this).data('neurons'));
-        $('.chart-controls button[data-chart="training-progress"]').click();
-        $('#neuron-select').val(neurons).trigger('change');
+    // Event handler untuk tombol muat data visualisasi (UNIVERSAL)
+    $("#load-visualization-data").click(() => {
+        loadUniversalVisualizationData();
     });
 
-    // Memuat data tersimpan saat halaman dimuat
+    // Event handler untuk tombol validasi konsistensi
+    $("#validate-consistency").click(() => {
+        validateDataConsistency();
+    });
+
+    // Event handler untuk tombol debug cache
+    $("#debug-cache").click(() => {
+        $.ajax({
+            url: "/perhitungan/debug-cache",
+            type: "GET",
+            success: function(res) {
+                console.log("Cache debug info:", res);
+                alert("Cache debug information telah dicetak di console. Lihat developer tools (F12).");
+            },
+            error: function(xhr) {
+                alert("Gagal melakukan debug cache: " + (xhr.responseJSON?.error || "Unknown error"));
+            }
+        });
+    });
+
+    // Fungsi untuk memuat data tersimpan
     function loadSavedData() {
         $("#statusMessage").empty();
         $("#loading").show();
@@ -1346,7 +1503,7 @@ $(function () {
                     
                     // Tampilkan architecture comparison jika ada data
                     if (res.has_visualization_data) {
-                        renderArchitectureComparison(res);
+                        renderUniversalArchitectureComparison(res);
                     }
                     
                     $('#review-table-box').show();
@@ -1394,10 +1551,9 @@ $(function () {
     // Panggil saat halaman dimuat
     checkExistingResult();
     
-    // Event handler untuk tombol gunakan hasil sebelumnya - DIMODIFIKASI
+    // Event handler untuk tombol gunakan hasil sebelumnya
     $("#use-existing").click(() => {
-        // Sembunyikan opsi pilihan
-        hideSelectionOptions();
+        $("#result-check").addClass('hidden-section');
         
         $("#loading").show();
         $("#statusMessage").empty();
@@ -1417,11 +1573,8 @@ $(function () {
                 } else {
                     $("#statusMessage").html(`<div class="alert alert-success">${res.message}</div>`);
                     
-                    // Tampilkan hasil optimasi jika ada
-                    renderOptimizationResults(res);
-                    
-                    // Tampilkan perbandingan arsitektur
-                    renderArchitectureComparison(res);
+                    // Tampilkan perbandingan arsitektur dengan sistem universal
+                    renderUniversalArchitectureComparison(res);
                     
                     if (res.train) {
                         renderTable(res.train, res.total_records, res.displayed_records);
@@ -1437,31 +1590,18 @@ $(function () {
         });
     });
     
-    // Event handler untuk tombol latih model baru - DIMODIFIKASI
+    // Event handler untuk tombol latih model baru
     $("#train-new").click(() => {
-        // Sembunyikan opsi pilihan
-        hideSelectionOptions();
-        
+        $("#result-check").addClass('hidden-section');
         $("#upload-form").show();
         $("#optimization-results").hide();
         $("#architecture-comparison").hide();
     });
 
-    // Event handler untuk tombol muat data visualisasi
-    $("#load-visualization-data").click(() => {
-        loadVisualizationData();
-    });
-
-    // Event handler untuk tombol debug cache
-    $("#debug-cache").click(() => {
-        debugCache();
-    });
-
-    // Event handler untuk form submit - DIMODIFIKASI
+    // Event handler untuk form submit
     $("#upload-form").submit(function (e) {
         e.preventDefault();
         
-        // Sembunyikan form upload setelah submit
         $("#upload-form").addClass('hidden-section');
         
         $("#statusMessage").empty();
@@ -1481,16 +1621,12 @@ $(function () {
                 $("#loading").hide();
                 if (res.error) {
                     $("#statusMessage").html(`<div class="alert alert-danger">${res.error}</div>`);
-                    // Tampilkan kembali form jika error
                     $("#upload-form").removeClass('hidden-section');
                 } else {
                     $("#statusMessage").html(`<div class="alert alert-success">${res.message}</div>`);
                     
-                    // Tampilkan hasil optimasi
-                    renderOptimizationResults(res);
-                    
-                    // Tampilkan perbandingan arsitektur
-                    renderArchitectureComparison(res);
+                    // Tampilkan perbandingan arsitektur dengan sistem universal
+                    renderUniversalArchitectureComparison(res);
                     
                     if (res.train) {
                         renderTable(res.train, res.total_records, res.displayed_records);
@@ -1501,21 +1637,16 @@ $(function () {
             },
             error: xhr => {
                 $("#loading").hide();
-                let errorMsg = "Gagal memproses.";
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMsg = xhr.responseJSON.error;
-                } else if (xhr.status === 0) {
-                    errorMsg = "Koneksi terputus. Periksa koneksi internet Anda.";
-                }
+                let errorMsg = xhr.responseJSON?.error || "Gagal memproses.";
                 $("#statusMessage").html(`<div class="alert alert-danger">${errorMsg}</div>`);
-                // Tampilkan kembali form jika error
                 $("#upload-form").removeClass('hidden-section');
             }
         });
     });
 
+    // Event handler untuk tombol clear data
     $("#clear-data").click(() => {
-        if (confirm("Apakah Anda yakin ingin menghapus semua data dan model? Tindakan ini tidak dapat dibatalkan.")) {
+        if (confirm("Apakah Anda yakin ingin menghapus SEMUA data dan model?\n\n⚠️  Tindakan ini akan menghapus:\n• Model yang sudah dilatih\n• Cache visualisasi\n• Hasil perhitungan\n• Label encoder\n\nTindakan ini tidak dapat dibatalkan.")) {
             $.post("/perhitungan/clear", res => {
                 $("#statusMessage").html(`<div class="alert alert-info">${res.message}</div>`);
                 $("#table-header, #reviews-table-body, #eval-info, #data-info").empty();
@@ -1523,19 +1654,24 @@ $(function () {
                 $('#optimization-results').hide();
                 $('#architecture-comparison').hide();
                 
-                // Tampilkan kembali opsi pilihan setelah clear
+                // Reset dan tampilkan opsi awal
                 $("#result-check").removeClass('hidden-section').show();
-                checkExistingResult();
+                $("#upload-form").hide();
+                
+                // Refresh halaman untuk memastikan clean state
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
             }).fail(() => {
                 $("#statusMessage").html(`<div class="alert alert-danger">Gagal menghapus data.</div>`);
             });
         }
     });
 
+    // Event handler untuk tombol muat ulang data
     $("#load-saved-data").click(() => {
         loadSavedData();
     });
 });
 </script>
-
 {% endblock %}
