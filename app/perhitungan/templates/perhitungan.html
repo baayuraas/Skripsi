@@ -15,378 +15,335 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h3 class="mb-4">Train Model dengan Optimasi Neuron Otomatis</h3>
+<h3>Train Model dengan Optimasi Neuron Otomatis</h3>
 
-    <!-- Notification untuk hasil sebelumnya -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div id="result-check" class="d-none alert alert-info">
-                <p><strong>📁 Hasil perhitungan sebelumnya ditemukan!</strong></p>
-                <p>Apa yang ingin Anda lakukan?</p>
-                <div class="btn-group" role="group">
-                    <button id="use-existing" class="btn btn-success">
-                        <i class="icon-download"></i> Gunakan Hasil Sebelumnya
-                    </button>
-                    <button id="train-new" class="btn btn-primary">
-                        <i class="icon-refresh"></i> Latih Model Baru dengan Optimasi
-                    </button>
-                </div>
-            </div>
+<!-- Notification untuk hasil sebelumnya -->
+<div id="result-check" style="display: none;" class="alert alert-info">
+    <p><strong>📁 Hasil perhitungan sebelumnya ditemukan!</strong></p>
+    <p>Apa yang ingin Anda lakukan?</p>
+    <button id="use-existing" class="btn btn-success">
+        <i class="icon-download"></i> Gunakan Hasil Sebelumnya
+    </button>
+    <button id="train-new" class="btn btn-primary">
+        <i class="icon-refresh"></i> Latih Model Baru dengan Optimasi
+    </button>
+</div>
+
+<!-- Cache info section (dari frontend lama) -->
+<div id="cache-info" style="display: none;" class="alert alert-warning mt-2">
+    <p><strong>⚠️ Cache ditemukan dari sesi sebelumnya.</strong></p>
+    <p>Pilih opsi di bawah:</p>
+    <button id="use-cache" class="btn btn-warning">
+        <i class="icon-database"></i> Gunakan Cache
+    </button>
+    <button id="clear-cache" class="btn btn-outline-danger">
+        <i class="icon-trash"></i> Hapus Cache
+    </button>
+</div>
+
+<!-- Form upload file -->
+<form id="upload-form" method="post" enctype="multipart/form-data" style="display: none;">
+    <div class="form-group">
+        <label for="file"><strong>Pilih File CSV untuk Training:</strong></label>
+        <input type="file" name="file" id="file" accept=".csv" required class="form-control">
+        <small class="form-text text-muted">
+            File harus berisi kolom "Status" sebagai target dan fitur-fitur lainnya.
+        </small>
+    </div>
+    <button type="submit" class="btn btn-primary mt-2">
+        <i class="icon-upload"></i> Unggah dan Latih Model dengan Optimasi
+    </button>
+</form>
+
+<!-- Loading indicator -->
+<div id="loading" style="display: none;">
+    <div class="alert alert-info">
+        <h5><span class="loading-spinner"></span> Sedang melakukan optimasi neuron...</h5>
+        <p><strong>Proses optimasi mungkin memakan waktu beberapa menit:</strong></p>
+        <ul>
+            <li>🔍 <strong>Learning Curve Analysis</strong> - Menganalisis pola performa vs jumlah neuron</li>
+            <li>🎯 <strong>Grid Search</strong> - Mencari konfigurasi neuron optimal</li>
+            <li>⚡ <strong>Training Model Final</strong> - Melatih model dengan konfigurasi terbaik</li>
+            <li>🏗️ <strong>Architecture Comparison</strong> - Membandingkan berbagai arsitektur MLP</li>
+        </ul>
+        <div class="progress mt-3">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
         </div>
     </div>
+</div>
 
-    <!-- Cache info section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div id="cache-info" class="d-none alert alert-warning">
-                <p><strong>⚠️ Cache ditemukan dari sesi sebelumnya.</strong></p>
-                <p>Pilih opsi di bawah:</p>
-                <div class="btn-group" role="group">
-                    <button id="use-cache" class="btn btn-warning">
-                        <i class="icon-database"></i> Gunakan Cache
-                    </button>
-                    <button id="clear-cache" class="btn btn-outline-danger">
-                        <i class="icon-trash"></i> Hapus Cache
-                    </button>
-                </div>
-            </div>
+<!-- Status message -->
+<div id="statusMessage" class="mt-2"></div>
+
+<!-- Section untuk Architecture Comparison -->
+<div id="architecture-comparison" style="display: none;" class="mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="icon-bar-chart"></i> 📊 Perbandingan Arsitektur MLP</h4>
+            <small class="text-light">Sistem Konsistensi Universal v4.0</small>
         </div>
-    </div>
+        <div class="card-body">
+            <!-- Best Architecture Info -->
+            <div id="best-architecture-info" class="alert alert-success mt-4" style="display: none;">
+                <h5><i class="icon-trophy"></i> Arsitektur Terbaik: <span id="best-architecture-name"></span></h5>
+                <p class="mb-1"><strong>Hyperparameters:</strong> <span id="best-hyperparams"></span></p>
+                <p class="mb-0">
+                    <strong>Validation Accuracy:</strong> <span id="best-accuracy"></span>% | 
+                    <strong>Macro F1:</strong> <span id="best-macro-f1"></span>% |
+                    <strong>Macro Precision:</strong> <span id="best-macro-precision"></span>% |
+                    <strong>Macro Recall:</strong> <span id="best-macro-recall"></span>%
+                </p>
+            </div>
 
-    <!-- Form upload file -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <form id="upload-form" method="post" enctype="multipart/form-data" class="d-none">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="icon-upload"></i> Upload File CSV</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group mb-3">
-                            <label for="file" class="form-label"><strong>Pilih File CSV untuk Training:</strong></label>
-                            <input type="file" name="file" id="file" accept=".csv" required class="form-control">
-                            <div class="form-text">
-                                File harus berisi kolom "Status" sebagai target dan fitur-fitur lainnya.
-                                Ukuran maksimal: 10MB
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="icon-upload"></i> Unggah dan Latih Model dengan Optimasi
+            <!-- Chart Controls -->
+            <div class="mt-4">
+                <div class="col-md-12">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary active" data-chart-type="performance">
+                            <i class="icon-chart-line"></i> Metrik Performa
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-chart-type="resources">
+                            <i class="icon-desktop"></i> Penggunaan Resource
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-chart-type="efficiency">
+                            <i class="icon-clock"></i> Efisiensi Training
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-chart-type="training-progress">
+                            <i class="icon-graph"></i> Progress Training
                         </button>
                     </div>
                 </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Loading indicator -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div id="loading" class="d-none">
-                <div class="alert alert-info">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="spinner-border me-3" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <div>
-                            <h5 class="mb-0">Sedang melakukan optimasi neuron...</h5>
-                        </div>
-                    </div>
-                    <p><strong>Proses optimasi mungkin memakan waktu beberapa menit:</strong></p>
-                    <ul class="mb-0">
-                        <li>🔍 <strong>Learning Curve Analysis</strong> - Menganalisis pola performa vs jumlah neuron</li>
-                        <li>🎯 <strong>Grid Search</strong> - Mencari konfigurasi neuron optimal</li>
-                        <li>⚡ <strong>Training Model Final</strong> - Melatih model dengan konfigurasi terbaik</li>
-                        <li>🏗️ <strong>Architecture Comparison</strong> - Membandingkan berbagai arsitektur MLP</li>
-                    </ul>
-                    <div class="progress mt-3">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
-                    </div>
-                </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Status message -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div id="statusMessage"></div>
-        </div>
-    </div>
-
-    <!-- Section untuk Architecture Comparison -->
-    <div id="architecture-comparison" class="d-none mt-4">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="icon-bar-chart"></i> 📊 Perbandingan Arsitektur MLP</h4>
-                <small class="text-light">Sistem Konsistensi Universal v4.0</small>
-            </div>
-            <div class="card-body">
-                <!-- Best Architecture Info -->
-                <div id="best-architecture-info" class="d-none alert alert-success mt-4">
-                    <h5><i class="icon-trophy"></i> Arsitektur Terbaik: <span id="best-architecture-name"></span></h5>
-                    <p class="mb-1"><strong>Hyperparameters:</strong> <span id="best-hyperparams"></span></p>
-                    <p class="mb-0">
-                        <strong>Validation Accuracy:</strong> <span id="best-accuracy"></span>% | 
-                        <strong>Macro F1:</strong> <span id="best-macro-f1"></span>% |
-                        <strong>Macro Precision:</strong> <span id="best-macro-precision"></span>% |
-                        <strong>Macro Recall:</strong> <span id="best-macro-recall"></span>%
-                    </p>
-                </div>
-
-                <!-- Chart Controls -->
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-primary active" data-chart-type="performance">
-                                <i class="icon-chart-line"></i> Metrik Performa
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-chart-type="resources">
-                                <i class="icon-desktop"></i> Penggunaan Resource
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-chart-type="efficiency">
-                                <i class="icon-clock"></i> Efisiensi Training
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-chart-type="training-progress">
-                                <i class="icon-graph"></i> Progress Training
-                            </button>
+            <!-- Performance Metrics Chart -->
+            <div id="performance-chart" class="chart-section">
+                <div class="mt-4">
+                    <div class="col-md-8">
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
                         </div>
                     </div>
-                </div>
-
-                <!-- Performance Metrics Chart -->
-                <div id="performance-chart" class="chart-section mt-4">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="chart-container" style="position: relative; height: 400px;">
-                                <canvas id="performanceChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6><i class="icon-info"></i> Keterangan Metrik</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p><strong>Macro F1:</strong> Metrik utama untuk class imbalance</p>
-                                    <p><strong>Accuracy:</strong> Persentase prediksi benar secara keseluruhan</p>
-                                    <p><strong>Precision:</strong> Akurasi prediksi positif</p>
-                                    <p><strong>Recall:</strong> Kemampuan menemukan semua kasus positif</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Resource Usage Chart -->
-                <div id="resources-chart" class="chart-section d-none mt-4">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="chart-container" style="position: relative; height: 400px;">
-                                <canvas id="resourcesChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6><i class="icon-info"></i> Keterangan Resource</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p><strong>Parameter Count:</strong> Jumlah total parameter model</p>
-                                    <p><strong>Memory Usage:</strong> Rata-rata penggunaan memori selama training</p>
-                                    <p><strong>Training Time:</strong> Waktu total training dalam detik</p>
-                                    <p><strong>Inference Time:</strong> Waktu prediksi per sample (ms)</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Efficiency Chart -->
-                <div id="efficiency-chart" class="chart-section d-none mt-4">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="chart-container" style="position: relative; height: 400px;">
-                                <canvas id="efficiencyChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6><i class="icon-info"></i> Keterangan Efisiensi</h6>
-                                </div>
-                                <div class="card-body">
-                                    <p><strong>Accuracy/Time:</strong> Akurasi per detik training</p>
-                                    <p><strong>Accuracy/Params:</strong> Akurasi per juta parameter</p>
-                                    <p><strong>Accuracy/Memory:</strong> Akurasi per MB memori</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Training Progress Chart -->
-                <div id="training-progress-chart" class="chart-section d-none mt-4">
-                    <div class="row">
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6><i class="icon-graph"></i> Progress Training Semua Arsitektur</h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="chart-container" style="position: relative; height: 300px;">
-                                                <canvas id="accuracyProgressChart"></canvas>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="chart-container" style="position: relative; height: 300px;">
-                                                <canvas id="lossProgressChart"></canvas>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Detailed Comparison Table -->
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <div class="card mt-4">
-                            <div class="card-header bg-dark text-white">
-                                <h5 class="mb-0"><i class="icon-table"></i> 📋 Tabel Perbandingan Detail Arsitektur</h5>
-                                <small class="text-light">Data KONSISTEN untuk semua arsitektur terbaik</small>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="icon-info"></i> Keterangan Metrik</h6>
                             </div>
                             <div class="card-body">
-                                <div class="alert alert-info">
-                                    <i class="icon-info"></i> <strong>Sistem Konsistensi Universal:</strong> 
-                                    Data untuk arsitektur terbaik (ditandai dengan 🏆) dijamin konsisten antara 
-                                    informasi "Arsitektur Terbaik" dan tabel ini.
-                                </div>
-                                <div class="table-responsive">
-                                    <table class="table table-bordered table-striped table-hover" id="comparison-table">
-                                        <thead class="thead-dark">
-                                            <tr>
-                                                <th>Arsitektur</th>
-                                                <th>Macro F1</th>
-                                                <th>Val Accuracy</th>
-                                                <th>Macro Precision</th>
-                                                <th>Macro Recall</th>
-                                                <th>Inference Time</th>
-                                                <th>Memory</th>
-                                                <th>Training Time</th>
-                                                <th>Parameters</th>
-                                                <th>Epochs Used</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                                <div class="mt-2">
-                                    <small class="text-muted">
-                                        <span class="badge bg-success">Excellent</span>
-                                        <span class="badge bg-primary">Good</span>
-                                        <span class="badge bg-warning">Fair</span>
-                                        <span class="badge bg-secondary">Basic</span>
-                                        <span class="badge bg-danger">Best (🏆)</span>
-                                    </small>
-                                </div>
+                                <p><strong>Macro F1:</strong> Metrik utama untuk class imbalance</p>
+                                <p><strong>Accuracy:</strong> Persentase prediksi benar secara keseluruhan</p>
+                                <p><strong>Precision:</strong> Akurasi prediksi positif</p>
+                                <p><strong>Recall:</strong> Kemampuan menemukan semua kasus positif</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Section untuk optimization results -->
-    <div id="optimization-results" class="d-none mt-4">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0"><i class="icon-chart"></i> 📊 Hasil Optimasi Neuron</h4>
-            </div>
-            <div class="card-body">
-                <div id="best-config-display" class="alert alert-success">
-                    <h5><i class="icon-trophy"></i> Konfigurasi Terbaik</h5>
-                    <p id="best-config-text" class="mb-0"></p>
-                </div>
-                
+            <!-- Resource Usage Chart -->
+            <div id="resources-chart" class="chart-section" style="display: none;">
                 <div class="row">
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-header">
-                                <h5><i class="icon-line-chart"></i> 📈 Learning Curve Analysis</h5>
-                                <div class="chart-controls mt-2">
-                                    <div class="btn-group" role="group">
-                                        <button class="btn btn-sm btn-outline-primary active" data-chart="neuron-comparison">
-                                            Perbandingan Neuron
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary" data-chart="training-progress">
-                                            Progress Training
-                                        </button>
-                                    </div>
-                                    <select id="neuron-select" class="form-select form-select-sm mt-2 d-none">
-                                        <option value="">Pilih Jumlah Neuron</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="chart-container" style="position: relative; height: 300px;">
-                                    <canvas id="learningCurveChart"></canvas>
-                                </div>
-                            </div>
+                    <div class="col-md-8">
+                        <div class="chart-container">
+                            <canvas id="resourcesChart"></canvas>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card h-100">
+                    <div class="col-md-4">
+                        <div class="card">
                             <div class="card-header">
-                                <h5><i class="icon-table"></i> 🎯 Hasil Grid Search</h5>
+                                <h6><i class="icon-info"></i> Keterangan Resource</h6>
                             </div>
                             <div class="card-body">
-                                <p class="text-muted">Perbandingan berbagai konfigurasi neuron</p>
-                                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                                    <table class="table table-sm table-bordered table-hover" id="grid-results-table">
-                                        <thead class="thead-light">
-                                            <tr>
-                                                <th>Layer 1</th>
-                                                <th>Layer 2</th>
-                                                <th>Train Acc</th>
-                                                <th>Val Acc</th>
-                                                <th>Gap</th>
-                                                <th>Detail</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                                <small class="text-muted mt-2 d-block">* Hijau = konfigurasi terbaik</small>
+                                <p><strong>Parameter Count:</strong> Jumlah total parameter model</p>
+                                <p><strong>Memory Usage:</strong> Rata-rata penggunaan memori selama training</p>
+                                <p><strong>Training Time:</strong> Waktu total training dalam detik</p>
+                                <p><strong>Inference Time:</strong> Waktu prediksi per sample (ms)</p>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Detail Training Progress -->
-                <div id="training-detail" class="d-none mt-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="icon-graph"></i> Detail Progress Training</h5>
+            <!-- Efficiency Chart -->
+            <div id="efficiency-chart" class="chart-section" style="display: none;">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="chart-container">
+                            <canvas id="efficiencyChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h6><i class="icon-info"></i> Keterangan Efisiensi</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Accuracy/Time:</strong> Akurasi per detik training</p>
+                                <p><strong>Accuracy/Params:</strong> Akurasi per juta parameter</p>
+                                <p><strong>Accuracy/Memory:</strong> Akurasi per MB memori</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Training Progress Chart -->
+            <div id="training-progress-chart" class="chart-section" style="display: none;">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6><i class="icon-graph"></i> Progress Training Semua Arsitektur</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <canvas id="accuracyProgressChart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <canvas id="lossProgressChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Comparison Table -->
+            <div class="mt-4">
+                <div class="col-md-12">
+                    <div class="card mt-4">
+                        <div class="card-header bg-dark text-white">
+                            <h5><i class="icon-table"></i> 📋 Tabel Perbandingan Detail Arsitektur</h5>
+                            <small class="text-light">Data KONSISTEN untuk semua arsitektur terbaik</small>
                         </div>
                         <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="chart-container" style="position: relative; height: 300px;">
-                                        <canvas id="accuracyChart"></canvas>
-                                    </div>
+                            <div class="alert alert-info">
+                                <i class="icon-info"></i> <strong>Sistem Konsistensi Universal:</strong> 
+                                Data untuk arsitektur terbaik (ditandai dengan 🏆) dijamin konsisten antara 
+                                informasi "Arsitektur Terbaik" dan tabel ini.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped table-hover" id="comparison-table">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th>Arsitektur</th>
+                                            <th>Macro F1</th>
+                                            <th>Val Accuracy</th>
+                                            <th>Macro Precision</th>
+                                            <th>Macro Recall</th>
+                                            <th>Inference Time</th>
+                                            <th>Memory</th>
+                                            <th>Training Time</th>
+                                            <th>Parameters</th>
+                                            <th>Epochs Used</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <span class="badge bg-success">Excellent</span>
+                                    <span class="badge bg-primary">Good</span>
+                                    <span class="badge bg-warning">Fair</span>
+                                    <span class="badge bg-secondary">Basic</span>
+                                    <span class="badge bg-danger">Best (🏆)</span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section untuk optimization results (dari frontend lama) -->
+<div id="optimization-results" style="display: none;" class="mt-4">
+    <div class="card">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0"><i class="icon-chart"></i> 📊 Hasil Optimasi Neuron</h4>
+        </div>
+        <div class="card-body">
+            <div id="best-config-display" class="alert alert-success">
+                <h5><i class="icon-trophy"></i> Konfigurasi Terbaik</h5>
+                <p id="best-config-text" class="mb-0"></p>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="icon-line-chart"></i> 📈 Learning Curve Analysis</h5>
+                            <div class="chart-controls mt-2">
+                                <button class="btn btn-sm btn-outline-primary active" data-chart="neuron-comparison">
+                                    Perbandingan Neuron
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" data-chart="training-progress">
+                                    Progress Training
+                                </button>
+                                <select id="neuron-select" class="form-select form-select-sm" style="display: none;">
+                                    <option value="">Pilih Jumlah Neuron</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="learningCurveChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="icon-table"></i> 🎯 Hasil Grid Search</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Perbandingan berbagai konfigurasi neuron</p>
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-sm table-bordered table-hover" id="grid-results-table">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Layer 1</th>
+                                            <th>Layer 2</th>
+                                            <th>Train Acc</th>
+                                            <th>Val Acc</th>
+                                            <th>Gap</th>
+                                            <th>Detail</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <small class="text-muted">* Hijau = konfigurasi terbaik</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Training Progress -->
+            <div id="training-detail" class="mt-4" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="icon-graph"></i> Detail Progress Training</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="chart-container">
+                                    <canvas id="accuracyChart"></canvas>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="chart-container" style="position: relative; height: 300px;">
-                                        <canvas id="lossChart"></canvas>
-                                    </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="chart-container">
+                                    <canvas id="lossChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -395,84 +352,62 @@
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Results table and controls -->
-    <div id="review-table-box" class="d-none">
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="btn-toolbar mb-3" role="toolbar">
-                    <div class="btn-group me-2 mb-2" role="group">
-                        <button id="clear-data" class="btn btn-danger">
-                            <i class="icon-trash"></i> Hapus Data & Model
-                        </button>
-                    </div>
-                    <div class="btn-group me-2 mb-2" role="group">
-                        <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/model_mlp_custom.keras'">
-                            <i class="icon-download"></i> Download Model
-                        </button>
-                        <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/label_encoder.pkl'">
-                            <i class="icon-download"></i> Download Label Encoder
-                        </button>
-                        <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/hasil_perhitungan.csv'">
-                            <i class="icon-download"></i> Download Hasil
-                        </button>
-                    </div>
-                    <div class="btn-group me-2 mb-2" role="group">
-                        <button id="load-saved-data" class="btn btn-outline-secondary">
-                            <i class="icon-refresh"></i> Muat Ulang Data
-                        </button>
-                        <button id="load-visualization-data" class="btn btn-outline-info">
-                            <i class="icon-chart"></i> Muat Data Visualisasi
-                        </button>
-                    </div>
-                    <div class="btn-group mb-2" role="group">
-                        <button id="debug-cache" class="btn btn-outline-warning">
-                            <i class="icon-bug"></i> Debug Cache
-                        </button>
-                        <button id="validate-consistency" class="btn btn-outline-success">
-                            <i class="icon-check"></i> Validasi Konsistensi
-                        </button>
-                        <button id="toggle-optimization-view" class="btn btn-outline-primary">
-                            <i class="icon-eye"></i> Tampilkan Optimasi
-                        </button>
-                    </div>
-                </div>
-            </div>
+<!-- Results table and controls -->
+<div id="review-table-box" style="display: none;">
+    <div class="mt-3">
+        <div class="btn-group" role="group">
+            <button id="clear-data" class="btn btn-danger">
+                <i class="icon-trash"></i> Hapus Data & Model
+            </button>
+            <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/model_mlp_custom.keras'">
+                <i class="icon-download"></i> Download Model
+            </button>
+            <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/label_encoder.pkl'">
+                <i class="icon-download"></i> Download Label Encoder
+            </button>
+            <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/hasil_perhitungan.csv'">
+                <i class="icon-download"></i> Download Hasil
+            </button>
+            <button id="load-saved-data" class="btn btn-outline-secondary">
+                <i class="icon-refresh"></i> Muat Ulang Data
+            </button>
+            <button id="load-visualization-data" class="btn btn-outline-info">
+                <i class="icon-chart"></i> Muat Data Visualisasi
+            </button>
+            <button id="debug-cache" class="btn btn-outline-warning">
+                <i class="icon-bug"></i> Debug Cache
+            </button>
+            <button id="validate-consistency" class="btn btn-outline-success">
+                <i class="icon-check"></i> Validasi Konsistensi
+            </button>
+            <button id="toggle-optimization-view" class="btn btn-outline-primary">
+                <i class="icon-eye"></i> Tampilkan Optimasi
+            </button>
         </div>
+    </div>
 
-        <!-- Info data -->
-        <div class="row mt-3">
-            <div class="col-12">
-                <div id="data-info"></div>
-            </div>
+    <!-- Info data -->
+    <div id="data-info" class="mt-3"></div>
+
+    <!-- Tabel data -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5><i class="icon-table"></i> Hasil Prediksi</h5>
         </div>
-
-        <!-- Tabel data -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="icon-table"></i> Hasil Prediksi</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-striped">
-                                <thead id="table-header" class="thead-light"></thead>
-                                <tbody id="reviews-table-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Evaluasi model -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div id="eval-info"></div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead id="table-header" class="thead-light"></thead>
+                    <tbody id="reviews-table-body"></tbody>
+                </table>
             </div>
         </div>
     </div>
+
+    <!-- Evaluasi model -->
+    <div id="eval-info" class="mt-4"></div>
 </div>
 {% endblock %}
 
@@ -498,130 +433,45 @@ let currentComparisonData = null;
 let currentTrainingHistories = null;
 let currentOptimizationData = null;
 
-// Flag untuk mencegah multiple resize
-let isResizing = false;
-
 // Resize handler untuk chart
 let resizeTimer;
-$(window).on('resize.charts', function() {
-    if (isResizing) return;
-    isResizing = true;
-    
+$(window).on('resize', function() {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
+    resizeTimer = setTimeout(function() {
         if (currentComparisonData) {
             recreateAllCharts();
         }
-        isResizing = false;
     }, 250);
 });
+
+function recreateAllCharts() {
+    if (performanceChart && currentComparisonData) {
+        performanceChart.destroy();
+        createPerformanceChart(currentComparisonData);
+    }
+    if (resourcesChart && currentComparisonData) {
+        resourcesChart.destroy();
+        createResourcesChart(currentComparisonData);
+    }
+    if (efficiencyChart && currentComparisonData) {
+        efficiencyChart.destroy();
+        createEfficiencyChart(currentComparisonData);
+    }
+    if (accuracyProgressChart && currentTrainingHistories) {
+        accuracyProgressChart.destroy();
+        lossProgressChart.destroy();
+        createTrainingProgressCharts(currentTrainingHistories);
+    }
+}
 
 // =============================================
 // UTILITY FUNCTIONS
 // =============================================
 
-function showLoading(message = "Sedang memproses...") {
-    $("#loading").removeClass('d-none').html(`
-        <div class="alert alert-info">
-            <div class="d-flex align-items-center mb-3">
-                <div class="spinner-border me-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <div>
-                    <h5 class="mb-0">${message}</h5>
-                </div>
-            </div>
-            <div class="progress mt-2" style="height: 6px;">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
-            </div>
-        </div>
-    `);
-}
-
-function hideLoading() {
-    $("#loading").addClass('d-none');
-}
-
-function showMessage(type, message) {
-    const alertClass = {
-        'success': 'alert-success',
-        'error': 'alert-danger',
-        'warning': 'alert-warning',
-        'info': 'alert-info'
-    }[type] || 'alert-info';
-    
-    $("#statusMessage").html(`
-        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-            <i class="icon-${type === 'error' ? 'warning' : type}"></i> ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    `);
-}
-
-function clearMessage() {
-    $("#statusMessage").empty();
-}
-
 function hideSelectionOptions() {
-    $("#result-check").addClass('d-none');
-    $("#cache-info").addClass('d-none');
+    $("#result-check").addClass('hidden-section');
+    $("#cache-info").addClass('hidden-section');
     console.log("✅ Opsi pilihan disembunyikan");
-}
-
-function destroyAllCharts() {
-    const charts = [
-        learningCurveChart, accuracyChart, lossChart, performanceChart,
-        resourcesChart, efficiencyChart, accuracyProgressChart, lossProgressChart
-    ];
-    
-    charts.forEach(chart => {
-        if (chart && typeof chart.destroy === 'function') {
-            try {
-                chart.destroy();
-            } catch (e) {
-                console.warn('Error destroying chart:', e);
-            }
-        }
-    });
-}
-
-function recreateAllCharts() {
-    if (performanceChart && currentComparisonData) {
-        try {
-            performanceChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying performance chart:', e);
-        }
-        createPerformanceChart(currentComparisonData);
-    }
-    
-    if (resourcesChart && currentComparisonData) {
-        try {
-            resourcesChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying resources chart:', e);
-        }
-        createResourcesChart(currentComparisonData);
-    }
-    
-    if (efficiencyChart && currentComparisonData) {
-        try {
-            efficiencyChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying efficiency chart:', e);
-        }
-        createEfficiencyChart(currentComparisonData);
-    }
-    
-    if (accuracyProgressChart && currentTrainingHistories) {
-        try {
-            accuracyProgressChart.destroy();
-            lossProgressChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying progress charts:', e);
-        }
-        createTrainingProgressCharts(currentTrainingHistories);
-    }
 }
 
 // =============================================
@@ -786,11 +636,48 @@ function renderUniversalComparisonTable(architectureResults, bestArchitectureRes
     });
     
     console.log("✅ Tabel berhasil dirender dengan sistem universal");
+    
+    // Tambahkan CSS untuk highlight
+    if (!$('#universal-styles').length) {
+        $('head').append(`
+            <style id="universal-styles">
+                .best-architecture-row {
+                    background-color: #e8f5e9 !important;
+                    font-weight: bold;
+                    border-left: 4px solid #28a745 !important;
+                }
+                .table-excellent { background-color: #d1ecf1 !important; }
+                .table-good { background-color: #fff3cd !important; }
+                .table-fair { background-color: #f8d7da !important; }
+                .table-basic { background-color: #e2e3e5 !important; }
+                .best-badge {
+                    display: inline-block;
+                    margin-left: 5px;
+                    font-size: 12px;
+                    animation: pulse 2s infinite;
+                }
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+                .universal-best-info {
+                    border-left: 5px solid #28a745 !important;
+                    background: linear-gradient(135deg, #e8f5e9 0%, #d4edda 100%) !important;
+                    animation: slideIn 0.5s ease-out;
+                }
+                @keyframes slideIn {
+                    from { transform: translateY(-10px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+            </style>
+        `);
+    }
 }
 
 function showUniversalBestArchitectureInfo(bestArchitecture, bestHyperparams, bestAccuracy, bestMacroF1, bestMacroPrecision, bestMacroRecall) {
     if (bestArchitecture) {
-        $('#best-architecture-info').removeClass('d-none');
+        $('#best-architecture-info').show();
         $('#best-architecture-name').text(bestArchitecture);
         $('#best-accuracy').text(bestAccuracy.toFixed(2));
         $('#best-macro-f1').text(bestMacroF1.toFixed(2));
@@ -812,13 +699,13 @@ function showUniversalBestArchitectureInfo(bestArchitecture, bestHyperparams, be
         
         console.log(`🏆 Menampilkan info arsitektur terbaik: ${bestArchitecture}`);
     } else {
-        $('#best-architecture-info').addClass('d-none');
+        $('#best-architecture-info').hide();
     }
 }
 
 function renderUniversalArchitectureComparison(res) {
     if (res.has_visualization_data && res.architecture_comparison && res.training_histories) {
-        $('#architecture-comparison').removeClass('d-none');
+        $('#architecture-comparison').show();
         
         console.log("🔄 RENDERING ARCHITECTURE COMPARISON DENGAN SISTEM UNIVERSAL...");
         
@@ -861,7 +748,7 @@ function renderUniversalArchitectureComparison(res) {
         
         console.log("✅ Architecture comparison berhasil dirender dengan SISTEM UNIVERSAL");
     } else {
-        $('#architecture-comparison').addClass('d-none');
+        $('#architecture-comparison').hide();
         console.log("⚠️ Data visualisasi tidak tersedia untuk architecture comparison");
     }
 }
@@ -908,21 +795,14 @@ function verifyFrontendConsistency(architectureResults, bestArchitectureResult) 
 }
 
 // =============================================
-// CHART FUNCTIONS
+// CHART FUNCTIONS (GABUNGAN)
 // =============================================
 
 function createPerformanceChart(comparisonData) {
-    const ctx = document.getElementById('performanceChart');
-    if (!ctx) return;
-    
-    const canvasCtx = ctx.getContext('2d');
+    const ctx = document.getElementById('performanceChart').getContext('2d');
     
     if (performanceChart) {
-        try {
-            performanceChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying performance chart:', e);
-        }
+        performanceChart.destroy();
     }
     
     const colors = {
@@ -944,7 +824,7 @@ function createPerformanceChart(comparisonData) {
             'rgba(255, 205, 86, 0.8)' : colors['Macro F1'];
     });
     
-    performanceChart = new Chart(canvasCtx, {
+    performanceChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: comparisonData.labels,
@@ -1064,20 +944,13 @@ function createPerformanceChart(comparisonData) {
 }
 
 function createResourcesChart(comparisonData) {
-    const ctx = document.getElementById('resourcesChart');
-    if (!ctx) return;
-    
-    const canvasCtx = ctx.getContext('2d');
+    const ctx = document.getElementById('resourcesChart').getContext('2d');
     
     if (resourcesChart) {
-        try {
-            resourcesChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying resources chart:', e);
-        }
+        resourcesChart.destroy();
     }
     
-    resourcesChart = new Chart(canvasCtx, {
+    resourcesChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: comparisonData.labels,
@@ -1145,17 +1018,10 @@ function createResourcesChart(comparisonData) {
 }
 
 function createEfficiencyChart(comparisonData) {
-    const ctx = document.getElementById('efficiencyChart');
-    if (!ctx) return;
-    
-    const canvasCtx = ctx.getContext('2d');
+    const ctx = document.getElementById('efficiencyChart').getContext('2d');
     
     if (efficiencyChart) {
-        try {
-            efficiencyChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying efficiency chart:', e);
-        }
+        efficiencyChart.destroy();
     }
     
     const accuracyPerTime = comparisonData.accuracy.map((acc, i) => 
@@ -1170,7 +1036,7 @@ function createEfficiencyChart(comparisonData) {
         comparisonData.parameters[i] > 0 ? (acc / (comparisonData.parameters[i] / 1000000)).toFixed(2) : 0
     );
     
-    efficiencyChart = new Chart(canvasCtx, {
+    efficiencyChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: comparisonData.labels,
@@ -1243,17 +1109,8 @@ function createTrainingProgressCharts(trainingHistories) {
         return;
     }
     
-    const accuracyCtx = document.getElementById('accuracyProgressChart');
-    if (!accuracyCtx) return;
-    
-    const accuracyCanvasCtx = accuracyCtx.getContext('2d');
-    if (accuracyProgressChart) {
-        try {
-            accuracyProgressChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying accuracy progress chart:', e);
-        }
-    }
+    const accuracyCtx = document.getElementById('accuracyProgressChart').getContext('2d');
+    if (accuracyProgressChart) accuracyProgressChart.destroy();
     
     const accuracyDatasets = [];
     const lossDatasets = [];
@@ -1267,6 +1124,7 @@ function createTrainingProgressCharts(trainingHistories) {
     
     let colorIndex = 0;
     for (const [modelName, history] of Object.entries(trainingHistories)) {
+        const epochs = Array.from({length: history.accuracy.length}, (_, i) => i + 1);
         const color = colors[colorIndex % colors.length];
         
         accuracyDatasets.push({
@@ -1313,7 +1171,7 @@ function createTrainingProgressCharts(trainingHistories) {
     const maxEpochs = Math.max(...Object.values(trainingHistories).map(h => h.accuracy.length));
     const epochLabels = Array.from({length: maxEpochs}, (_, i) => i + 1);
     
-    accuracyProgressChart = new Chart(accuracyCanvasCtx, {
+    accuracyProgressChart = new Chart(accuracyCtx, {
         type: 'line',
         data: {
             labels: epochLabels,
@@ -1326,9 +1184,6 @@ function createTrainingProgressCharts(trainingHistories) {
                 title: {
                     display: true,
                     text: 'Training & Validation Accuracy Progress'
-                },
-                legend: {
-                    display: accuracyDatasets.length <= 8
                 }
             },
             scales: {
@@ -1350,19 +1205,10 @@ function createTrainingProgressCharts(trainingHistories) {
         }
     });
     
-    const lossCtx = document.getElementById('lossProgressChart');
-    if (!lossCtx) return;
+    const lossCtx = document.getElementById('lossProgressChart').getContext('2d');
+    if (lossProgressChart) lossProgressChart.destroy();
     
-    const lossCanvasCtx = lossCtx.getContext('2d');
-    if (lossProgressChart) {
-        try {
-            lossProgressChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying loss progress chart:', e);
-        }
-    }
-    
-    lossProgressChart = new Chart(lossCanvasCtx, {
+    lossProgressChart = new Chart(lossCtx, {
         type: 'line',
         data: {
             labels: epochLabels,
@@ -1375,9 +1221,6 @@ function createTrainingProgressCharts(trainingHistories) {
                 title: {
                     display: true,
                     text: 'Training & Validation Loss Progress'
-                },
-                legend: {
-                    display: lossDatasets.length <= 8
                 }
             },
             scales: {
@@ -1399,25 +1242,15 @@ function createTrainingProgressCharts(trainingHistories) {
     });
 }
 
+// =============================================
+// OPTIMIZATION RESULTS FUNCTIONS (dari frontend lama)
+// =============================================
+
 function createLearningCurveChart(lcData) {
-    const ctx = document.getElementById('learningCurveChart');
-    if (!ctx) {
-        $("#learningCurveChart").closest('.card-body').html(`
-            <div class="alert alert-warning">
-                <i class="icon-warning"></i> Canvas tidak ditemukan.
-            </div>
-        `);
-        return;
-    }
-    
-    const canvasCtx = ctx.getContext('2d');
+    const ctx = document.getElementById('learningCurveChart').getContext('2d');
     
     if (learningCurveChart) {
-        try {
-            learningCurveChart.destroy();
-        } catch (e) {
-            console.warn('Error destroying learning curve chart:', e);
-        }
+        learningCurveChart.destroy();
     }
     
     if (!lcData || !lcData.neuron_counts || !lcData.train_scores || !lcData.val_scores) {
@@ -1429,7 +1262,7 @@ function createLearningCurveChart(lcData) {
         return;
     }
     
-    learningCurveChart = new Chart(canvasCtx, {
+    learningCurveChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: lcData.neuron_counts,
@@ -1497,13 +1330,9 @@ function createLearningCurveChart(lcData) {
     });
 }
 
-// =============================================
-// OPTIMIZATION RESULTS FUNCTIONS
-// =============================================
-
 function renderOptimizationResults(res) {
     if (res.best_config || res.learning_curve_data || res.grid_results) {
-        $("#optimization-results").removeClass('d-none');
+        $("#optimization-results").show();
         currentOptimizationData = res;
         
         window.learningCurveData = res.learning_curve_data;
@@ -1564,12 +1393,12 @@ function renderOptimizationResults(res) {
             `);
         }
     } else {
-        $("#optimization-results").addClass('d-none');
+        $("#optimization-results").hide();
     }
 }
 
 // =============================================
-// DATA RENDERING FUNCTIONS
+// DATA RENDERING FUNCTIONS (GABUNGAN)
 // =============================================
 
 function renderTable(data, totalRecords, displayedRecords) {
@@ -1590,19 +1419,10 @@ function renderTable(data, totalRecords, displayedRecords) {
     
     $("#table-header").html(`<tr><th>#</th>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`);
     
-    // Virtual scroll untuk data besar
-    if (data.length > 1000) {
-        renderTableWithVirtualScroll(data, headers);
-    } else {
-        renderFullTable(data, headers);
-    }
-}
-
-function renderFullTable(data, headers) {
     const tableRows = data.map((row, i) => {
         const cells = headers.map(h => {
             const mismatch = h === "Prediksi" && row["Status"] && row["Prediksi"] !== row["Status"];
-            const cell = row[h] !== null && row[h] !== undefined ? row[h] : "-";
+            const cell = row[h] ?? "-";
             return `<td style="${mismatch ? 'background:#f8d7da;color:#721c24; font-weight:bold;' : ''}">${cell}</td>`;
         }).join("");
         
@@ -1610,60 +1430,6 @@ function renderFullTable(data, headers) {
     }).join("");
     
     $("#reviews-table-body").html(tableRows);
-}
-
-function renderTableWithVirtualScroll(data, headers) {
-    // Implementasi sederhana virtual scroll
-    const container = $("#reviews-table-body");
-    const pageSize = 100;
-    let currentPage = 0;
-    
-    function renderPage(page) {
-        const start = page * pageSize;
-        const end = Math.min(start + pageSize, data.length);
-        const pageData = data.slice(start, end);
-        
-        const rows = pageData.map((row, i) => {
-            const cells = headers.map(h => {
-                const mismatch = h === "Prediksi" && row["Status"] && row["Prediksi"] !== row["Status"];
-                const cell = row[h] !== null && row[h] !== undefined ? row[h] : "-";
-                return `<td style="${mismatch ? 'background:#f8d7da;color:#721c24; font-weight:bold;' : ''}">${cell}</td>`;
-            }).join("");
-            
-            return `<tr><td class="text-center">${start + i + 1}</td>${cells}</tr>`;
-        }).join("");
-        
-        container.html(rows);
-        
-        // Tambahkan pagination controls
-        const totalPages = Math.ceil(data.length / pageSize);
-        if ($('#table-pagination').length === 0) {
-            container.after(`
-                <div id="table-pagination" class="d-flex justify-content-center mt-3">
-                    <nav>
-                        <ul class="pagination pagination-sm">
-                            <li class="page-item ${page === 0 ? 'disabled' : ''}">
-                                <button class="page-link" onclick="changePage(${page - 1})">← Sebelumnya</button>
-                            </li>
-                            <li class="page-item disabled">
-                                <span class="page-link">Halaman ${page + 1} dari ${totalPages}</span>
-                            </li>
-                            <li class="page-item ${page === totalPages - 1 ? 'disabled' : ''}">
-                                <button class="page-link" onclick="changePage(${page + 1})">Selanjutnya →</button>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
-            `);
-        }
-    }
-    
-    window.changePage = function(newPage) {
-        currentPage = newPage;
-        renderPage(currentPage);
-    };
-    
-    renderPage(currentPage);
 }
 
 function renderEvaluation(res) {
@@ -1678,7 +1444,7 @@ function renderEvaluation(res) {
     
     const labels = res.labels;
     
-    // 1. Metrik Utama (Macro F1) dan Sekunder
+    // 1. Metrik Utama (Macro F1) dan Sekunder - DARI FRONTEND LAMA
     let mainMetrics = `
         <div class="card mt-3">
             <div class="card-header bg-primary text-white">
@@ -1686,7 +1452,7 @@ function renderEvaluation(res) {
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-3 text-center mb-3">
+                    <div class="col-md-3 text-center">
                         <div class="card bg-success text-white">
                             <div class="card-body">
                                 <h3>${res.macro_f1 || 0}%</h3>
@@ -1695,7 +1461,7 @@ function renderEvaluation(res) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 text-center mb-3">
+                    <div class="col-md-3 text-center">
                         <div class="card bg-info text-white">
                             <div class="card-body">
                                 <h3>${res.accuracy || 0}%</h3>
@@ -1704,7 +1470,7 @@ function renderEvaluation(res) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 text-center mb-3">
+                    <div class="col-md-3 text-center">
                         <div class="card bg-warning text-white">
                             <div class="card-body">
                                 <h3>${res.inference_time_ms || 0}ms</h3>
@@ -1713,7 +1479,7 @@ function renderEvaluation(res) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 text-center mb-3">
+                    <div class="col-md-3 text-center">
                         <div class="card bg-danger text-white">
                             <div class="card-body">
                                 <h3>${res.macro_precision || res.macro_f1 || 0}%</h3>
@@ -1723,8 +1489,8 @@ function renderEvaluation(res) {
                         </div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
+                <div class="row mt-3">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-body text-center">
                                 <h5>${res.avg_memory_mb || 0} MB</h5>
@@ -1732,7 +1498,7 @@ function renderEvaluation(res) {
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-6">
                         <div class="card">
                             <div class="card-body text-center">
                                 <h5>${res.total_params ? (res.total_params / 1000000).toFixed(2) + 'M' : 'N/A'}</h5>
@@ -1744,7 +1510,7 @@ function renderEvaluation(res) {
             </div>
         </div>`;
     
-    // 2. Precision, Recall, F1 per Kelas
+    // 2. Precision, Recall, F1 per Kelas - DARI FRONTEND LAMA
     let classMetrics = '';
     if (res.precision_per_class && res.recall_per_class && res.f1_per_class) {
         let classRows = '';
@@ -1801,7 +1567,7 @@ function renderEvaluation(res) {
             </div>`;
     }
     
-    // 3. Confusion Matrix
+    // 3. Confusion Matrix - DARI FRONTEND LAMA
     let matrix = '';
     if (res.confusion && res.confusion.length > 0) {
         const cm = res.confusion;
@@ -1860,15 +1626,15 @@ function renderEvaluation(res) {
             </div>`;
     }
     
-    // 4. Deployment Considerations
+    // 4. Deployment Considerations - DARI FRONTEND LAMA
     let deploymentInfo = `
         <div class="card mt-3">
             <div class="card-header bg-info text-white">
                 <h5><i class="icon-cloud"></i> 🚀 Pertimbangan Deployment</h5>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
+                <div class="mt-4">
+                    <div class="col-md-6">
                         <h6>Performansi Inference:</h6>
                         <ul>
                             <li><strong>Waktu Inference:</strong> ${res.inference_time_ms || 0} ms per sample</li>
@@ -1876,7 +1642,7 @@ function renderEvaluation(res) {
                             <li><strong>Konsumsi Memori:</strong> ${res.avg_memory_mb || 0} MB (training)</li>
                         </ul>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-6">
                         <h6>Rekomendasi Deployment:</h6>
                         <ul>
                             <li>${(res.inference_time_ms || 0) < 10 ? '✅ Cocok untuk real-time applications' : '⚠️ Pertimbangkan untuk optimasi lebih lanjut'}</li>
@@ -1892,17 +1658,18 @@ function renderEvaluation(res) {
 }
 
 // =============================================
-// DATA LOADING FUNCTIONS
+// UTILITY FUNCTIONS
 // =============================================
 
 function loadUniversalVisualizationData() {
-    showLoading("Memuat data visualisasi dengan sistem universal...");
+    $("#loading").show();
+    $("#statusMessage").html('<div class="alert alert-info">Memuat data visualisasi dengan sistem universal...</div>');
     
     $.ajax({
         url: "/perhitungan/load-visualization-data",
         type: "GET",
         success: function(res) {
-            hideLoading();
+            $("#loading").hide();
             if (res.has_visualization_data) {
                 renderUniversalArchitectureComparison(res);
                 
@@ -1917,18 +1684,23 @@ function loadUniversalVisualizationData() {
                 
                 successMsg += `</div>`;
                 
-                showMessage('success', successMsg);
+                $("#statusMessage").html(successMsg);
             } else {
-                showMessage('warning', res.message || "Data visualisasi tidak tersedia.");
+                $("#statusMessage").html(`
+                    <div class="alert alert-warning">
+                        <i class="icon-warning"></i> ${res.message || "Data visualisasi tidak tersedia."}
+                    </div>
+                `);
             }
         },
         error: function(xhr, status, error) {
-            hideLoading();
+            $("#loading").hide();
             let errorMsg = xhr.responseJSON?.error || error || "Unknown error";
-            if (xhr.status === 0) {
-                errorMsg = "Tidak dapat terhubung ke server. Periksa koneksi internet.";
-            }
-            showMessage('error', `Gagal memuat data visualisasi: ${errorMsg}`);
+            $("#statusMessage").html(`
+                <div class="alert alert-danger">
+                    <i class="icon-error"></i> Gagal memuat data visualisasi: ${errorMsg}
+                </div>
+            `);
         }
     });
 }
@@ -1979,56 +1751,6 @@ function validateDataConsistency() {
 $(function () {
     console.log("✅ SISTEM GABUNGAN TELAH DIAKTIFKAN");
     
-    // Tambahkan CSS untuk styling
-    if (!$('#universal-styles').length) {
-        $('head').append(`
-            <style id="universal-styles">
-                .best-architecture-row {
-                    background-color: #e8f5e9 !important;
-                    font-weight: bold;
-                    border-left: 4px solid #28a745 !important;
-                }
-                .table-excellent { background-color: #d1ecf1 !important; }
-                .table-good { background-color: #fff3cd !important; }
-                .table-fair { background-color: #f8d7da !important; }
-                .table-basic { background-color: #e2e3e5 !important; }
-                .best-badge {
-                    display: inline-block;
-                    margin-left: 5px;
-                    font-size: 12px;
-                    animation: pulse 2s infinite;
-                }
-                @keyframes pulse {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.1); }
-                    100% { transform: scale(1); }
-                }
-                .universal-best-info {
-                    border-left: 5px solid #28a745 !important;
-                    background: linear-gradient(135deg, #e8f5e9 0%, #d4edda 100%) !important;
-                    animation: slideIn 0.5s ease-out;
-                }
-                @keyframes slideIn {
-                    from { transform: translateY(-10px); opacity: 0; }
-                    to { transform: translateY(0); opacity: 1; }
-                }
-                .chart-container {
-                    position: relative;
-                    height: 400px;
-                    width: 100%;
-                }
-                @media (max-width: 768px) {
-                    .chart-container {
-                        height: 300px;
-                    }
-                }
-                .hidden-section {
-                    display: none !important;
-                }
-            </style>
-        `);
-    }
-    
     // Event handlers untuk chart controls
     $('.chart-controls').on('click', 'button', function() {
         const chartType = $(this).data('chart');
@@ -2036,30 +1758,30 @@ $(function () {
         $(this).removeClass('btn-outline-secondary').addClass('active btn-outline-primary');
         
         if (chartType === 'neuron-comparison') {
-            $('#neuron-select').addClass('d-none');
-            $('#training-detail').addClass('d-none');
+            $('#neuron-select').hide();
+            $('#training-detail').hide();
             if (window.learningCurveData) {
                 createLearningCurveChart(window.learningCurveData);
             }
         } else if (chartType === 'training-progress') {
-            $('#neuron-select').removeClass('d-none');
+            $('#neuron-select').show();
         }
     });
 
-    $('[data-chart-type]').on('click', function() {
+    $('[data-chart-type]').click(function() {
         const chartType = $(this).data('chart-type');
         $('[data-chart-type]').removeClass('active btn-outline-primary').addClass('btn-outline-secondary');
         $(this).removeClass('btn-outline-secondary').addClass('active btn-outline-primary');
-        $('.chart-section').addClass('d-none');
-        $(`#${chartType}-chart`).removeClass('d-none');
+        $('.chart-section').hide();
+        $(`#${chartType}-chart`).show();
     });
 
-    $('#neuron-select').on('change', function() {
+    $('#neuron-select').change(function() {
         const selectedNeuron = parseInt($(this).val());
         if (selectedNeuron) {
             // showTrainingProgress(selectedNeuron);
         } else {
-            $('#training-detail').addClass('d-none');
+            $('#training-detail').hide();
         }
     });
 
@@ -2070,31 +1792,31 @@ $(function () {
     });
 
     // Tombol toggle untuk menampilkan/sembunyikan optimization results
-    $('#toggle-optimization-view').on('click', function() {
+    $('#toggle-optimization-view').click(function() {
         const $btn = $(this);
         const isVisible = $('#optimization-results').is(':visible');
         
         if (isVisible) {
-            $('#optimization-results').addClass('d-none');
+            $('#optimization-results').hide();
             $btn.html('<i class="icon-eye"></i> Tampilkan Optimasi');
             $btn.removeClass('btn-primary').addClass('btn-outline-primary');
         } else {
-            $('#optimization-results').removeClass('d-none');
+            $('#optimization-results').show();
             $btn.html('<i class="icon-eye-slash"></i> Sembunyikan Optimasi');
             $btn.removeClass('btn-outline-primary').addClass('btn-primary');
         }
     });
 
     // Event handlers untuk tombol lainnya
-    $("#load-visualization-data").on('click', () => {
+    $("#load-visualization-data").click(() => {
         loadUniversalVisualizationData();
     });
 
-    $("#validate-consistency").on('click', () => {
+    $("#validate-consistency").click(() => {
         validateDataConsistency();
     });
 
-    $("#debug-cache").on('click', () => {
+    $("#debug-cache").click(() => {
         $.ajax({
             url: "/perhitungan/debug-cache",
             type: "GET",
@@ -2110,14 +1832,14 @@ $(function () {
 
     // Fungsi untuk memuat data tersimpan
     function loadSavedData() {
-        clearMessage();
-        showLoading("Memuat data hasil...");
+        $("#statusMessage").empty();
+        $("#loading").show();
         
         $.ajax({
             url: "/perhitungan/load-result",
             type: "GET",
             success: res => {
-                hideLoading();
+                $("#loading").hide();
                 if (res.train) {
                     renderTable(res.train, res.total_records || res.train.length, res.displayed_records || res.train.length);
                     renderEvaluation(res);
@@ -2132,22 +1854,22 @@ $(function () {
                         renderUniversalArchitectureComparison(res);
                     }
                     
-                    $('#review-table-box').removeClass('d-none');
-                    showMessage('success', 'Data hasil berhasil dimuat.');
+                    $('#review-table-box').show();
+                    $("#statusMessage").html(`<div class="alert alert-success"><i class="icon-check"></i> Data hasil berhasil dimuat.</div>`);
                 } else if (res.message) {
-                    showMessage('info', res.message);
+                    $("#statusMessage").html(`<div class="alert alert-info">${res.message}</div>`);
                     if (res.train) {
                         renderTable(res.train, res.total_records, res.displayed_records);
-                        $('#review-table-box').removeClass('d-none');
+                        $('#review-table-box').show();
                     }
                 }
             },
             error: xhr => {
-                hideLoading();
+                $("#loading").hide();
                 if (xhr.status === 404) {
-                    showMessage('warning', xhr.responseJSON?.error || "Tidak ada data tersimpan.");
+                    $("#statusMessage").html(`<div class="alert alert-warning">${xhr.responseJSON?.error || "Tidak ada data tersimpan."}</div>`);
                 } else {
-                    showMessage('error', xhr.responseJSON?.error || "Gagal memuat data.");
+                    $("#statusMessage").html(`<div class="alert alert-danger">${xhr.responseJSON?.error || "Gagal memuat data."}</div>`);
                 }
             }
         });
@@ -2160,19 +1882,19 @@ $(function () {
             type: "GET",
             success: res => {
                 if (res.has_result) {
-                    $("#result-check").removeClass('d-none');
-                    $("#upload-form").addClass('d-none');
+                    $("#result-check").show();
+                    $("#upload-form").hide();
                     if (res.has_cache) {
-                        $("#cache-info").removeClass('d-none');
+                        $("#cache-info").show();
                     }
                 } else {
-                    $("#result-check").addClass('d-none');
-                    $("#upload-form").removeClass('d-none');
+                    $("#result-check").hide();
+                    $("#upload-form").show();
                 }
             },
             error: () => {
-                $("#result-check").addClass('d-none');
-                $("#upload-form").removeClass('d-none');
+                $("#result-check").hide();
+                $("#upload-form").show();
             }
         });
     }
@@ -2181,13 +1903,13 @@ $(function () {
     checkExistingResult();
     
     // Event handler untuk tombol gunakan hasil sebelumnya
-    $("#use-existing").on('click', () => {
+    $("#use-existing").click(() => {
         hideSelectionOptions();
         
-        showLoading("Memuat hasil sebelumnya...");
-        clearMessage();
-        $("#optimization-results").addClass('d-none');
-        $("#architecture-comparison").addClass('d-none');
+        $("#loading").show();
+        $("#statusMessage").empty();
+        $("#optimization-results").hide();
+        $("#architecture-comparison").hide();
         
         $.ajax({
             url: "/perhitungan/process",
@@ -2196,11 +1918,11 @@ $(function () {
             processData: false,
             contentType: false,
             success: res => {
-                hideLoading();
+                $("#loading").hide();
                 if (res.error) {
-                    showMessage('error', res.error);
+                    $("#statusMessage").html(`<div class="alert alert-danger">${res.error}</div>`);
                 } else {
-                    showMessage('success', res.message);
+                    $("#statusMessage").html(`<div class="alert alert-success">${res.message}</div>`);
                     
                     // Tampilkan optimization results
                     renderOptimizationResults(res);
@@ -2211,90 +1933,70 @@ $(function () {
                     if (res.train) {
                         renderTable(res.train, res.total_records, res.displayed_records);
                         renderEvaluation(res);
-                        $('#review-table-box').removeClass('d-none');
+                        $('#review-table-box').show();
                     }
                 }
             },
             error: xhr => {
-                hideLoading();
-                showMessage('error', xhr.responseJSON?.error || "Gagal memuat data.");
+                $("#loading").hide();
+                $("#statusMessage").html(`<div class="alert alert-danger">${xhr.responseJSON?.error || "Gagal memuat data."}</div>`);
             }
         });
     });
     
     // Event handler untuk tombol gunakan cache
-    $("#use-cache").on('click', () => {
+    $("#use-cache").click(() => {
         hideSelectionOptions();
-        showLoading("Memuat data dari cache...");
+        $("#loading").show();
+        $("#statusMessage").html('<div class="alert alert-info">Memuat data dari cache...</div>');
         
         $.ajax({
             url: "/perhitungan/use-cache",
             type: "POST",
             success: res => {
-                hideLoading();
+                $("#loading").hide();
                 if (res.success) {
                     loadSavedData();
                 } else {
-                    showMessage('error', res.error || "Gagal memuat cache");
+                    $("#statusMessage").html(`<div class="alert alert-danger">${res.error || "Gagal memuat cache"}</div>`);
                 }
             },
             error: () => {
-                hideLoading();
-                showMessage('error', "Gagal memuat cache");
+                $("#loading").hide();
+                $("#statusMessage").html('<div class="alert alert-danger">Gagal memuat cache</div>');
             }
         });
     });
     
     // Event handler untuk tombol hapus cache
-    $("#clear-cache").on('click', () => {
+    $("#clear-cache").click(() => {
         if (confirm("Hapus cache?")) {
             $.post("/perhitungan/clear-cache", () => {
-                $("#cache-info").addClass('d-none');
-                showMessage('info', "Cache berhasil dihapus");
+                $("#cache-info").hide();
+                $("#statusMessage").html('<div class="alert alert-info">Cache berhasil dihapus</div>');
             });
         }
     });
     
     // Event handler untuk tombol latih model baru
-    $("#train-new").on('click', () => {
+    $("#train-new").click(() => {
         hideSelectionOptions();
-        $("#upload-form").removeClass('d-none');
-        $("#optimization-results").addClass('d-none');
-        $("#architecture-comparison").addClass('d-none');
+        $("#upload-form").show();
+        $("#optimization-results").hide();
+        $("#architecture-comparison").hide();
     });
 
-    // Event handler untuk form submit dengan validasi
-    $("#upload-form").on('submit', function (e) {
+    // Event handler untuk form submit
+    $("#upload-form").submit(function (e) {
         e.preventDefault();
-        
-        // Validasi file
-        const fileInput = $('#file');
-        const file = fileInput[0].files[0];
-        
-        if (!file) {
-            showMessage('warning', "Pilih file terlebih dahulu!");
-            return;
-        }
-        
-        // Validasi ekstensi
-        if (!file.name.toLowerCase().endsWith('.csv')) {
-            showMessage('warning', "Hanya file CSV yang diperbolehkan!");
-            return;
-        }
-        
-        // Validasi ukuran (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            showMessage('warning', "Ukuran file maksimal 10MB!");
-            return;
-        }
         
         $("#upload-form").addClass('hidden-section');
         
-        clearMessage();
-        showLoading("Memproses file dan melakukan optimasi...");
-        $("#optimization-results").addClass('d-none');
-        $("#architecture-comparison").addClass('d-none');
-        $("#review-table-box").addClass('d-none');
+        $("#statusMessage").empty();
+        $("#loading").show();
+        $("#optimization-results").hide();
+        $("#architecture-comparison").hide();
+        $("#review-table-box").hide();
 
         const formData = new FormData(this);
         $.ajax({
@@ -2304,12 +2006,12 @@ $(function () {
             processData: false,
             contentType: false,
             success: res => {
-                hideLoading();
+                $("#loading").hide();
                 if (res.error) {
-                    showMessage('error', res.error);
+                    $("#statusMessage").html(`<div class="alert alert-danger">${res.error}</div>`);
                     $("#upload-form").removeClass('hidden-section');
                 } else {
-                    showMessage('success', res.message);
+                    $("#statusMessage").html(`<div class="alert alert-success">${res.message}</div>`);
                     
                     // Tampilkan optimization results
                     renderOptimizationResults(res);
@@ -2320,60 +2022,45 @@ $(function () {
                     if (res.train) {
                         renderTable(res.train, res.total_records, res.displayed_records);
                         renderEvaluation(res);
-                        $('#review-table-box').removeClass('d-none');
+                        $('#review-table-box').show();
                     }
                 }
             },
             error: xhr => {
-                hideLoading();
-                let errorMsg = "Gagal memproses.";
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMsg = xhr.responseJSON.error;
-                } else if (xhr.status === 0) {
-                    errorMsg = "Tidak dapat terhubung ke server. Periksa koneksi internet.";
-                } else if (xhr.status === 413) {
-                    errorMsg = "File terlalu besar. Ukuran maksimal: 10MB.";
-                } else if (xhr.status === 415) {
-                    errorMsg = "Format file tidak didukung. Hanya file CSV yang diperbolehkan.";
-                }
-                showMessage('error', errorMsg);
+                $("#loading").hide();
+                let errorMsg = xhr.responseJSON?.error || "Gagal memproses.";
+                $("#statusMessage").html(`<div class="alert alert-danger">${errorMsg}</div>`);
                 $("#upload-form").removeClass('hidden-section');
             }
         });
     });
 
     // Event handler untuk tombol clear data
-    $("#clear-data").on('click', () => {
+    $("#clear-data").click(() => {
         if (confirm("Apakah Anda yakin ingin menghapus SEMUA data dan model?\n\n⚠️  Tindakan ini akan menghapus:\n• Model yang sudah dilatih\n• Cache visualisasi\n• Hasil perhitungan\n• Label encoder\n\nTindakan ini tidak dapat dibatalkan.")) {
             $.post("/perhitungan/clear", res => {
-                showMessage('info', res.message);
+                $("#statusMessage").html(`<div class="alert alert-info">${res.message}</div>`);
                 $("#table-header, #reviews-table-body, #eval-info, #data-info").empty();
-                $('#review-table-box').addClass('d-none');
-                $('#optimization-results').addClass('d-none');
-                $('#architecture-comparison').addClass('d-none');
+                $('#review-table-box').hide();
+                $('#optimization-results').hide();
+                $('#architecture-comparison').hide();
                 
-                $("#result-check").removeClass('hidden-section').removeClass('d-none');
-                $("#upload-form").addClass('d-none');
-                $("#cache-info").addClass('d-none');
+                $("#result-check").removeClass('hidden-section').show();
+                $("#upload-form").hide();
+                $("#cache-info").hide();
                 
                 setTimeout(() => {
                     location.reload();
                 }, 1500);
             }).fail(() => {
-                showMessage('error', "Gagal menghapus data.");
+                $("#statusMessage").html(`<div class="alert alert-danger">Gagal menghapus data.</div>`);
             });
         }
     });
 
     // Event handler untuk tombol muat ulang data
-    $("#load-saved-data").on('click', () => {
+    $("#load-saved-data").click(() => {
         loadSavedData();
-    });
-    
-    // Cleanup saat halaman ditutup
-    $(window).on('beforeunload', function() {
-        destroyAllCharts();
-        $(window).off('resize.charts');
     });
 });
 </script>
