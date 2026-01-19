@@ -98,6 +98,110 @@ def set_seeds(seed=42):
     tf.random.set_seed(seed)
 
 
+def get_metrics_safely(y_true, y_pred):
+    """Mendapatkan metrik dengan penanganan error yang aman untuk semua kasus"""
+    try:
+        # Pastikan y_true dan y_pred adalah array numpy
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        
+        # Hitung metrik makro
+        macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0) * 100
+        macro_precision = precision_score(y_true, y_pred, average="macro", zero_division=0) * 100
+        macro_recall = recall_score(y_true, y_pred, average="macro", zero_division=0) * 100
+        accuracy_val = accuracy_score(y_true, y_pred) * 100
+        
+        # Hitung metrik per kelas
+        try:
+            # Coba dengan average=None
+            precision_per_class = precision_score(y_true, y_pred, average=None, zero_division=0) * 100
+            recall_per_class = recall_score(y_true, y_pred, average=None, zero_division=0) * 100
+            f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0) * 100
+            
+            # Konversi ke list dengan aman
+            # Perbaikan: JANGAN gunakan hasattr() karena float tidak punya tolist()
+            if isinstance(precision_per_class, np.ndarray):
+                precision_per_class = precision_per_class.tolist()
+            elif isinstance(precision_per_class, (int, float)):
+                precision_per_class = [precision_per_class]  # Buat list dengan 1 elemen
+            elif isinstance(precision_per_class, list):
+                pass  # Sudah list, tidak perlu konversi
+            else:
+                try:
+                    precision_per_class = list(precision_per_class)
+                except:
+                    precision_per_class = []
+            
+            if isinstance(recall_per_class, np.ndarray):
+                recall_per_class = recall_per_class.tolist()
+            elif isinstance(recall_per_class, (int, float)):
+                recall_per_class = [recall_per_class]
+            elif isinstance(recall_per_class, list):
+                pass
+            else:
+                try:
+                    recall_per_class = list(recall_per_class)
+                except:
+                    recall_per_class = []
+            
+            if isinstance(f1_per_class, np.ndarray):
+                f1_per_class = f1_per_class.tolist()
+            elif isinstance(f1_per_class, (int, float)):
+                f1_per_class = [f1_per_class]
+            elif isinstance(f1_per_class, list):
+                pass
+            else:
+                try:
+                    f1_per_class = list(f1_per_class)
+                except:
+                    f1_per_class = []
+                
+        except Exception as e:
+            print(f"⚠️  Error menghitung metrik per kelas: {e}")
+            # Jika gagal, buat array kosong
+            precision_per_class = []
+            recall_per_class = []
+            f1_per_class = []
+        
+        return {
+            "macro_f1": macro_f1,
+            "macro_precision": macro_precision,
+            "macro_recall": macro_recall,
+            "accuracy": accuracy_val,
+            "precision_per_class": precision_per_class,
+            "recall_per_class": recall_per_class,
+            "f1_per_class": f1_per_class
+        }
+        
+    except Exception as e:
+        print(f"❌ Error dalam get_metrics_safely: {e}")
+        return {
+            "macro_f1": 0.0,
+            "macro_precision": 0.0,
+            "macro_recall": 0.0,
+            "accuracy": 0.0,
+            "precision_per_class": [],
+            "recall_per_class": [],
+            "f1_per_class": []
+        }
+
+
+def ensure_list(value):
+    """Memastikan nilai selalu berupa list untuk list comprehension"""
+    if value is None:
+        return []
+    if isinstance(value, (int, float)):
+        return [value]  # Konversi float tunggal ke list dengan 1 elemen
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, list):
+        return value
+    try:
+        return list(value)  # Coba konversi ke list
+    except:
+        return []
+
+
 class MemoryCallback(Callback):
     """Callback untuk melacak penggunaan memori"""
 
@@ -595,22 +699,6 @@ def clear_visualization_cache():
         return False, []
 
 
-def ensure_list(value):
-    """Memastikan nilai selalu berupa list untuk list comprehension"""
-    if value is None:
-        return []
-    if isinstance(value, (int, float)):
-        return [value]  # Konversi float tunggal ke list dengan 1 elemen
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, list):
-        return value
-    try:
-        return list(value)  # Coba konversi ke list
-    except:
-        return []
-
-
 # =============================================
 # FUNGSI MLP ARCHITECTURES
 # =============================================
@@ -836,9 +924,9 @@ def evaluate_architecture_with_hyperparams(
             "macro_precision": safe_round(metrics["macro_precision"]),
             "macro_recall": safe_round(metrics["macro_recall"]),
             "accuracy": safe_round(metrics["accuracy"]),
-            "precision_per_class": [safe_round(p) for p in metrics["precision_per_class"]],
-            "recall_per_class": [safe_round(r) for r in metrics["recall_per_class"]],
-            "f1_per_class": [safe_round(f) for f in metrics["f1_per_class"]],
+            "precision_per_class": [safe_round(p) for p in ensure_list(metrics["precision_per_class"])],
+            "recall_per_class": [safe_round(r) for r in ensure_list(metrics["recall_per_class"])],
+            "f1_per_class": [safe_round(f) for f in ensure_list(metrics["f1_per_class"])],
             "inference_time_ms": safe_round(inference_time_per_sample, 4),
             "confusion_matrix": safe_confusion_matrix(cm),
             "classification_report": class_report,
@@ -869,6 +957,7 @@ def evaluate_architecture_with_hyperparams(
             "error": str(e),
         }
         return error_result, None
+
 
 def generate_hyperparameter_combinations():
     """Generate semua kombinasi hyperparameter untuk grid search"""
@@ -1165,34 +1254,13 @@ def process_csv():
                 y_actual = df["Status"].astype(str)
                 y_pred = df["Prediksi"].astype(str)
 
-                # Hitung metrik evaluasi final dengan penanganan yang aman
-                macro_f1 = f1_score(y_actual, y_pred, average="macro", zero_division=0) * 100
-                accuracy_val = accuracy_score(y_actual, y_pred) * 100
+                # ✅ PERBAIKAN: Gunakan get_metrics_safely secara langsung
+                metrics = get_metrics_safely(y_actual, y_pred)
                 
-                # Hitung metrik per kelas - GUNAKAN average=None
-                try:
-                    precision_per_class = precision_score(y_actual, y_pred, average=None, zero_division=0) * 100
-                    recall_per_class = recall_score(y_actual, y_pred, average=None, zero_division=0) * 100
-                    f1_per_class = f1_score(y_actual, y_pred, average=None, zero_division=0) * 100
-                    
-                    # Konversi numpy array ke list jika perlu
-                    if hasattr(precision_per_class, 'tolist'):
-                        precision_per_class = precision_per_class.tolist()
-                    if hasattr(recall_per_class, 'tolist'):
-                        recall_per_class = recall_per_class.tolist()
-                    if hasattr(f1_per_class, 'tolist'):
-                        f1_per_class = f1_per_class.tolist()
-                        
-                except Exception as e:
-                    print(f"⚠️  Error menghitung metrik per kelas: {e}")
-                    precision_per_class = []
-                    recall_per_class = []
-                    f1_per_class = []
-                
-                # Pastikan selalu berupa list untuk list comprehension
-                precision_per_class = ensure_list(precision_per_class)
-                recall_per_class = ensure_list(recall_per_class)
-                f1_per_class = ensure_list(f1_per_class)
+                # Gunakan ensure_list untuk memastikan selalu berupa list
+                precision_per_class = ensure_list(metrics["precision_per_class"])
+                recall_per_class = ensure_list(metrics["recall_per_class"])
+                f1_per_class = ensure_list(metrics["f1_per_class"])
                 
                 labels = list(np.unique(y_actual))
                 cm = confusion_matrix(y_actual, y_pred, labels=labels)
@@ -1220,8 +1288,8 @@ def process_csv():
                 response_data = {
                     "message": "Data hasil sebelumnya berhasil dimuat dengan sistem universal.",
                     "train": df_display.to_dict(orient="records"),
-                    "macro_f1": safe_round(macro_f1),
-                    "accuracy": safe_round(accuracy_val),
+                    "macro_f1": safe_round(metrics["macro_f1"]),
+                    "accuracy": safe_round(metrics["accuracy"]),
                     "precision_per_class": [safe_round(p) for p in precision_per_class],
                     "recall_per_class": [safe_round(r) for r in recall_per_class],
                     "f1_per_class": [safe_round(f) for f in f1_per_class],
@@ -1325,10 +1393,10 @@ def process_csv():
         df_clean.to_csv(HASIL_CSV_PATH, index=False, encoding="utf-8-sig")
         print("💾 Hasil prediksi berhasil disimpan")
 
-        # Hitung metrik evaluasi final menggunakan fungsi baru
+        # ✅ PERBAIKAN: Gunakan get_metrics_safely secara langsung
         metrics = get_metrics_safely(y_actual, y_pred)
         
-        # Pastikan metrik per kelas adalah list
+        # Gunakan ensure_list untuk memastikan selalu berupa list
         precision_per_class = ensure_list(metrics["precision_per_class"])
         recall_per_class = ensure_list(metrics["recall_per_class"])
         f1_per_class = ensure_list(metrics["f1_per_class"])
@@ -1444,7 +1512,7 @@ def load_result():
             y_actual = df["Status"].astype(str)
             y_pred = df["Prediksi"].astype(str)
 
-            # Hitung metrik evaluasi final menggunakan fungsi baru
+            # ✅ PERBAIKAN: Gunakan get_metrics_safely secara langsung
             try:
                 metrics = get_metrics_safely(y_actual, y_pred)
                 
