@@ -108,8 +108,8 @@ def get_metrics_safely(y_true, y_pred):
         
         # Hitung metrik makro
         macro_f1 = f1_score(y_true, y_pred, average="macro", zero_division=0) * 100
-        macro_precision = precision_score(y_true, y_pred, average="macro", zero_division=0) * 100
-        macro_recall = recall_score(y_true, y_pred, average="macro", zero_division=0) * 100
+        macro_precision = precision_score(y_true, y_pred, average="weighted", zero_division=0) * 100
+        macro_recall = recall_score(y_true, y_pred, average="weighted", zero_division=0) * 100
         accuracy_val = accuracy_score(y_true, y_pred) * 100
         
         # Hitung metrik per kelas

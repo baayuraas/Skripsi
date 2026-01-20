@@ -90,8 +90,8 @@
                 <p class="mb-0">
                     <strong>Validation Accuracy:</strong> <span id="best-accuracy"></span>% | 
                     <strong>Macro F1:</strong> <span id="best-macro-f1"></span>% |
-                    <strong>Macro Precision:</strong> <span id="best-macro-precision"></span>% |
-                    <strong>Macro Recall:</strong> <span id="best-macro-recall"></span>%
+                    <strong>Precision:</strong> <span id="best-macro-precision"></span>% |
+                    <strong>Recall:</strong> <span id="best-macro-recall"></span>%
                 </p>
             </div>
 
@@ -234,8 +234,8 @@
                                             <th>Arsitektur</th>
                                             <th>Macro F1</th>
                                             <th>Val Accuracy</th>
-                                            <th>Macro Precision</th>
-                                            <th>Macro Recall</th>
+                                            <th>Precision</th>
+                                            <th>Recall</th>
                                             <th>Inference Time</th>
                                             <th>Memory</th>
                                             <th>Training Time</th>
@@ -808,15 +808,15 @@ function createPerformanceChart(comparisonData) {
     const colors = {
         'Macro F1': 'rgba(40, 167, 69, 0.8)',
         'Accuracy': 'rgba(54, 162, 235, 0.8)',
-        'Macro Precision': 'rgba(255, 99, 132, 0.8)',
-        'Macro Recall': 'rgba(255, 159, 64, 0.8)'
+        'Precision': 'rgba(255, 99, 132, 0.8)',
+        'Recall': 'rgba(255, 159, 64, 0.8)'
     };
     
     const borderColors = {
         'Macro F1': 'rgba(40, 167, 69, 1)',
         'Accuracy': 'rgba(54, 162, 235, 1)',
-        'Macro Precision': 'rgba(255, 99, 132, 1)',
-        'Macro Recall': 'rgba(255, 159, 64, 1)'
+        'Precision': 'rgba(255, 99, 132, 1)',
+        'Recall': 'rgba(255, 159, 64, 1)'
     };
     
     const highlightBackgrounds = comparisonData.labels.map((label, index) => {
@@ -851,19 +851,19 @@ function createPerformanceChart(comparisonData) {
                     order: 2
                 },
                 {
-                    label: 'Macro Precision',
+                    label: 'Precision',
                     data: comparisonData.macro_precision,
-                    backgroundColor: colors['Macro Precision'],
-                    borderColor: borderColors['Macro Precision'],
+                    backgroundColor: colors['Precision'],
+                    borderColor: borderColors['Precision'],
                     borderWidth: 1,
                     yAxisID: 'y',
                     order: 3
                 },
                 {
-                    label: 'Macro Recall',
+                    label: 'Recall',
                     data: comparisonData.macro_recall,
-                    backgroundColor: colors['Macro Recall'],
-                    borderColor: borderColors['Macro Recall'],
+                    backgroundColor: colors['Recall'],
+                    borderColor: borderColors['Recall'],
                     borderWidth: 1,
                     yAxisID: 'y',
                     order: 4
@@ -1483,7 +1483,7 @@ function renderEvaluation(res) {
                         <div class="card bg-danger text-white">
                             <div class="card-body">
                                 <h3>${res.macro_precision || res.macro_f1 || 0}%</h3>
-                                <h6>Macro Precision</h6>
+                                <h6>Precision</h6>
                                 <small>Rata-rata precision semua kelas</small>
                             </div>
                         </div>
@@ -1719,8 +1719,8 @@ function validateDataConsistency() {
                       `Arsitektur Terbaik: ${res.best_architecture}\n` +
                       `Val Accuracy: ${res.best_accuracy}%\n` +
                       `Macro F1: ${res.best_macro_f1}%\n` +
-                      `Macro Precision: ${res.best_macro_precision || 'N/A'}%\n` +
-                      `Macro Recall: ${res.best_macro_recall || 'N/A'}%\n` +
+                      `Precision: ${res.best_macro_precision || 'N/A'}%\n` +
+                      `Recall: ${res.best_macro_recall || 'N/A'}%\n` +
                       `Sistem: ${res.system_version || 'universal'}`);
             } else {
                 let inconsistencyMsg = `⚠️ ADA KETIDAKKONSISTENAN!\n\n` +
