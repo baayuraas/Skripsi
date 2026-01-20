@@ -356,11 +356,16 @@
 
 <!-- Results table and controls -->
 <div id="review-table-box" style="display: none;">
-    <div class="mt-3">
-        <div class="btn-group" role="group">
+    <div class="btn-toolbar flex-wrap" role="toolbar" aria-label="Toolbar with button groups">
+        <!-- Grup 1: Hapus Data -->
+        <div class="btn-group me-2 mb-2" role="group">
             <button id="clear-data" class="btn btn-danger">
                 <i class="icon-trash"></i> Hapus Data & Model
             </button>
+        </div>
+        
+        <!-- Grup 2: Download -->
+        <div class="btn-group me-2 mb-2" role="group">
             <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/model_mlp_custom.keras'">
                 <i class="icon-download"></i> Download Model
             </button>
@@ -370,12 +375,20 @@
             <button class="btn btn-outline-primary" onclick="window.location='/perhitungan/download/hasil_perhitungan.csv'">
                 <i class="icon-download"></i> Download Hasil
             </button>
+        </div>
+        
+        <!-- Grup 3: Muat Data -->
+        <div class="btn-group me-2 mb-2" role="group">
             <button id="load-saved-data" class="btn btn-outline-secondary">
                 <i class="icon-refresh"></i> Muat Ulang Data
             </button>
             <button id="load-visualization-data" class="btn btn-outline-info">
                 <i class="icon-chart"></i> Muat Data Visualisasi
             </button>
+        </div>
+        
+        <!-- Grup 4: Debug & Validasi -->
+        <div class="btn-group me-2 mb-2" role="group">
             <button id="debug-cache" class="btn btn-outline-warning">
                 <i class="icon-bug"></i> Debug Cache
             </button>
