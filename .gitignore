@@ -1,7 +1,0 @@
-﻿venv/
-s_venv/
-.env
-__pycache__/
-*.pyc
-.DS_Store
-*.sqlite3
